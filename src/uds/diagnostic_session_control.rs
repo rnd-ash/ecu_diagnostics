@@ -26,20 +26,20 @@ pub enum UDSSessionType {
     Other(u8),
 }
 
-impl Into<u8> for UDSSessionType {
-    fn into(self) -> u8 {
-        match &self {
+impl From<UDSSessionType> for u8 {
+    fn from(from: UDSSessionType) -> u8 {
+        match &from {
             UDSSessionType::Default => 0x01,
             UDSSessionType::Programming => 0x02,
             UDSSessionType::Extended => 0x03,
             UDSSessionType::SafetySystem => 0x04,
-            UDSSessionType::Other(x) => *x,
+            &UDSSessionType::Other(x) => x,
         }
     }
 }
 
 /// Tells the ECU to enter default diagnostic session mode
-/// 
+///
 /// ## Parameters
 /// * server - The UDS Diagnostic server
 pub fn set_default_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
@@ -52,7 +52,7 @@ pub fn set_default_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<()
 }
 
 /// Tells the ECU to enter a programming diagnostic session mode
-/// 
+///
 /// ## Parameters
 /// * server - The UDS Diagnostic server
 pub fn set_programming_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
@@ -65,7 +65,7 @@ pub fn set_programming_mode(server: &mut UdsDiagnosticServer) -> DiagServerResul
 }
 
 /// Tells the ECU to enter an extended diagnostic session mode
-/// 
+///
 /// ## Parameters
 /// * server - The UDS Diagnostic server
 pub fn set_extended_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
@@ -78,7 +78,7 @@ pub fn set_extended_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<(
 }
 
 /// Tells the ECU to enter a safety system diagnostic session mode
-/// 
+///
 /// ## Parameters
 /// * server - The UDS Diagnostic server
 pub fn set_safety_system_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
@@ -91,7 +91,7 @@ pub fn set_safety_system_mode(server: &mut UdsDiagnosticServer) -> DiagServerRes
 }
 
 /// Tells the ECU to enter a custom diagnostic session mode
-/// 
+///
 /// ## Parameters
 /// * server - The UDS Diagnostic server
 /// * custom_mode_id - Custom diagnostic session mode

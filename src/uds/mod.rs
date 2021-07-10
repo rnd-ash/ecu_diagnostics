@@ -1,7 +1,7 @@
 //! Module for UDS (Unified diagnostic services - ISO14229)
 //!
 //! Theoretically, this module should be compliant with any ECU which implements
-// UDS (Typically any ECU produced after 2006 supports this) 
+//! UDS (Typically any ECU produced after 2006 supports this)
 
 use std::{
     intrinsics::transmute,
@@ -9,12 +9,13 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
     },
+    thread::JoinHandle,
     time::Instant,
 };
 
 use crate::{
-    helpers, BaseChannel, BaseServerPayload, BaseServerSettings, DiagError, DiagServerLogger,
-    DiagServerResult, IsoTPChannel, IsoTPSettings,
+    helpers, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, channel::IsoTPChannel,
+    channel::IsoTPSettings, ServerEvent, ServerEventHandler,
 };
 
 use self::diagnostic_session_control::UDSSessionType;
@@ -23,11 +24,9 @@ pub mod diagnostic_session_control;
 pub mod ecu_reset;
 pub mod security_access;
 
-#[cfg(test)]
-mod test;
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// UDS Command Service IDs
+#[allow(missing_docs)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UDSCommand {
     /// Diagnostic session control. See [diagnostic_session_control]
     DiagnosticSessionControl = 0x10,
@@ -85,10 +84,10 @@ pub enum UDSError {
     /// For example, if [security_access::send_key] is used before [security_access::request_seed],
     /// then the ECU will respond with this error.
     RequestSequenceError,
-    /// The ECU cannot perform the request as it has timed out trying to communicate with another 
+    /// The ECU cannot perform the request as it has timed out trying to communicate with another
     /// component within the vehicle.
     NoResponseFromSubnetComponent,
-    /// The ECU cannot perform the requested action as there is currently a DTC 
+    /// The ECU cannot perform the requested action as there is currently a DTC
     /// or failure of a component that is preventing the execution of the request.
     FailurePreventsExecutionOfRequestedAction,
     /// The request message contains data outside of a valid range
@@ -217,8 +216,6 @@ impl From<u8> for UDSError {
 #[derive(Debug, Copy, Clone)]
 /// UDS server options
 pub struct UdsServerOptions {
-    /// Baud rate (Connection speed)
-    pub baud: u32,
     /// ECU Send ID
     pub send_id: u32,
     /// ECU Receive ID
@@ -231,8 +228,6 @@ pub struct UdsServerOptions {
     pub global_tp_id: Option<u32>,
     /// Tester present minimum send interval in ms
     pub tester_present_interval_ms: u32,
-    /// Server refresh interval (For writing/reading). A sensible value is 10ms
-    pub server_refresh_interval_ms: u32,
     /// Configures if the diagnostic server will poll for a response from tester present.
     pub tester_present_require_response: bool,
 }
@@ -255,6 +250,7 @@ pub struct UdsCmd {
 }
 
 impl UdsCmd {
+    /// Creates a new UDS Payload
     pub fn new(sid: UDSCommand, args: &[u8], need_response: bool) -> Self {
         let mut b: Vec<u8> = Vec::with_capacity(args.len() + 1);
         b.push(sid as u8);
@@ -264,6 +260,8 @@ impl UdsCmd {
             response_required: need_response,
         }
     }
+
+    /// Returns the UDS Service ID of the command
     pub fn get_uds_sid(&self) -> UDSCommand {
         unsafe { transmute(self.bytes[0]) } // This unsafe operation will always succeed!
     }
@@ -287,6 +285,15 @@ impl BaseServerPayload for UdsCmd {
     }
 }
 
+/// Base handler for UDS
+#[derive(Debug, Copy, Clone)]
+pub struct UdsVoidHandler;
+
+impl ServerEventHandler<UDSSessionType, UdsCmd> for UdsVoidHandler {
+    #[inline(always)]
+    fn on_event(&mut self, _e: ServerEvent<UDSSessionType, UdsCmd>) {}
+}
+
 #[derive(Debug)]
 /// UDS Diagnostic server
 pub struct UdsDiagnosticServer {
@@ -294,6 +301,9 @@ pub struct UdsDiagnosticServer {
     settings: UdsServerOptions,
     tx: mpsc::Sender<UdsCmd>,
     rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
+    join_handler: JoinHandle<()>,
+    repeat_count: u32,
+    repeat_interval: std::time::Duration,
 }
 
 impl UdsDiagnosticServer {
@@ -306,18 +316,21 @@ impl UdsDiagnosticServer {
     /// * settings - UDS Server settings
     /// * channel - ISO-TP communication channel with the ECU
     /// * channel_cfg - The settings to use for the ISO-TP channel
-    /// * event_handler - Optional handler for logging events happening within the server
-    pub fn new_over_iso_tp(
+    /// * event_handler - Handler for logging events happening within the server. If you don't want
+    /// to create your own handler, use [UdsVoidHandler]
+    pub fn new_over_iso_tp<C, E>(
         settings: UdsServerOptions,
-        channel: Box<dyn IsoTPChannel>,
+        mut server_channel: C,
         channel_cfg: IsoTPSettings,
-        event_handler: Option<Box<dyn DiagServerLogger<UDSSessionType, UdsCmd>>>,
-    ) -> DiagServerResult<Self> {
-        let mut server_channel = channel.clone();
-
-        server_channel.set_baud(settings.baud)?;
-        server_channel.set_ids(settings.send_id, settings.recv_id, settings.global_tp_id)?;
-        server_channel.configure_iso_tp(channel_cfg)?;
+        mut event_handler: E,
+    ) -> DiagServerResult<Self>
+    where
+        C: IsoTPChannel + 'static,
+        E: ServerEventHandler<UDSSessionType, UdsCmd> + 'static,
+    {
+        server_channel.set_iso_tp_cfg(channel_cfg)?;
+        server_channel.set_ids(settings.send_id, settings.recv_id)?;
+        server_channel.open()?;
 
         let is_running = Arc::new(AtomicBool::new(true));
         let is_running_t = is_running.clone();
@@ -325,23 +338,14 @@ impl UdsDiagnosticServer {
         let (tx_cmd, rx_cmd) = mpsc::channel::<UdsCmd>();
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
-        let server_opts = settings.clone();
-
-        std::thread::spawn(move || {
+        let handle = std::thread::spawn(move || {
             let mut send_tester_present = false;
             let mut last_tester_present_time: Instant = Instant::now();
 
-            let mut base_channel = server_channel.clone_base();
-
-            if let Some(h) = &event_handler {
-                h.on_server_start()
-            }
+            event_handler.on_event(ServerEvent::ServerStart);
 
             loop {
-                if is_running_t.load(Ordering::Relaxed) == false {
-                    if let Some(h) = &event_handler {
-                        h.on_server_exit()
-                    }
+                if !is_running_t.load(Ordering::Relaxed) {
                     break;
                 }
 
@@ -349,7 +353,7 @@ impl UdsDiagnosticServer {
                     // We have an incoming command
                     if cmd.get_uds_sid() == UDSCommand::DiagnosticSessionControl {
                         // Session change! Handle this differently
-                        match helpers::perform_cmd(&cmd, &settings, &mut base_channel, 0x78) {
+                        match helpers::perform_cmd(settings.send_id, &cmd, &settings, &mut server_channel, 0x78) {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
                                 // Set server session type
@@ -362,37 +366,41 @@ impl UdsDiagnosticServer {
                                     last_tester_present_time = Instant::now();
                                 }
                                 // Send response to client
-                                if let Err(_) = tx_res.send(Ok(res)) {
+                                if tx_res.send(Ok(res)).is_err() {
                                     // Terminate! Something has gone wrong and data can no longer be sent to client
                                     is_running_t.store(false, Ordering::Relaxed);
-                                    if let Some(h) = &event_handler {
-                                        h.on_critical_error("Channel Tx SendError occurred");
-                                    }
+                                    event_handler.on_event(ServerEvent::CriticalError {
+                                        desc: "Channel Tx SendError occurred".into(),
+                                    })
                                 }
                             }
                             Err(e) => {
-                                if let Err(_) = tx_res.send(Err(e)) {
+                                if tx_res.send(Err(e)).is_err() {
                                     // Terminate! Something has gone wrong and data can no longer be sent to client
                                     is_running_t.store(false, Ordering::Relaxed);
-                                    if let Some(h) = &event_handler {
-                                        h.on_critical_error("Channel Tx SendError occurred");
-                                    }
+                                    event_handler.on_event(ServerEvent::CriticalError {
+                                        desc: "Channel Tx SendError occurred".into(),
+                                    })
                                 }
                             }
                         }
                     } else {
                         // Generic command just perform it
-                        if let Err(_) = tx_res.send(helpers::perform_cmd(
-                            &cmd,
-                            &settings,
-                            &mut base_channel,
-                            0x78,
-                        )) {
+                        if tx_res
+                            .send(helpers::perform_cmd(
+                                settings.send_id,
+                                &cmd,
+                                &settings,
+                                &mut server_channel,
+                                0x78, // UDSError::RequestCorrectlyReceivedResponsePending
+                            ))
+                            .is_err()
+                        {
                             // Terminate! Something has gone wrong and data can no longer be sent to client
                             is_running_t.store(false, Ordering::Relaxed);
-                            if let Some(h) = &event_handler {
-                                h.on_critical_error("Channel Tx SendError occurred");
-                            }
+                            event_handler.on_event(ServerEvent::CriticalError {
+                                desc: "Channel Tx SendError occurred".into(),
+                            })
                         }
                     }
                 }
@@ -404,18 +412,20 @@ impl UdsDiagnosticServer {
                 {
                     // Send tester present message
                     let cmd = UdsCmd::new(UDSCommand::TesterPresent, &[0x00], true);
-                    if let Err(e) = helpers::perform_cmd(&cmd, &settings, &mut base_channel, 0x78) {
-                        if let Some(h) = &event_handler {
-                            h.on_tester_present_error(e)
-                        }
+                    let addr = settings.global_tp_id.unwrap_or(settings.send_id);
+
+                    if let Err(e) = helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78)
+                    {
+                        event_handler.on_event(ServerEvent::TesterPresentError(e))
                     }
                     last_tester_present_time = Instant::now();
                 }
 
-                std::thread::sleep(std::time::Duration::from_millis(
-                    server_opts.server_refresh_interval_ms as u64,
-                ));
+                std::thread::sleep(std::time::Duration::from_millis(10));
             }
+            // Goodbye server
+            event_handler.on_event(ServerEvent::ServerExit);
+            server_channel.close();
         });
 
         Ok(Self {
@@ -423,6 +433,9 @@ impl UdsDiagnosticServer {
             tx: tx_cmd,
             rx: rx_res,
             settings,
+            join_handler: handle,
+            repeat_count: 3,
+            repeat_interval: std::time::Duration::from_millis(1000)
         })
     }
 
@@ -451,7 +464,25 @@ impl UdsDiagnosticServer {
         args: &[u8],
     ) -> DiagServerResult<Vec<u8>> {
         let cmd = UdsCmd::new(sid, args, true);
-        self.exec_command(cmd)
+
+        if self.repeat_count == 0 {
+            self.exec_command(cmd)
+        } else {
+            let mut last_err: Option<DiagError> = None;
+            for _ in 0..self.repeat_count {
+                let start = Instant::now();
+                match self.exec_command(cmd.clone()) {
+                    Ok(resp) => return Ok(resp),
+                    Err(e) => {
+                        last_err = Some(e);
+                        if let Some(sleep_time) = self.repeat_interval.checked_sub(start.elapsed()) {
+                            std::thread::sleep(sleep_time)
+                        }
+                    }
+                }
+            }
+            return Err(last_err.unwrap());
+        }
     }
 
     /// Send a command to the ECU, but don't receive a response
@@ -468,8 +499,18 @@ impl UdsDiagnosticServer {
     fn exec_command(&mut self, cmd: UdsCmd) -> DiagServerResult<Vec<u8>> {
         match self.tx.send(cmd) {
             Ok(_) => self.rx.recv().unwrap_or(Err(DiagError::ServerNotRunning)),
-            Err(_) => return Err(DiagError::ServerNotRunning), // Server must have crashed!
+            Err(_) => Err(DiagError::ServerNotRunning), // Server must have crashed!
         }
+    }
+
+    /// Sets the command retry counter
+    pub fn set_repeat_count(&mut self, count: u32) {
+        self.repeat_count = count
+    }
+
+    /// Sets the command retry interval
+    pub fn set_repeat_interval_count(&mut self, interval_ms: u32) {
+        self.repeat_interval = std::time::Duration::from_millis(interval_ms as u64)
     }
 }
 

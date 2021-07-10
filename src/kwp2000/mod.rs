@@ -7,7 +7,7 @@
 //! * Jeep
 //! * Mitsubishi
 //! * Daimler (Mercedes-Benz and SMART)
-//! 
+//!
 //! Other manufacturer's ECUs might also work, however they are untested.
-//! 
+//!
 //! based on KWP2000 v2.2 (05/08/02)

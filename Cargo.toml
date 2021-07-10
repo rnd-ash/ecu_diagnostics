@@ -1,6 +1,6 @@
 [package]
 name = "ecu_diagnostics"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Ashcon Mohseninia <ashconm@outlook.com>"]
 edition = "2018"
 description = "A rust crate for ECU diagnostic servers"
@@ -12,6 +12,15 @@ keywords = ["ecu", "kwp2000", "uds", "obd2", "cars"]
 [lib]
 name = "ecu_diagnostics"
 
+[badges]
+maintenance = { status = "actively-developed" }
+
 [package.metadata.docs.rs]
 all-features = true
 default-target = "i686-pc-windows-msvc"
+
+
+[workspace]
+members = [
+    "examples/uds_over_socketcan"
+]

@@ -1,12 +1,52 @@
+#![deny(missing_docs, missing_debug_implementations)]
+
+//! A crate which provides the most common ECU diagnostic protocols used by modern ECUs in vehicles.
+//!
+//! ## Protocol support
+//!
+//! This crate provides the 3 most widely used diagnostic protocols used by modern ECUs from 2000 onwards
+//!
+//! ### On-board diagnostics (OBD2)
+//! ISO9141 - OBD2 is a legal requirement on all vehicles produced from 2002, allowing for
+//! reading of sensor data, reading and clearing standard DTCs, and reading basic vehicle information.
+//! OBD2 is designed to be safe and simple, and does not write data to the ECU.
+//!
+//!
+//!
+//! ### Keyword protocol 2000 (KWP2000)
+//! ISO14230 - KWP2000 is a advanced diagnostic protocol utilized by many vehicle manufacturers from 2000-2006 (Superseded by UDS).
+//! Unlike OBD2, KWP2000 allows for much more complex operations, which could potentially cause damage to a vehicle if used incorrectly.  
+//! A few examples of features allowed by KWP2000 are
+//! * ECU flashing
+//! * Clearing and reading of permanent DTCs
+//! * Manipulation of ECU communication parameters
+//! * Low level manipulation of ECU's EEPROM or RAM
+//! * Gateway access in vehicles which have them
+//!
+//! The specification implemented in this crate is v2.2, dated 05-08-2002
+//!
+//! ### Unified diagnostic services (UDS)
+//! ISO14429 - UDS is an advanced diagnostic protocol utilized by almost all vehicle manufacturers from 2006 onwards. Like KWP2000,
+//! this protocol allows for reading/writing directly to the ECU, and should therefore be used with caution.
+//!
+//! The specification implemented in this crate is the second edition, dated 01-12-2006.
+//!
+//! ## Usage
+//! In order to utilize any of the diagnostic servers, you will need
+//! to implement the [BaseChannel] trait, which allows for the diagnostic servers
+//! to send and receive data to/from the ECU, regardless of the transport layer used.
+//!
+
+use channel::ChannelError;
+
 pub mod kwp2000;
 pub mod obd2;
 pub mod uds;
-
-extern crate alloc;
-use alloc::vec::Vec;
+pub mod channel;
 
 mod helpers;
 
+/// Diagnostic server result
 pub type DiagServerResult<T> = Result<T, DiagError>;
 
 #[derive(Debug)]
@@ -14,10 +54,6 @@ pub type DiagServerResult<T> = Result<T, DiagError>;
 pub enum DiagError {
     /// The Diagnostic server does not support the request
     NotSupported,
-    /// IO Error when reading or writing to the ECU
-    IOError(std::io::Error),
-    /// Timeout occurred
-    Timeout,
     /// Diagnostic error code from the ECU itself
     ECUError(u8),
     /// Response empty
@@ -28,71 +64,76 @@ pub enum DiagError {
     ServerNotRunning,
     /// ECU Responded with a message, but the length was incorrect
     InvalidResponseLength,
+    /// Error with underlying communication channel
+    ChannelError(ChannelError),
+}
+impl std::fmt::Display for DiagError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DiagError::NotSupported => write!(f, "request not supported"),
+            DiagError::ECUError(err) => write!(f, "ECU error 0x{:02X}", err),
+            DiagError::EmptyResponse => write!(f, "ECU provided an empty response"),
+            DiagError::WrongMessage => write!(f, "ECU response message did not match request"),
+            DiagError::ServerNotRunning => write!(f, "diagnostic server not running"),
+            DiagError::InvalidResponseLength => {
+                write!(f, "ECU response message was of invalid length")
+            }
+            DiagError::ChannelError(err) => write!(f, "underlying channel error: {}", err),
+        }
+    }
+}
+impl std::error::Error for DiagError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        if let DiagError::ChannelError(err) = self {
+            Some(err)
+        } else {
+            None
+        }
+    }
 }
 
-/// Base trait for interfacing with an ECU.
-/// This trait allows you to write or read bytes from an ECUs interface
-pub trait BaseChannel: Send + Sync {
-    /// Clones this trait's box
-    fn clone_base(&self) -> Box<dyn BaseChannel>;
-
-    /// Sets the baud rate of the channel
-    ///
-    /// ## Parameters
-    /// * baud - The baud rate of the channel
-    fn set_baud(&mut self, baud: u32) -> DiagServerResult<()>;
-    /// Configures the diagnostic channel with specific IDs for configuring the diagnostic server
-    ///
-    /// ## Parameters
-    /// * send - Send ID (ECU will listen for data with this ID)
-    /// * recv - Receiving ID (ECU will send data with this ID)
-    /// * global_tp_id - Optional ID for global tester present messages. Required for certain ECUs
-    fn set_ids(&mut self, send: u32, recv: u32, global_tp_id: Option<u32>) -> DiagServerResult<()>;
-
-    /// Attempts to read bytes from the channel.
-    ///
-    /// ## Parameters
-    /// * timeout_ms - Timeout for reading bytes. If a value of 0 is used, it instructs the channel to immediately
-    /// return with whatever was in its receiving buffer
-    fn read_bytes(&mut self, timeout_ms: u32) -> DiagServerResult<Vec<u8>>;
-
-    /// Attempts to write bytes to the channel
-    ///
-    /// ## Parameters
-    /// * buffer - The buffer of bytes to write to the channel
-    /// * timeout_ms - Timeout for writing bytes. If a value of 0 is used, it tells the channel to write without checking if
-    /// data was actually written.
-    fn write_bytes(&mut self, buffer: &[u8], timeout_ms: u32) -> DiagServerResult<()>;
-
-    /// Attempts to write bytes to the channel, then listen for the channels response
-    ///
-    /// ## Parameters
-    /// * buffer - The buffer of bytes to write to the channel as the request
-    /// * write_timeout_ms - Timeout for writing bytes. If a value of 0 is used, it tells the channel to write without checking if
-    /// data was actually written.
-    /// * read_timeout_ms - Timeout for reading bytes. If a value of 0 is used, it instructs the channel to immediately
-    /// return with whatever was in its receiving buffer
-    fn read_write_bytes(
-        &mut self,
-        buffer: &[u8],
-        write_timeout_ms: u32,
-        read_timeout_ms: u32,
-    ) -> DiagServerResult<Vec<u8>> {
-        self.write_bytes(buffer, write_timeout_ms)?;
-        self.read_bytes(read_timeout_ms)
+impl From<ChannelError> for DiagError {
+    fn from(x: ChannelError) -> Self {
+        Self::ChannelError(x)
     }
-
-    /// Tells the channel to clear its Rx buffer
-    fn clear_rx_buffer(&mut self) -> DiagServerResult<()>;
-
-    /// Tells the channel to clear its Tx buffer
-    fn clear_tx_buffer(&mut self) -> DiagServerResult<()>;
 }
 
-impl Clone for Box<dyn BaseChannel> {
-    fn clone(&self) -> Self {
-        self.clone_base()
-    }
+#[derive(Debug)]
+/// Diagnostic server event
+pub enum ServerEvent<SessionState, RequestType> {
+    /// The diagnostic server encountered an unrecoverable critical error
+    CriticalError {
+        /// Text description of the error
+        desc: String,
+    },
+    /// The diagnostic server has started
+    ServerStart,
+    /// The diagnostic server has terminated
+    ServerExit,
+    /// The diagnostic server has changed session state
+    DiagModeChange {
+        /// Old session state
+        old: SessionState,
+        /// New session state
+        new: SessionState,
+    },
+    /// Received a request to send a payload to the ECU
+    IncomingEvent(RequestType),
+    /// Response from the ECU
+    OutgoingEvent(DiagServerResult<RequestType>),
+    /// An error occurred whilst transmitting tester present message
+    /// To the ECU. This might mean that the ECU has exited its session state,
+    /// and a non-default session state should be re-initialized
+    TesterPresentError(DiagError),
+}
+
+unsafe impl<SessionType, RequestType> Send for ServerEvent<SessionType, RequestType> {}
+unsafe impl<SessionType, RequestType> Sync for ServerEvent<SessionType, RequestType> {}
+
+/// Handler for when [ServerEvent] get broadcast by the diagnostic servers background thread
+pub trait ServerEventHandler<SessionState, RequestType>: Send + Sync {
+    /// Handle incoming server events
+    fn on_event(&mut self, e: ServerEvent<SessionState, RequestType>);
 }
 
 /// Basic diagnostic server settings
@@ -114,82 +155,3 @@ pub trait BaseServerPayload {
     /// Boolean indicating if the diagnostic server should poll the ECU for a response after sending the payload
     fn requires_response(&self) -> bool;
 }
-
-/// Handler for various events within the diagnostic server. This is useful for logging
-pub trait DiagServerLogger<SessionType, RequestType>: Send + Sync {
-    /// Called when the diagnostic server encounters a critical error, and cannot continue operation
-    fn on_critical_error(&self, err_desc: &str);
-    /// Called when the server exists
-    fn on_server_exit(&self);
-    /// Called when there is an error sending a tester present message to the ECU.
-    /// In the event this occurs, the ECU could exit an extended diagnostic session
-    fn on_tester_present_error(&self, err: DiagError);
-    /// Called when the diagnostic session mode changes
-    fn on_diag_session_change(&self, res: DiagServerResult<SessionType>);
-    /// Called when the server starts
-    fn on_server_start(&self);
-    /// Called when the server receives a request payload from the client
-    fn on_request(&self, req: RequestType);
-    /// Called when the server sends a response payload back to the client
-    fn on_respond(&self, res: DiagServerResult<Vec<u8>>);
-}
-
-/// Extended trait for [BaseChannel] when utilizing ISO-TP to send data to the ECU
-pub trait IsoTPChannel: BaseChannel {
-    /// Configures the ISO-TP Channel
-    ///
-    /// ## Parameters
-    /// * block_size - The ISO-TP block size
-    /// * st_min - The ISO-TP minimum separation time (in milliseconds)
-    fn configure_iso_tp(&mut self, cfg: IsoTPSettings) -> DiagServerResult<()>;
-
-    /// Clones this box
-    fn clone_isotp(&self) -> Box<dyn IsoTPChannel>;
-
-    /// Downcasts this to a [BaseChannel]
-    fn into_base(&self) -> Box<dyn BaseChannel>;
-}
-
-impl Clone for Box<dyn IsoTPChannel> {
-    fn clone(&self) -> Self {
-        self.clone_isotp()
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-/// ISO-TP configuration options
-pub struct IsoTPSettings {
-    /// Block size
-    pub block_size: u8,
-    /// Minimum separation time between CAN Frames (In milliseconds)
-    pub st_min: u8,
-    /// Use extended ISO-TP addressing (NOT EXTENDED CAN)
-    pub extended_addressing: bool,
-    /// Pad frames over ISO-TP if data size < 8
-    pub pad_frame: bool,
-}
-
-impl Default for IsoTPSettings {
-    fn default() -> Self {
-        Self {
-            block_size: 8,
-            st_min: 20,
-            extended_addressing: false,
-            pad_frame: true,
-        }
-    }
-}
-
-/*
-#[derive(Debug, Copy, Clone)]
-pub struct DTC {
-    pub id: u32,
-    pub state: DTCState,
-    pub mil_on: bool
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum DTCState {
-
-}
-*/
