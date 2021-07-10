@@ -1,14 +1,43 @@
-use std::{intrinsics::transmute, sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}, mpsc}, time::{Duration, Instant}};
+//! Module for UDS (Unified diagnostic services - ISO14229)
+//!
+//! Theoretically, this module should be compliant with any ECU which implements
+// UDS (Typically any ECU produced after 2006 supports this) 
 
-use crate::{BaseChannel, DiagError, DiagServerResult, IsoTPChannel, IsoTPSettings};
+use std::{
+    intrinsics::transmute,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc,
+    },
+    time::Instant,
+};
 
+use crate::{
+    helpers, BaseChannel, BaseServerPayload, BaseServerSettings, DiagError, DiagServerLogger,
+    DiagServerResult, IsoTPChannel, IsoTPSettings,
+};
+
+use self::diagnostic_session_control::UDSSessionType;
+
+pub mod diagnostic_session_control;
+pub mod ecu_reset;
+pub mod security_access;
+
+#[cfg(test)]
+mod test;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// UDS Command Service IDs
 pub enum UDSCommand {
+    /// Diagnostic session control. See [diagnostic_session_control]
     DiagnosticSessionControl = 0x10,
+    /// ECU Reset. See [ecu_reset]
     ECUReset = 0x11,
+    /// Security access. See [security_access]
     SecurityAccess = 0x27,
+    /// Controls communication functionality of the ECU
     CommunicationControl = 0x28,
+    /// Tester present command.
     TesterPresent = 0x3E,
     AccessTimingParameters = 0x83,
     SecuredDataTransmission = 0x84,
@@ -29,75 +58,109 @@ pub enum UDSCommand {
     RequestDownload = 0x34,
     RequestUpload = 0x35,
     TransferData = 0x36,
-    RequestTransferExit = 0x37
-}
-
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum UDSSessionType {
-    Default,
-    Programming,
-    Extended,
-    SafetySystem,
-    Other(u8)
-}
-
-impl Into<u8> for UDSSessionType {
-    fn into(self) -> u8 {
-        match &self {
-            UDSSessionType::Default => 0x01,
-            UDSSessionType::Programming => 0x02,
-            UDSSessionType::Extended => 0x03,
-            UDSSessionType::SafetySystem => 0x04,
-            UDSSessionType::Other(x) => *x,
-        }
-    }
+    RequestTransferExit = 0x37,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// UDS Error definitions
 pub enum UDSError {
+    /// ECU rejected the request (No specific error)
     GeneralReject,
+    /// Service is not supported by the ECU
     ServiceNotSupported,
+    /// Sub function is not supported by the ECU
     SubFunctionNotSupported,
+    /// Request message was an invalid length, or the format of the
+    /// request was incorrect
     IncorrectMessageLengthOrInvalidFormat,
+    /// The response message is too long for the transport protocol
     ResponseTooLong,
+    /// The ECU is too busy to perform this request. Therefore, the request
+    /// Should be sent again if this error occurs
     BusyRepeatRequest,
+    /// The requested action could not be preformed due to the prerequisite conditions
+    /// not being correct
     ConditionsNotCorrect,
+    /// The ECU cannot perform the request as the request has been sent in the incorrect order.
+    /// For example, if [security_access::send_key] is used before [security_access::request_seed],
+    /// then the ECU will respond with this error.
     RequestSequenceError,
+    /// The ECU cannot perform the request as it has timed out trying to communicate with another 
+    /// component within the vehicle.
     NoResponseFromSubnetComponent,
+    /// The ECU cannot perform the requested action as there is currently a DTC 
+    /// or failure of a component that is preventing the execution of the request.
     FailurePreventsExecutionOfRequestedAction,
+    /// The request message contains data outside of a valid range
     RequestOutOfRange,
+    /// The request could not be completed due to security access being denied.
     SecurityAccessDenied,
+    /// The key sent from [security_access::send_key] was invalid
     InvalidKey,
+    /// The client has tried to obtain security access to the ECU too many times with
+    /// incorrect keys
     ExceedNumberOfAttempts,
+    /// The client has tried to request seed_key's too quickly, before the ECU timeout's period
+    /// has expired
     RequiredTimeDelayNotExpired,
+    /// The ECU cannot accept the requested upload/download request due to a fault condition
     UploadDownloadNotAccepted,
+    /// The ECU has halted data transfer due to a fault condition
     TransferDataSuspended,
+    /// The ECU has encountered an error during reprogramming (erasing / flashing)
     GeneralProgrammingFailure,
+    /// The ECU has detected the reprogramming error as the blockSequenceCounter is incorrect.
     WrongBlockSequenceCounter,
+    /// The ECU has accepted the request, but cannot reply right now. If this error occurs,
+    /// the [UdsDiagnosticServer] will automatically stop sending tester present messages and
+    /// will wait for the ECUs response. If after 2000ms, the ECU did not respond, then this error
+    /// will get returned back to the function call.
     RequestCorrectlyReceivedResponsePending,
+    /// The sub function is not supported in the current diagnostic session mode
     SubFunctionNotSupportedInActiveSession,
+    /// The service is not supported in the current diagnostic session mode
     ServiceNotSupportedInActiveSession,
+    /// Engine RPM is too high
     RpmTooHigh,
+    /// Engine RPM is too low
     RpmTooLow,
+    /// Engine is running
     EngineIsRunning,
+    /// Engine is not running
     EngineIsNotRunning,
+    /// Engine has not been running for long enough
     EngineRunTimeTooLow,
+    /// Engine temperature (coolant) is too high
     TemperatureTooHigh,
+    /// Engine temperature (coolant) is too low
     TemperatureTooLow,
+    /// Vehicle speed is too high
     VehicleSpeedTooHigh,
+    /// Vehicle speed is too low
     VehicleSpeedTooLow,
+    /// Throttle or pedal value is too high
     ThrottleTooHigh,
+    /// Throttle or pedal value is too low
     ThrottleTooLow,
+    /// Transmission is not in neutral
     TransmissionRangeNotInNeutral,
+    /// Transmission is not in gear
     TransmissionRangeNotInGear,
+    /// Brake is not applied
     BrakeSwitchNotClosed,
+    /// Shifter lever is not in park
     ShifterLeverNotInPark,
+    /// Automatic/CVT transmission torque convert is locked
     TorqueConverterClutchLocked,
+    /// Voltage is too high
     VoltageTooHigh,
+    /// Voltage is too low
     VoltageTooLow,
+    /// (0x94-0xFE) This range is reserved for future definition.
     ReserverdForSpecificConditionsNotCorrect,
+    /// (0x38-0x4F) This range of values is reserved for ISO-15765 data link security
     ReservedByExtendedDataLinkSecurityDocumentation,
+    /// Other reserved error code
     IsoSAEReserved(u8),
 }
 
@@ -152,21 +215,41 @@ impl From<u8> for UDSError {
 }
 
 #[derive(Debug, Copy, Clone)]
+/// UDS server options
 pub struct UdsServerOptions {
+    /// Baud rate (Connection speed)
     pub baud: u32,
+    /// ECU Send ID
     pub send_id: u32,
+    /// ECU Receive ID
     pub recv_id: u32,
+    /// Read timeout in ms
     pub read_timeout_ms: u32,
+    /// Write timeout in ms
     pub write_timeout_ms: u32,
+    /// Optional global address to send tester-present messages to
     pub global_tp_id: Option<u32>,
+    /// Tester present minimum send interval in ms
     pub tester_present_interval_ms: u32,
+    /// Server refresh interval (For writing/reading). A sensible value is 10ms
     pub server_refresh_interval_ms: u32,
-    pub tester_present_require_response: bool
+    /// Configures if the diagnostic server will poll for a response from tester present.
+    pub tester_present_require_response: bool,
 }
 
+impl BaseServerSettings for UdsServerOptions {
+    fn get_write_timeout_ms(&self) -> u32 {
+        self.write_timeout_ms
+    }
+
+    fn get_read_timeout_ms(&self) -> u32 {
+        self.read_timeout_ms
+    }
+}
 
 #[derive(Debug, Clone)]
-struct UdsCmd {
+/// UDS message payload
+pub struct UdsCmd {
     bytes: Vec<u8>,
     response_required: bool,
 }
@@ -178,26 +261,58 @@ impl UdsCmd {
         b.extend_from_slice(args);
         Self {
             bytes: b,
-            response_required: need_response
+            response_required: need_response,
         }
     }
-
-    pub fn get_sid(&self) -> UDSCommand {
+    pub fn get_uds_sid(&self) -> UDSCommand {
         unsafe { transmute(self.bytes[0]) } // This unsafe operation will always succeed!
     }
 }
 
+impl BaseServerPayload for UdsCmd {
+    fn get_payload(&self) -> &[u8] {
+        &self.bytes[1..]
+    }
+
+    fn get_sid_byte(&self) -> u8 {
+        self.bytes[0]
+    }
+
+    fn to_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    fn requires_response(&self) -> bool {
+        self.response_required
+    }
+}
+
 #[derive(Debug)]
-pub struct UdsDiagnosticServer{
+/// UDS Diagnostic server
+pub struct UdsDiagnosticServer {
     server_running: Arc<AtomicBool>,
     settings: UdsServerOptions,
     tx: mpsc::Sender<UdsCmd>,
-    rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>
+    rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
 }
 
 impl UdsDiagnosticServer {
-    pub fn new_over_iso_tp(settings: UdsServerOptions, channel: Box<dyn IsoTPChannel>, channel_cfg: IsoTPSettings) -> DiagServerResult<Self> {
-
+    /// Creates a new UDS over an ISO-TP connection with the ECU
+    ///
+    /// On startup, this server will configure the channel with the necessary settings provided in both
+    /// settings and channel_cfg
+    ///
+    /// ## Parameters
+    /// * settings - UDS Server settings
+    /// * channel - ISO-TP communication channel with the ECU
+    /// * channel_cfg - The settings to use for the ISO-TP channel
+    /// * event_handler - Optional handler for logging events happening within the server
+    pub fn new_over_iso_tp(
+        settings: UdsServerOptions,
+        channel: Box<dyn IsoTPChannel>,
+        channel_cfg: IsoTPSettings,
+        event_handler: Option<Box<dyn DiagServerLogger<UDSSessionType, UdsCmd>>>,
+    ) -> DiagServerResult<Self> {
         let mut server_channel = channel.clone();
 
         server_channel.set_baud(settings.baud)?;
@@ -212,73 +327,30 @@ impl UdsDiagnosticServer {
 
         let server_opts = settings.clone();
 
-        std::thread::spawn(move|| {
-            
-            fn check_pos_response_id(sid: u8, resp: Vec<u8>) -> DiagServerResult<Vec<u8>> {
-                if resp[0] != sid + 0x40 {
-                    Err(DiagError::WrongMessage)
-                } else {
-                    Ok(resp)
-                }
-            }
-
-            fn perform_cmd(cmd: UdsCmd, settings: &UdsServerOptions, channel: &mut Box<dyn BaseChannel>) -> DiagServerResult<Vec<u8>> {
-                // Clear IO buffers
-                channel.clear_rx_buffer()?;
-                channel.clear_tx_buffer()?;
-                let target = cmd.bytes[0];
-                if !cmd.response_required {
-                    // Just send the data and return an empty response
-                    channel.write_bytes(&cmd.bytes, settings.write_timeout_ms)?;
-                    return Ok(Vec::new())
-                }
-                let res = channel.read_write_bytes(&cmd.bytes, settings.write_timeout_ms, settings.read_timeout_ms)?;
-                if res.is_empty() {
-                    return Err(DiagError::EmptyResponse)
-                }
-                if res[0] == 0x7F {
-                    if UDSError::from(res[1]) == UDSError::RequestCorrectlyReceivedResponsePending {
-                        // Wait a bit longer for the ECU response
-                        let timestamp = Instant::now();
-                        while timestamp.elapsed() <= Duration::from_millis(1000) {
-                            std::thread::sleep(std::time::Duration::from_millis(10));
-                            if let Ok(res2) = channel.read_bytes(settings.read_timeout_ms) {
-                                if res2.is_empty() {
-                                    return Err(DiagError::EmptyResponse)
-                                }
-                                if res2[0] == 0x7F {
-                                    // Still an error. Give up
-                                    return Err(super::DiagError::ECUError(res2[1].into()))
-                                } else {
-                                    // Response OK! Set last tester time so we don't flood the ECU too quickly
-                                    return check_pos_response_id(target, res2)
-                                }
-                            }
-                        }
-                        // No response! Return the last error
-                        return Err(super::DiagError::ECUError(res[1].into()))
-                    } else {
-                        // Other error! - Return that error
-                        return Err(super::DiagError::ECUError(res[1].into()))
-                    }
-                }
-                check_pos_response_id(target, res) // ECU Response OK!
-            }
-
+        std::thread::spawn(move || {
             let mut send_tester_present = false;
             let mut last_tester_present_time: Instant = Instant::now();
-            
+
             let mut base_channel = server_channel.clone_base();
+
+            if let Some(h) = &event_handler {
+                h.on_server_start()
+            }
+
             loop {
                 if is_running_t.load(Ordering::Relaxed) == false {
-                    break
+                    if let Some(h) = &event_handler {
+                        h.on_server_exit()
+                    }
+                    break;
                 }
 
                 if let Ok(cmd) = rx_cmd.try_recv() {
                     // We have an incoming command
-                    if cmd.get_sid() == UDSCommand::DiagnosticSessionControl {
+                    if cmd.get_uds_sid() == UDSCommand::DiagnosticSessionControl {
                         // Session change! Handle this differently
-                        match perform_cmd(cmd.clone(), &settings, &mut base_channel) {
+                        match helpers::perform_cmd(&cmd, &settings, &mut base_channel, 0x78) {
+                            // 0x78 - Response correctly received, response pending
                             Ok(res) => {
                                 // Set server session type
                                 if cmd.bytes[1] == UDSSessionType::Default.into() {
@@ -292,35 +364,57 @@ impl UdsDiagnosticServer {
                                 // Send response to client
                                 if let Err(_) = tx_res.send(Ok(res)) {
                                     // Terminate! Something has gone wrong and data can no longer be sent to client
-                                    is_running_t.store(false, Ordering::Relaxed)
+                                    is_running_t.store(false, Ordering::Relaxed);
+                                    if let Some(h) = &event_handler {
+                                        h.on_critical_error("Channel Tx SendError occurred");
+                                    }
                                 }
-                            },
+                            }
                             Err(e) => {
                                 if let Err(_) = tx_res.send(Err(e)) {
                                     // Terminate! Something has gone wrong and data can no longer be sent to client
-                                    is_running_t.store(false, Ordering::Relaxed)
+                                    is_running_t.store(false, Ordering::Relaxed);
+                                    if let Some(h) = &event_handler {
+                                        h.on_critical_error("Channel Tx SendError occurred");
+                                    }
                                 }
                             }
                         }
                     } else {
                         // Generic command just perform it
-                        if let Err(_) = tx_res.send(perform_cmd(cmd, &settings, &mut base_channel)) {
+                        if let Err(_) = tx_res.send(helpers::perform_cmd(
+                            &cmd,
+                            &settings,
+                            &mut base_channel,
+                            0x78,
+                        )) {
                             // Terminate! Something has gone wrong and data can no longer be sent to client
-                            is_running_t.store(false, Ordering::Relaxed)
+                            is_running_t.store(false, Ordering::Relaxed);
+                            if let Some(h) = &event_handler {
+                                h.on_critical_error("Channel Tx SendError occurred");
+                            }
                         }
                     }
                 }
 
                 // Deal with tester present
-                if send_tester_present && last_tester_present_time.elapsed().as_millis() as u32 >= settings.tester_present_interval_ms {
+                if send_tester_present
+                    && last_tester_present_time.elapsed().as_millis() as u32
+                        >= settings.tester_present_interval_ms
+                {
                     // Send tester present message
                     let cmd = UdsCmd::new(UDSCommand::TesterPresent, &[0x00], true);
-                    perform_cmd(cmd, &settings, &mut base_channel);
+                    if let Err(e) = helpers::perform_cmd(&cmd, &settings, &mut base_channel, 0x78) {
+                        if let Some(h) = &event_handler {
+                            h.on_tester_present_error(e)
+                        }
+                    }
                     last_tester_present_time = Instant::now();
-                    
                 }
 
-                std::thread::sleep(std::time::Duration::from_millis(server_opts.server_refresh_interval_ms as u64));
+                std::thread::sleep(std::time::Duration::from_millis(
+                    server_opts.server_refresh_interval_ms as u64,
+                ));
             }
         });
 
@@ -328,170 +422,56 @@ impl UdsDiagnosticServer {
             server_running: is_running,
             tx: tx_cmd,
             rx: rx_res,
-            settings
+            settings,
         })
     }
 
+    /// Returns true if the internal UDS Server is running
     pub fn is_server_running(&self) -> bool {
         self.server_running.load(Ordering::Relaxed)
     }
 
+    /// Returns the current settings used by the UDS Server
     pub fn get_settings(&self) -> UdsServerOptions {
         self.settings
     }
 
-    pub fn executeCommandWithResponse(&mut self, sid: UDSCommand, args: &[u8]) -> DiagServerResult<Vec<u8>> {
+    /// Send a command to the ECU, and receive its response
+    ///
+    /// ## Parameters
+    /// * sid - The Service ID of the command
+    /// * args - The arguments for the service
+    ///
+    /// ## Returns
+    /// If the function is successful, and the ECU responds with an OK response (Containing data),
+    /// then the full ECU response is returned. The response will begin with the sid + 0x40
+    pub fn execute_command_with_response(
+        &mut self,
+        sid: UDSCommand,
+        args: &[u8],
+    ) -> DiagServerResult<Vec<u8>> {
         let cmd = UdsCmd::new(sid, args, true);
-        self.execCommand(cmd)
+        self.exec_command(cmd)
     }
 
-    pub fn executeCommand(&mut self, sid: UDSCommand, args: &[u8]) -> DiagServerResult<()> {
+    /// Send a command to the ECU, but don't receive a response
+    ///
+    /// ## Parameters
+    /// * sid - The Service ID of the command
+    /// * args - The arguments for the service
+    pub fn execute_command(&mut self, sid: UDSCommand, args: &[u8]) -> DiagServerResult<()> {
         let cmd = UdsCmd::new(sid, args, false);
-        self.execCommand(cmd).map(|_| ())
+        self.exec_command(cmd).map(|_| ())
     }
 
-    fn execCommand(&mut self, cmd: UdsCmd) -> DiagServerResult<Vec<u8>> {
+    /// Internal command for sending UDS payload to the ECU
+    fn exec_command(&mut self, cmd: UdsCmd) -> DiagServerResult<Vec<u8>> {
         match self.tx.send(cmd) {
-            Ok(_) => {
-                return self.rx.recv().unwrap_or(Err(DiagError::ServerNotRunning))
-            },
-            Err(_) => return Err(DiagError::ServerNotRunning) // Server must have crashed!
+            Ok(_) => self.rx.recv().unwrap_or(Err(DiagError::ServerNotRunning)),
+            Err(_) => return Err(DiagError::ServerNotRunning), // Server must have crashed!
         }
     }
-
 }
 
-
-unsafe impl Sync for UdsDiagnosticServer{}
-unsafe impl Send for UdsDiagnosticServer{}
-
-
-#[cfg(test)]
-pub mod UdsServerTest {
-    use super::*;
-
-
-    #[derive(Clone)]
-    pub struct UdsSimEcu<T: 'static + Clone + Fn(&[u8]) -> Option<Vec<u8>>> {
-        on_data_callback: T,
-        out_buffer: Vec<Vec<u8>>
-    }
-    unsafe impl<T: 'static + Clone + Fn(&[u8]) -> Option<Vec<u8>>> Send for UdsSimEcu<T> {}
-    unsafe impl<T: 'static + Clone + Fn(&[u8]) -> Option<Vec<u8>>> Sync for UdsSimEcu<T> {}
-    
-
-    impl<T: 'static + Clone + Fn(&[u8]) -> Option<Vec<u8>>> UdsSimEcu<T> {
-        pub fn new(on_data_callback: T) -> Self {
-            Self { on_data_callback, out_buffer: Vec::new() }
-        }
-
-        pub fn set_callback(&mut self, on_data_callback: T) {
-            self.on_data_callback = on_data_callback
-        }
-    }
-
-    impl<T: 'static + Clone + Fn(&[u8]) -> Option<Vec<u8>>> IsoTPChannel for UdsSimEcu<T> {
-        fn configure_iso_tp(&mut self, cfg: IsoTPSettings) -> DiagServerResult<()> {
-            println!("IsoTPChannel: configure_iso_tp Called. BS: {}, ST-MIN: {}", cfg.block_size, cfg.st_min);
-            Ok(())
-        }
-
-        fn clone_isotp(&self) -> Box<dyn IsoTPChannel> {
-            println!("IsoTPChannel: clone_isotp Called");
-            Box::new(self.clone())
-        }
-
-        fn into_base(&self) -> Box<dyn BaseChannel> {
-            println!("IsoTPChannel: into_base Called");
-            Box::new(self.clone())
-        }
-    }
-
-    impl<T: 'static + Clone + Fn(&[u8]) -> Option<Vec<u8>>> BaseChannel for UdsSimEcu<T> {
-        fn clone_base(&self) -> Box<dyn BaseChannel> {
-            println!("BaseChannel: into_base Called");
-            Box::new(self.clone())
-        }
-
-        fn set_baud(&mut self, baud: u32) -> DiagServerResult<()> {
-            println!("BaseChannel: set_baud Called. Baud: {} bps", baud);
-            Ok(())
-        }
-
-        fn set_ids(&mut self, send: u32, recv: u32, global_tp_id: Option<u32>) -> DiagServerResult<()> {
-            println!("BaseChannel: set_ids Called. send: {}, recv: {}, global_tp_id: {:?}", send, recv, global_tp_id);
-            Ok(())
-        }
-
-        fn read_bytes(&mut self, timeout_ms: u32) -> DiagServerResult<Vec<u8>> {
-            println!("BaseChannel: read_bytes Called. timeout_ms: {}", timeout_ms);
-            if self.out_buffer.is_empty() {
-                println!("-- NOTHING TO SEND");
-                Err(DiagError::Timeout)
-            } else {
-                let send = self.out_buffer[0].clone();
-                println!("-- Sending {:02X?} back to diag server", &send);
-                self.out_buffer.drain(0..1);
-                Ok(send)
-            }
-        }
-
-        fn write_bytes(&mut self, buffer: &[u8], timeout_ms: u32) -> DiagServerResult<()> {
-            println!("BaseChannel: write_bytes Called. Tx: {:02X?}, timeout_ms: {}", buffer, timeout_ms);
-            if let Some(sim_resp) = (self.on_data_callback)(buffer) {
-                self.out_buffer.push(sim_resp);
-            }
-            Ok(())
-        }
-
-        fn clear_rx_buffer(&mut self) -> DiagServerResult<()> {
-            self.out_buffer = Vec::new();
-            Ok(())
-        }
-
-        fn clear_tx_buffer(&mut self) -> DiagServerResult<()> {
-            Ok(())
-        }
-    }
-
-
-    #[test]
-    pub fn test_send_uds_cmd() {
-        fn callback(buf: &[u8]) -> Option<Vec<u8>> {
-            if buf[0] == 0x10 { // Start ID
-                return Some(vec![0x50, buf[1]])
-            } else {
-                None
-            }
-        }
-
-        let sim_ecu = UdsSimEcu::new(callback);
-
-
-        let settings = UdsServerOptions {
-            baud: 500000,
-            send_id: 0x07E0,
-            recv_id: 0x07E8,
-            read_timeout_ms: 1000,
-            write_timeout_ms: 1000,
-            global_tp_id: None,
-            tester_present_interval_ms: 2000,
-            server_refresh_interval_ms: 10,
-            tester_present_require_response: true,
-        };
-
-        let mut server = UdsDiagnosticServer::new_over_iso_tp(
-            settings, 
-            Box::new(sim_ecu), 
-            IsoTPSettings {
-                block_size: 8,
-                st_min: 20,
-            }
-        ).unwrap();
-
-        server.executeCommandWithResponse(UDSCommand::DiagnosticSessionControl, &[0x10]).unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(5000));
-
-    }
-
-}
+unsafe impl Sync for UdsDiagnosticServer {}
+unsafe impl Send for UdsDiagnosticServer {}

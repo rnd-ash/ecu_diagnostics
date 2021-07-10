@@ -1,12 +1,17 @@
 [package]
 name = "ecu_diagnostics"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Ashcon Mohseninia <ashconm@outlook.com>"]
 edition = "2018"
 description = "A rust crate for ECU diagnostic servers"
 license = "MIT"
 repository = "https://github.com/rnd-ash/ecu_diagnostics"
 readme = "README.md"
+keywords = ["ecu", "kwp2000", "uds", "obd2", "cars"]
 
 [lib]
 name = "ecu_diagnostics"
+
+[package.metadata.docs.rs]
+all-features = true
+default-target = "i686-pc-windows-msvc"
