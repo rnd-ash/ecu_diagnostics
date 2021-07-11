@@ -137,6 +137,7 @@ pub trait IsoTPChannel: BaseChannel {
 
 /// ISO-TP configuration options
 #[derive(Debug, Copy, Clone)]
+#[repr(C)]
 pub struct IsoTPSettings {
     /// Block size
     pub block_size: u8,

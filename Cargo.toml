@@ -11,6 +11,7 @@ keywords = ["ecu", "kwp2000", "uds", "obd2", "cars"]
 
 [lib]
 name = "ecu_diagnostics"
+crate-type = ["staticlib"]
 
 [badges]
 maintenance = { status = "actively-developed" }
@@ -19,6 +20,8 @@ maintenance = { status = "actively-developed" }
 all-features = true
 default-target = "i686-pc-windows-msvc"
 
+[build-dependencies]
+cbindgen = "0.19.0"
 
 [workspace]
 members = [

@@ -27,6 +27,7 @@ pub mod security_access;
 /// UDS Command Service IDs
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
 pub enum UDSCommand {
     /// Diagnostic session control. See [diagnostic_session_control]
     DiagnosticSessionControl = 0x10,
@@ -61,6 +62,7 @@ pub enum UDSCommand {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(C)]
 /// UDS Error definitions
 pub enum UDSError {
     /// ECU rejected the request (No specific error)
@@ -214,6 +216,7 @@ impl From<u8> for UDSError {
 }
 
 #[derive(Debug, Copy, Clone)]
+#[repr(C)]
 /// UDS server options
 pub struct UdsServerOptions {
     /// ECU Send ID
@@ -225,7 +228,8 @@ pub struct UdsServerOptions {
     /// Write timeout in ms
     pub write_timeout_ms: u32,
     /// Optional global address to send tester-present messages to
-    pub global_tp_id: Option<u32>,
+    /// Set to 0 if not in use
+    pub global_tp_id: u32,
     /// Tester present minimum send interval in ms
     pub tester_present_interval_ms: u32,
     /// Configures if the diagnostic server will poll for a response from tester present.
@@ -412,7 +416,10 @@ impl UdsDiagnosticServer {
                 {
                     // Send tester present message
                     let cmd = UdsCmd::new(UDSCommand::TesterPresent, &[0x00], true);
-                    let addr = settings.global_tp_id.unwrap_or(settings.send_id);
+                    let addr = match settings.global_tp_id {
+                        0 => settings.send_id,
+                        x => x
+                    };
 
                     if let Err(e) = helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78)
                     {
@@ -481,7 +488,7 @@ impl UdsDiagnosticServer {
                     }
                 }
             }
-            return Err(last_err.unwrap());
+            Err(last_err.unwrap())
         }
     }
 
