@@ -17,7 +17,7 @@ fn main() {
         recv_id: 0x07E8,
         read_timeout_ms: 1000,
         write_timeout_ms: 1000,
-        global_tp_id: None,
+        global_tp_id: 0,
         tester_present_interval_ms: 2500,
         tester_present_require_response: true,
     };

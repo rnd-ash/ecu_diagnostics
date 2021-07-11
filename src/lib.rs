@@ -33,7 +33,7 @@
 //!
 //! ## Usage
 //! In order to utilize any of the diagnostic servers, you will need
-//! to implement the [BaseChannel] trait, which allows for the diagnostic servers
+//! to implement the [channel::BaseChannel] trait, which allows for the diagnostic servers
 //! to send and receive data to/from the ECU, regardless of the transport layer used.
 //!
 

@@ -43,15 +43,16 @@ impl BaseChannel for SocketCANInterface {
         let fc_options = FlowControlOptions::default();
 
         let mut isotp_options = IsoTpOptions::default();
+        // Set frame pad byte to 0x00
         isotp_options.set_rxpad_content(0x00);
         isotp_options.set_txpad_content(0x00);
 
         let mut flags: IsoTpBehaviour = IsoTpBehaviour::empty();
 
-        if self.opts.unwrap().can_use_ext_addr {
+        if self.opts.unwrap().extended_addressing { // Extended addressing
             flags |= IsoTpBehaviour::CAN_ISOTP_EXTEND_ADDR
         }
-        if self.opts.unwrap().pad_frame {
+        if self.opts.unwrap().pad_frame { // Pad frame flag
             flags |= IsoTpBehaviour::CAN_ISOTP_RX_PADDING | IsoTpBehaviour::CAN_ISOTP_TX_PADDING;
         }
 
@@ -60,8 +61,8 @@ impl BaseChannel for SocketCANInterface {
 
         match IsoTpSocket::open_with_opts(
             &self.iface_name, 
-            self.send_id, 
-            self.recv_id,
+            self.recv_id, 
+            self.send_id,
             Some(isotp_options), 
             Some(fc_options), 
             None

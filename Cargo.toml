@@ -11,7 +11,7 @@ keywords = ["ecu", "kwp2000", "uds", "obd2", "cars"]
 
 [lib]
 name = "ecu_diagnostics"
-crate-type = ["staticlib"]
+# crate-type = ["staticlib"]
 
 [badges]
 maintenance = { status = "actively-developed" }
