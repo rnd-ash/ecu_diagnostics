@@ -8,6 +8,11 @@ license = "MIT"
 repository = "https://github.com/rnd-ash/ecu_diagnostics"
 readme = "README.md"
 keywords = ["ecu", "kwp2000", "uds", "obd2", "cars"]
+exclude = [
+    "examples/*",
+    "build.rs",
+    "ecu_diagnostics.hpp"
+]
 
 [lib]
 name = "ecu_diagnostics"
