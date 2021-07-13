@@ -42,7 +42,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: BaseCh
         return Err(DiagError::EmptyResponse);
     }
     if res[0] == 0x7F {
-        if res[1] == await_response_bytes {
+        if res[2] == await_response_bytes {
             // For both UDS or
             // Wait a bit longer for the ECU response
             let timestamp = Instant::now();
@@ -54,7 +54,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: BaseCh
                     }
                     if res2[0] == 0x7F {
                         // Still an error. Give up
-                        return Err(super::DiagError::ECUError(res2[1]));
+                        return Err(super::DiagError::ECUError(res2[2]));
                     } else {
                         // Response OK! Set last tester time so we don't flood the ECU too quickly
                         return check_pos_response_id(target, res2);
@@ -62,7 +62,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: BaseCh
                 }
             }
         }
-        return Err(super::DiagError::ECUError(res[1]));
+        return Err(super::DiagError::ECUError(res[2]));
     }
     check_pos_response_id(target, res) // ECU Response OK!
 }
