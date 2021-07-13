@@ -13,14 +13,17 @@ use std::{
     time::Instant,
 };
 
-use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, ServerEvent, ServerEventHandler, channel::IsoTPChannel, channel::IsoTPSettings, dtc::DTCFormatType, helpers};
+use crate::{
+    channel::IsoTPChannel, channel::IsoTPSettings, dtc::DTCFormatType, helpers, BaseServerPayload,
+    BaseServerSettings, DiagError, DiagServerResult, ServerEvent, ServerEventHandler,
+};
 
 use self::diagnostic_session_control::UDSSessionType;
 
 pub mod diagnostic_session_control;
 pub mod ecu_reset;
-pub mod security_access;
 pub mod read_dtc_information;
+pub mod security_access;
 
 /// UDS Command Service IDs
 #[allow(missing_docs)]
@@ -256,10 +259,10 @@ pub struct UdsCmd {
 impl std::fmt::Debug for UdsCmd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UdsCmd")
-        .field("Cmd", &self.get_uds_sid())
-        .field("Args", &self.get_payload())
-        .field("response_required", &self.response_required)
-        .finish()
+            .field("Cmd", &self.get_uds_sid())
+            .field("Args", &self.get_payload())
+            .field("response_required", &self.response_required)
+            .finish()
     }
 }
 
@@ -318,7 +321,7 @@ pub struct UdsDiagnosticServer {
     join_handler: JoinHandle<()>,
     repeat_count: u32,
     repeat_interval: std::time::Duration,
-    dtc_format: Option<DTCFormatType> // Used as a cache
+    dtc_format: Option<DTCFormatType>, // Used as a cache
 }
 
 impl UdsDiagnosticServer {
@@ -369,7 +372,13 @@ impl UdsDiagnosticServer {
                     // We have an incoming command
                     if cmd.get_uds_sid() == UDSCommand::DiagnosticSessionControl {
                         // Session change! Handle this differently
-                        match helpers::perform_cmd(settings.send_id, &cmd, &settings, &mut server_channel, 0x78) {
+                        match helpers::perform_cmd(
+                            settings.send_id,
+                            &cmd,
+                            &settings,
+                            &mut server_channel,
+                            0x78,
+                        ) {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
                                 // Set server session type
@@ -410,8 +419,7 @@ impl UdsDiagnosticServer {
                             0x78, // UDSError::RequestCorrectlyReceivedResponsePending
                         );
                         //event_handler.on_event(&res);
-                        if tx_res.send(res).is_err()
-                        {
+                        if tx_res.send(res).is_err() {
                             // Terminate! Something has gone wrong and data can no longer be sent to client
                             is_running_t.store(false, Ordering::Relaxed);
                             event_handler.on_event(ServerEvent::CriticalError {
@@ -430,10 +438,11 @@ impl UdsDiagnosticServer {
                     let cmd = UdsCmd::new(UDSCommand::TesterPresent, &[0x00], true);
                     let addr = match settings.global_tp_id {
                         0 => settings.send_id,
-                        x => x
+                        x => x,
                     };
 
-                    if let Err(e) = helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78)
+                    if let Err(e) =
+                        helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78)
                     {
                         event_handler.on_event(ServerEvent::TesterPresentError(e))
                     }
@@ -444,7 +453,9 @@ impl UdsDiagnosticServer {
             }
             // Goodbye server
             event_handler.on_event(ServerEvent::ServerExit);
-            server_channel.close();
+            if let Err(e) = server_channel.close() {
+                event_handler.on_event(ServerEvent::InterfaceCloseOnExitError(e))
+            }
         });
 
         Ok(Self {
@@ -455,7 +466,7 @@ impl UdsDiagnosticServer {
             join_handler: handle,
             repeat_count: 3,
             repeat_interval: std::time::Duration::from_millis(1000),
-            dtc_format: None
+            dtc_format: None,
         })
     }
 
@@ -495,10 +506,11 @@ impl UdsDiagnosticServer {
                     Ok(resp) => return Ok(resp),
                     Err(e) => {
                         if let DiagError::ECUError(_) = e {
-                            return Err(e) // ECU Error. Sending again won't help.
+                            return Err(e); // ECU Error. Sending again won't help.
                         }
                         last_err = Some(e); // Other error. Sleep and then try again
-                        if let Some(sleep_time) = self.repeat_interval.checked_sub(start.elapsed()) {
+                        if let Some(sleep_time) = self.repeat_interval.checked_sub(start.elapsed())
+                        {
                             std::thread::sleep(sleep_time)
                         }
                     }
@@ -539,14 +551,14 @@ impl UdsDiagnosticServer {
 
 /// Returns the [UDSError] from a matching input byte.
 /// The error byte provided MUST come from [DiagError::ECUError]
-/// 
+///
 /// ## Example:
 /// ```
 /// #extern crate ecu_diagnostics;
 /// #use ecu_diagnostics::{DiagError, uds};
-/// 
+///
 /// let result = DiagError::ECUError(0x10);
-/// 
+///
 /// if let DiagError::ECUError(x) = result {
 ///     let error_name = uds::get_description_of_ecu_error(x);
 ///     println!("ECU Rejected request: {:?}", error_name);
@@ -554,7 +566,7 @@ impl UdsDiagnosticServer {
 /// } else {
 ///     println!("Non-ECU error performing request: {:?}", result);
 /// }
-/// 
+///
 /// ```
 pub fn get_description_of_ecu_error(error: u8) -> UDSError {
     error.into()
@@ -562,8 +574,6 @@ pub fn get_description_of_ecu_error(error: u8) -> UDSError {
 
 unsafe impl Sync for UdsDiagnosticServer {}
 unsafe impl Send for UdsDiagnosticServer {}
-
-
 
 #[cfg(test)]
 pub mod uds_test {
@@ -573,21 +583,20 @@ pub mod uds_test {
 
     use super::*;
 
-
     #[derive(Debug, Clone)]
     pub struct FakeIsoTpChannel {
         triggers: HashMap<(u8, Option<u8>), Vec<u8>>,
-        resp_queue: Vec<Vec<u8>>
+        resp_queue: Vec<Vec<u8>>,
     }
 
     impl FakeIsoTpChannel {
         pub fn new() -> Self {
             Self {
                 triggers: HashMap::new(),
-                resp_queue: Vec::new()
+                resp_queue: Vec::new(),
             }
         }
-        
+
         pub fn add_sid_respose(&mut self, sid: u8, pid: Option<u8>, resp: &[u8]) {
             self.triggers.insert((sid, pid), resp.to_vec());
         }
@@ -616,15 +625,21 @@ pub mod uds_test {
             if self.resp_queue.len() > 0 {
                 let ret = self.resp_queue[0].clone();
                 self.resp_queue.drain(0..1);
-                return Ok(ret)
+                return Ok(ret);
             }
             Err(ChannelError::ReadTimeout)
         }
 
-        fn write_bytes(&mut self, _addr: u32, buffer: &[u8], _timeout_ms: u32) -> crate::channel::ChannelResult<()> {
+        fn write_bytes(
+            &mut self,
+            _addr: u32,
+            buffer: &[u8],
+            _timeout_ms: u32,
+        ) -> crate::channel::ChannelResult<()> {
             // Pretend we are in the ECU here
             if buffer.len() == 1 {
-                if let Some(((sid, _), buf)) = self.triggers.get_key_value(&(buffer[0], None)) { // Check for function
+                if let Some(((sid, _), buf)) = self.triggers.get_key_value(&(buffer[0], None)) {
+                    // Check for function
                     // Function found
                     let mut res = vec![sid + 0x40];
                     res.extend_from_slice(buf);
@@ -635,7 +650,10 @@ pub mod uds_test {
                 }
             }
 
-            if let Some(((sid, pid), buf)) = self.triggers.get_key_value(&(buffer[0], Some(buffer[1]))) { // Check for function
+            if let Some(((sid, pid), buf)) =
+                self.triggers.get_key_value(&(buffer[0], Some(buffer[1])))
+            {
+                // Check for function
                 // Function found
                 let mut res = vec![sid + 0x40, buffer[1]];
                 res.extend_from_slice(buf);
@@ -657,14 +675,12 @@ pub mod uds_test {
     }
 
     #[derive(Debug)]
-    pub struct TestUdsServer{
+    pub struct TestUdsServer {
         pub uds: super::UdsDiagnosticServer,
     }
 
     impl TestUdsServer {
-
         pub fn new(fake_channel_data: FakeIsoTpChannel) -> Self {
-
             let server = UdsDiagnosticServer::new_over_iso_tp(
                 UdsServerOptions {
                     send_id: 0x01,
@@ -674,8 +690,8 @@ pub mod uds_test {
                     global_tp_id: 0,
                     tester_present_interval_ms: 2000,
                     tester_present_require_response: false,
-                }, 
-                fake_channel_data, 
+                },
+                fake_channel_data,
                 IsoTPSettings {
                     block_size: 20,
                     st_min: 8,
@@ -683,11 +699,11 @@ pub mod uds_test {
                     pad_frame: true,
                     can_speed: 500000,
                     can_use_ext_addr: false,
-                }, 
-                UdsVoidHandler).unwrap();
-                Self {
-                    uds: server,
-                }
+                },
+                UdsVoidHandler,
+            )
+            .unwrap();
+            Self { uds: server }
         }
     }
 }

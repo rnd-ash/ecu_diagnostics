@@ -39,12 +39,12 @@
 
 use channel::ChannelError;
 
+pub mod channel;
+pub mod dtc;
+pub mod ffi;
 pub mod kwp2000;
 pub mod obd2;
 pub mod uds;
-pub mod channel;
-pub mod ffi;
-pub mod dtc;
 
 mod helpers;
 
@@ -70,7 +70,7 @@ pub enum DiagError {
     ChannelError(ChannelError),
     /// Denotes a TODO action (Non-implemented function stub)
     /// This will be removed in Version 1
-    NotImplemented(String)
+    NotImplemented(String),
 }
 impl std::fmt::Display for DiagError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -84,7 +84,9 @@ impl std::fmt::Display for DiagError {
                 write!(f, "ECU response message was of invalid length")
             }
             DiagError::ChannelError(err) => write!(f, "underlying channel error: {}", err),
-            DiagError::NotImplemented(s) => write!(f, "server encountered an unimplemented function: {}", s)
+            DiagError::NotImplemented(s) => {
+                write!(f, "server encountered an unimplemented function: {}", s)
+            }
         }
     }
 }
@@ -131,6 +133,9 @@ pub enum ServerEvent<'a, SessionState, RequestType> {
     /// To the ECU. This might mean that the ECU has exited its session state,
     /// and a non-default session state should be re-initialized
     TesterPresentError(DiagError),
+    /// Error occurred whilst trying to terminate the server's channel interface
+    /// when the diagnostic server exited.
+    InterfaceCloseOnExitError(ChannelError),
 }
 
 unsafe impl<'a, SessionType, RequestType> Send for ServerEvent<'a, SessionType, RequestType> {}

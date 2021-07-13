@@ -1,6 +1,8 @@
 use std::time::{Duration, Instant};
 
-use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, channel::BaseChannel};
+use crate::{
+    channel::BaseChannel, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult,
+};
 
 /// Checks if the response payload matches the request ServiceID.
 /// For both KWP and UDS, the matching response SID is request + 0x40.

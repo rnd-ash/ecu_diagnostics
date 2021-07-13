@@ -1,4 +1,3 @@
-
 //! Module for logical communication channels with an ECU
 //!
 //! Currently, the following channel types are defined:
@@ -124,7 +123,6 @@ pub trait BaseChannel: Send + Sync {
     /// Tells the channel to clear its Tx buffer
     fn clear_tx_buffer(&mut self) -> ChannelResult<()>;
 }
-
 
 /// Extended trait for [BaseChannel] when utilizing ISO-TP to send data to the ECU
 pub trait IsoTPChannel: BaseChannel {
