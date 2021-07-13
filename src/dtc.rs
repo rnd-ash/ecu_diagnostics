@@ -13,13 +13,24 @@ pub enum DTCFormatType {
     /// ISO11992-4 DTC Format
     ISO11992_4,
     /// Unknown DTC Format
-    UNKNOWN
+    UNKNOWN(u8)
+}
+
+pub (crate) fn dtc_format_from_uds(fmt: u8) -> DTCFormatType {
+    match fmt {
+        0x00 => DTCFormatType::ISO15031_6,
+        0x01 => DTCFormatType::ISO14229_1,
+        0x02 => DTCFormatType::SAEJ1939_73,
+        0x03 => DTCFormatType::ISO11992_4,
+        x => DTCFormatType::UNKNOWN(x)
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Storage state of the DTC
 pub enum DTCStatus {
-
+    /// Unknown DTC Status
+    UNKNOWN(u8)
 }
 
 /// Diagnostic trouble code (DTC) storage struct

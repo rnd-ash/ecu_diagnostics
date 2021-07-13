@@ -1,6 +1,6 @@
 //!  Provides methods to read and query DTCs on the ECU, as well as grabbing Env data about each DTC
 
-use crate::{DiagError, DiagServerResult, dtc::DTC};
+use crate::{DiagError, DiagServerResult, dtc::{self, DTC, DTCFormatType, DTCStatus}};
 
 use super::{UDSCommand, UdsDiagnosticServer};
 
@@ -63,7 +63,13 @@ pub enum DtcSubFunction {
 
 /// Returns the number of DTCs stored on the ECU
 /// matching the provided status_mask
-pub fn get_number_of_dtcs_by_status_mask(server: &mut UdsDiagnosticServer, status_mask: u8) -> DiagServerResult<u32> {
+/// 
+/// ## Returns
+/// Returns a tuple of the given information:
+/// 1. (u8) - DTCStatusAvailabilityMask
+/// 2. ([DTCFormatType]) - Format of the DTCs
+/// 3. (u16) - Number of DTCs which match the status mask
+pub fn get_number_of_dtcs_by_status_mask(server: &mut UdsDiagnosticServer, status_mask: u8) -> DiagServerResult<(u8, DTCFormatType, u16)> {
     let resp = server.execute_command_with_response(
         UDSCommand::ReadDTCInformation, 
         &[
@@ -71,20 +77,56 @@ pub fn get_number_of_dtcs_by_status_mask(server: &mut UdsDiagnosticServer, statu
             status_mask
         ]
     )?;
-    Err(DiagError::NotImplemented(format!("ECU Response was: {:02X?}", resp)))
+
+    if resp.len() != 6 {
+        Err(DiagError::InvalidResponseLength)
+    } else {
+        Ok((
+            resp[2],
+            dtc::dtc_format_from_uds(resp[3]),
+            (resp[4] as u16) << 8 | resp[5] as u16
+        ))
+    }
 }
 
 /// Returns a list of DTCs stored on the ECU
 /// matching the provided status_mask
 pub fn get_dtcs_by_status_mask(server: &mut UdsDiagnosticServer, status_mask: u8) -> DiagServerResult<Vec<DTC>> {
-    let resp = server.execute_command_with_response(
+    let mut resp = server.execute_command_with_response(
         UDSCommand::ReadDTCInformation, 
         &[
             DtcSubFunction::ReportDTCByStatusMask as u8,
             status_mask
         ]
     )?;
-    Err(DiagError::NotImplemented(format!("ECU Response was: {:02X?}", resp)))
+    if resp.len() < 7 {
+        return Ok(vec![]) // No errors
+    }
+
+    resp.drain(0..3);
+    if resp.len() % 4 == 0 {
+        return Err(DiagError::InvalidResponseLength) // Each DTC should be 4 bytes!
+    }
+
+    // Now, see if we can query the ECU's DTC format
+    // Note the ECU might not support this command, in which case return 0 as format specifier
+    let fmt = get_number_of_dtcs_by_status_mask(server, status_mask).map(|r| r.1).unwrap_or(DTCFormatType::UNKNOWN(0));
+
+    let mut  result: Vec<DTC> = Vec::new();
+
+    for x in (0..resp.len()).step_by(4) {
+        let dtc_code: u32 = (resp[x] as u32) << 16 | (resp[x+1] as u32)  << 8| resp[x+2] as u32;
+        let status = resp[x+3];
+
+        result.push(DTC {
+            format: fmt,
+            raw: dtc_code,
+            status: DTCStatus::UNKNOWN(status), // TODO
+            mil_on: false, // TODO
+        })
+    }
+
+    Ok(result)
 }
 
 /// Returns a list of DTCs out of the DTC mirror memory whos status_mask matches
