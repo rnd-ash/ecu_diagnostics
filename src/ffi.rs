@@ -226,7 +226,9 @@ pub enum DiagServerResult {
     /// to retrieve the NRC from the ECU
     ECUError = 98,
     /// Callback handler error
-    HandlerError = 99
+    HandlerError = 99,
+    /// Function not completed in code (Will be removed in Version 1.0)
+    Todo = 100,
 }
 
 impl From<DiagError> for DiagServerResult {
@@ -241,6 +243,7 @@ impl From<DiagError> for DiagServerResult {
             DiagError::WrongMessage => DiagServerResult::WrongMessage,
             DiagError::ServerNotRunning => DiagServerResult::ServerNotRunning,
             DiagError::InvalidResponseLength => DiagServerResult::InvalidResponseLength,
+            DiagError::NotImplemented(_) => DiagServerResult::Todo,
             DiagError::ChannelError(_) => DiagServerResult::HandlerError,
         }
     }

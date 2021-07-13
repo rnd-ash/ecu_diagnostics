@@ -23,6 +23,7 @@ use self::diagnostic_session_control::UDSSessionType;
 pub mod diagnostic_session_control;
 pub mod ecu_reset;
 pub mod security_access;
+pub mod read_dtc_information;
 
 /// UDS Command Service IDs
 #[allow(missing_docs)]
@@ -52,6 +53,8 @@ pub enum UDSCommand {
     WriteDataByIdentifier = 0x2E,
     WriteMemoryByAddress = 0x3D,
     ClearDiagnosticInformation = 0x14,
+    /// Reading and querying diagnostic trouble codes
+    /// stored on the ECU. See [read_dtc_information]
     ReadDTCInformation = 0x19,
     InputOutputControlByIdentifier = 0x2F,
     RoutineControl = 0x31,
@@ -246,11 +249,21 @@ impl BaseServerSettings for UdsServerOptions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 /// UDS message payload
 pub struct UdsCmd {
     bytes: Vec<u8>,
     response_required: bool,
+}
+
+impl std::fmt::Debug for UdsCmd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UdsCmd")
+        .field("Cmd", &self.get_uds_sid())
+        .field("Args", &self.get_payload())
+        .field("response_required", &self.response_required)
+        .finish()
+    }
 }
 
 impl UdsCmd {
@@ -354,6 +367,7 @@ impl UdsDiagnosticServer {
                 }
 
                 if let Ok(cmd) = rx_cmd.try_recv() {
+                    event_handler.on_event(ServerEvent::IncomingEvent(&cmd));
                     // We have an incoming command
                     if cmd.get_uds_sid() == UDSCommand::DiagnosticSessionControl {
                         // Session change! Handle this differently
@@ -390,15 +404,15 @@ impl UdsDiagnosticServer {
                         }
                     } else {
                         // Generic command just perform it
-                        if tx_res
-                            .send(helpers::perform_cmd(
-                                settings.send_id,
-                                &cmd,
-                                &settings,
-                                &mut server_channel,
-                                0x78, // UDSError::RequestCorrectlyReceivedResponsePending
-                            ))
-                            .is_err()
+                        let res = helpers::perform_cmd(
+                            settings.send_id,
+                            &cmd,
+                            &settings,
+                            &mut server_channel,
+                            0x78, // UDSError::RequestCorrectlyReceivedResponsePending
+                        );
+                        //event_handler.on_event(&res);
+                        if tx_res.send(res).is_err()
                         {
                             // Terminate! Something has gone wrong and data can no longer be sent to client
                             is_running_t.store(false, Ordering::Relaxed);
@@ -481,7 +495,10 @@ impl UdsDiagnosticServer {
                 match self.exec_command(cmd.clone()) {
                     Ok(resp) => return Ok(resp),
                     Err(e) => {
-                        last_err = Some(e);
+                        if let DiagError::ECUError(_) = e {
+                            return Err(e) // ECU Error. Sending again won't help.
+                        }
+                        last_err = Some(e); // Other error. Sleep and then try again
                         if let Some(sleep_time) = self.repeat_interval.checked_sub(start.elapsed()) {
                             std::thread::sleep(sleep_time)
                         }
@@ -519,6 +536,29 @@ impl UdsDiagnosticServer {
     pub fn set_repeat_interval_count(&mut self, interval_ms: u32) {
         self.repeat_interval = std::time::Duration::from_millis(interval_ms as u64)
     }
+}
+
+/// Returns the [UDSError] from a matching input byte.
+/// The error byte provided MUST come from [DiagError::ECUError]
+/// 
+/// ## Example:
+/// ```
+/// #extern crate ecu_diagnostics;
+/// #use ecu_diagnostics::{DiagError, uds};
+/// 
+/// let result = DiagError::ECUError(0x10);
+/// 
+/// if let DiagError::ECUError(x) = result {
+///     let error_name = uds::get_description_of_ecu_error(x);
+///     println!("ECU Rejected request: {:?}", error_name);
+///     assert_eq!(error_name, uds::UDSError::GeneralReject);
+/// } else {
+///     println!("Non-ECU error performing request: {:?}", result);
+/// }
+/// 
+/// ```
+pub fn get_description_of_ecu_error(error: u8) -> UDSError {
+    error.into()
 }
 
 unsafe impl Sync for UdsDiagnosticServer {}

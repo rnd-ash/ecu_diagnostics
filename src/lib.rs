@@ -44,6 +44,7 @@ pub mod obd2;
 pub mod uds;
 pub mod channel;
 pub mod ffi;
+pub mod dtc;
 
 mod helpers;
 
@@ -67,6 +68,9 @@ pub enum DiagError {
     InvalidResponseLength,
     /// Error with underlying communication channel
     ChannelError(ChannelError),
+    /// Denotes a TODO action (Non-implemented function stub)
+    /// This will be removed in Version 1
+    NotImplemented(String)
 }
 impl std::fmt::Display for DiagError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -80,6 +84,7 @@ impl std::fmt::Display for DiagError {
                 write!(f, "ECU response message was of invalid length")
             }
             DiagError::ChannelError(err) => write!(f, "underlying channel error: {}", err),
+            DiagError::NotImplemented(s) => write!(f, "server encountered an unimplemented function: {}", s)
         }
     }
 }
@@ -101,7 +106,7 @@ impl From<ChannelError> for DiagError {
 
 #[derive(Debug)]
 /// Diagnostic server event
-pub enum ServerEvent<SessionState, RequestType> {
+pub enum ServerEvent<'a, SessionState, RequestType> {
     /// The diagnostic server encountered an unrecoverable critical error
     CriticalError {
         /// Text description of the error
@@ -119,17 +124,17 @@ pub enum ServerEvent<SessionState, RequestType> {
         new: SessionState,
     },
     /// Received a request to send a payload to the ECU
-    IncomingEvent(RequestType),
+    IncomingEvent(&'a RequestType),
     /// Response from the ECU
-    OutgoingEvent(DiagServerResult<RequestType>),
+    OutgoingEvent(&'a DiagServerResult<RequestType>),
     /// An error occurred whilst transmitting tester present message
     /// To the ECU. This might mean that the ECU has exited its session state,
     /// and a non-default session state should be re-initialized
     TesterPresentError(DiagError),
 }
 
-unsafe impl<SessionType, RequestType> Send for ServerEvent<SessionType, RequestType> {}
-unsafe impl<SessionType, RequestType> Sync for ServerEvent<SessionType, RequestType> {}
+unsafe impl<'a, SessionType, RequestType> Send for ServerEvent<'a, SessionType, RequestType> {}
+unsafe impl<'a, SessionType, RequestType> Sync for ServerEvent<'a, SessionType, RequestType> {}
 
 /// Handler for when [ServerEvent] get broadcast by the diagnostic servers background thread
 pub trait ServerEventHandler<SessionState, RequestType>: Send + Sync {

@@ -48,6 +48,8 @@ enum class DiagServerResult {
   ECUError = 98,
   /// Callback handler error
   HandlerError = 99,
+  /// Function not completed in code (Will be removed in Version 1.0)
+  Todo = 100,
 };
 
 /// UDS Command Service IDs
@@ -75,6 +77,8 @@ enum class UDSCommand : uint8_t {
   WriteDataByIdentifier = 46,
   WriteMemoryByAddress = 61,
   ClearDiagnosticInformation = 20,
+  /// Reading and querying diagnostic trouble codes
+  /// stored on the ECU. See [read_dtc_information]
   ReadDTCInformation = 25,
   InputOutputControlByIdentifier = 47,
   RoutineControl = 49,

@@ -95,6 +95,7 @@ impl BaseChannel for SocketCANInterface {
                 if timeout_ms == 0 {
                     // 1 read attempt (Whatever is in the Rx buffer gets read)
                     if let Ok(resp) = iface.read() {
+                        println!("{:02X?}", resp);
                         return Ok(resp.to_vec())
                     } else {
                         return Err(ChannelError::BufferEmpty)
