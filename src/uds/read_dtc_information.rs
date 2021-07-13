@@ -105,7 +105,7 @@ pub fn get_dtcs_by_status_mask(server: &mut UdsDiagnosticServer, status_mask: u8
     }
 
     resp.drain(0..3);
-    if resp.len() % 4 == 0 {
+    if resp.len() % 4 != 0 {
         return Err(DiagError::InvalidResponseLength) // Each DTC should be 4 bytes!
     }
 
@@ -147,7 +147,7 @@ pub fn get_mirror_memory_dtcs_by_status_mask(server: &mut UdsDiagnosticServer, s
     }
 
     resp.drain(0..3);
-    if resp.len() % 4 == 0 {
+    if resp.len() % 4 != 0 {
         return Err(DiagError::InvalidResponseLength) // Each DTC should be 4 bytes!
     }
 
@@ -244,7 +244,7 @@ pub fn get_emissions_related_obd_dtcs_by_status_mask(server: &mut UdsDiagnosticS
     }
 
     resp.drain(0..3);
-    if resp.len() % 4 == 0 {
+    if resp.len() % 4 != 0 {
         return Err(DiagError::InvalidResponseLength) // Each DTC should be 4 bytes!
     }
 
@@ -398,7 +398,7 @@ pub fn get_supported_dtc(server: &mut UdsDiagnosticServer) -> DiagServerResult<V
     }
 
     resp.drain(0..3);
-    if resp.len() % 4 == 0 {
+    if resp.len() % 4 != 0 {
         return Err(DiagError::InvalidResponseLength) // Each DTC should be 4 bytes!
     }
 
@@ -487,7 +487,7 @@ pub fn get_dtc_fault_detection_counter(server: &mut UdsDiagnosticServer) -> Diag
     }
 
     resp.drain(0..2);
-    if resp.len() % 4 == 0 {
+    if resp.len() % 4 != 0 {
         return Err(DiagError::InvalidResponseLength) // Each DTC should be 4 bytes!
     }
 
@@ -509,4 +509,24 @@ pub fn get_dtc_with_permanent_status(server: &mut UdsDiagnosticServer) -> DiagSe
         ]
     )?;
     Err(DiagError::NotImplemented(format!("ReportDTCWithPermanentStatus ECU Response was: {:02X?}", resp)))
+}
+
+
+
+#[cfg(test)]
+pub mod sim_ecu_test {
+    use crate::uds::uds_test::{FakeIsoTpChannel, TestUdsServer};
+
+    use super::*;
+
+    #[test]
+    fn get_dtcs_by_status_mask() {
+        let mut fake_ecu = FakeIsoTpChannel::new();
+        fake_ecu.add_sid_respose(0x19, Some(0x01), &[0x7B, 0x01, 0x00, 0x0C]);
+        fake_ecu.add_sid_respose(0x19, Some(0x02), &[0x7B, 0x06, 0x10, 0x00, 0x28, 0xA1, 0xDC, 0x01, 0x69, 0xD1, 0x60, 0x00, 0x28, 0x17, 0x2C, 0x13, 0x40, 0x9A, 0x39, 0x87, 0x50, 0xA1, 0x0A, 0x00, 0x40, 0xA1, 0x0B, 0x00, 0x40, 0xA2, 0x01, 0x00, 0x40, 0xC1, 0x22, 0x08, 0x40, 0xC1, 0x22, 0x87, 0x40, 0xD1, 0x98, 0x00, 0x40, 0xD4, 0x0F, 0x00, 0x40]);
+        let mut s = TestUdsServer::new(fake_ecu);
+        let result = super::get_dtcs_by_status_mask(&mut s.uds, 0xFF);
+        println!("{:?}", result);
+    }
+
 }

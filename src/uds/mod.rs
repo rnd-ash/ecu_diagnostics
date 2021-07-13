@@ -562,3 +562,132 @@ pub fn get_description_of_ecu_error(error: u8) -> UDSError {
 
 unsafe impl Sync for UdsDiagnosticServer {}
 unsafe impl Send for UdsDiagnosticServer {}
+
+
+
+#[cfg(test)]
+pub mod uds_test {
+    use std::collections::HashMap;
+
+    use crate::channel::{BaseChannel, ChannelError, ChannelResult};
+
+    use super::*;
+
+
+    #[derive(Debug, Clone)]
+    pub struct FakeIsoTpChannel {
+        triggers: HashMap<(u8, Option<u8>), Vec<u8>>,
+        resp_queue: Vec<Vec<u8>>
+    }
+
+    impl FakeIsoTpChannel {
+        pub fn new() -> Self {
+            Self {
+                triggers: HashMap::new(),
+                resp_queue: Vec::new()
+            }
+        }
+        
+        pub fn add_sid_respose(&mut self, sid: u8, pid: Option<u8>, resp: &[u8]) {
+            self.triggers.insert((sid, pid), resp.to_vec());
+        }
+    }
+
+    impl IsoTPChannel for FakeIsoTpChannel {
+        fn set_iso_tp_cfg(&mut self, _cfg: IsoTPSettings) -> crate::channel::ChannelResult<()> {
+            Ok(())
+        }
+    }
+
+    impl BaseChannel for FakeIsoTpChannel {
+        fn open(&mut self) -> crate::channel::ChannelResult<()> {
+            Ok(())
+        }
+
+        fn close(&mut self) -> crate::channel::ChannelResult<()> {
+            Ok(())
+        }
+
+        fn set_ids(&mut self, _send: u32, _recv: u32) -> crate::channel::ChannelResult<()> {
+            Ok(())
+        }
+
+        fn read_bytes(&mut self, _timeout_ms: u32) -> crate::channel::ChannelResult<Vec<u8>> {
+            if self.resp_queue.len() > 0 {
+                let ret = self.resp_queue[0].clone();
+                self.resp_queue.drain(0..1);
+                return Ok(ret)
+            }
+            Err(ChannelError::ReadTimeout)
+        }
+
+        fn write_bytes(&mut self, _addr: u32, buffer: &[u8], _timeout_ms: u32) -> crate::channel::ChannelResult<()> {
+            // Pretend we are in the ECU here
+            if buffer.len() == 1 {
+                if let Some(((sid, _), buf)) = self.triggers.get_key_value(&(buffer[0], None)) { // Check for function
+                    // Function found
+                    let mut res = vec![sid + 0x40];
+                    res.extend_from_slice(buf);
+                    self.resp_queue.push(res)
+                } else {
+                    // Function not in trigger!? Respond with unsupported
+                    self.resp_queue.push(vec![0x7F, buffer[0], 0x11]) // 0x11 - Service not supported
+                }
+            }
+
+            if let Some(((sid, pid), buf)) = self.triggers.get_key_value(&(buffer[0], Some(buffer[1]))) { // Check for function
+                // Function found
+                let mut res = vec![sid + 0x40, buffer[1]];
+                res.extend_from_slice(buf);
+                self.resp_queue.push(res)
+            } else {
+                // Function not in trigger!? Respond with unsupported
+                self.resp_queue.push(vec![0x7F, buffer[0], 0x11]) // 0x11 - Service not supported
+            }
+            Ok(())
+        }
+
+        fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+            Ok(self.resp_queue.clear())
+        }
+
+        fn clear_tx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct TestUdsServer{
+        pub uds: super::UdsDiagnosticServer,
+    }
+
+    impl TestUdsServer {
+
+        pub fn new(fake_channel_data: FakeIsoTpChannel) -> Self {
+
+            let server = UdsDiagnosticServer::new_over_iso_tp(
+                UdsServerOptions {
+                    send_id: 0x01,
+                    recv_id: 0x02,
+                    read_timeout_ms: 1000,
+                    write_timeout_ms: 1000,
+                    global_tp_id: 0,
+                    tester_present_interval_ms: 2000,
+                    tester_present_require_response: false,
+                }, 
+                fake_channel_data, 
+                IsoTPSettings {
+                    block_size: 20,
+                    st_min: 8,
+                    extended_addressing: false,
+                    pad_frame: true,
+                    can_speed: 500000,
+                    can_use_ext_addr: false,
+                }, 
+                UdsVoidHandler).unwrap();
+                Self {
+                    uds: server,
+                }
+        }
+    }
+}
