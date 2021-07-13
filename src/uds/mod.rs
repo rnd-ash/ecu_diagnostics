@@ -13,10 +13,7 @@ use std::{
     time::Instant,
 };
 
-use crate::{
-    helpers, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, channel::IsoTPChannel,
-    channel::IsoTPSettings, ServerEvent, ServerEventHandler,
-};
+use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, ServerEvent, ServerEventHandler, channel::IsoTPChannel, channel::IsoTPSettings, dtc::DTCFormatType, helpers};
 
 use self::diagnostic_session_control::UDSSessionType;
 
@@ -321,6 +318,7 @@ pub struct UdsDiagnosticServer {
     join_handler: JoinHandle<()>,
     repeat_count: u32,
     repeat_interval: std::time::Duration,
+    dtc_format: Option<DTCFormatType> // Used as a cache
 }
 
 impl UdsDiagnosticServer {
@@ -456,7 +454,8 @@ impl UdsDiagnosticServer {
             settings,
             join_handler: handle,
             repeat_count: 3,
-            repeat_interval: std::time::Duration::from_millis(1000)
+            repeat_interval: std::time::Duration::from_millis(1000),
+            dtc_format: None
         })
     }
 

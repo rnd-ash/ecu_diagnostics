@@ -46,8 +46,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: BaseCh
             // For both UDS or
             // Wait a bit longer for the ECU response
             let timestamp = Instant::now();
-            while timestamp.elapsed() <= Duration::from_millis(2000) {
-                std::thread::sleep(std::time::Duration::from_millis(10));
+            while timestamp.elapsed() <= Duration::from_millis(4000) {
                 if let Ok(res2) = channel.read_bytes(settings.get_read_timeout_ms()) {
                     if res2.is_empty() {
                         return Err(DiagError::EmptyResponse);
@@ -60,6 +59,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: BaseCh
                         return check_pos_response_id(target, res2);
                     }
                 }
+                std::thread::sleep(std::time::Duration::from_millis(10));
             }
         }
         return Err(super::DiagError::ECUError(res[2]));
