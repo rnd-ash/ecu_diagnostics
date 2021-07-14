@@ -1,0 +1,10 @@
+cmake-build-debug/**
+CMakeFiles/**
+
+libecu_diagnostics_ffi.so
+Makefile
+ecu_diag_c
+ecu_diag_c.cbp
+CMakeCache.txt
+Testing/**
+.idea/**
