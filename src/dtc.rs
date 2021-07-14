@@ -28,8 +28,29 @@ pub(crate) fn dtc_format_from_uds(fmt: u8) -> DTCFormatType {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Storage state of the DTC
 pub enum DTCStatus {
+    /// No DTC is stored in non volatile memory
+    None,
+    /// DTC has not met criteria for it to become active or stored,
+    /// but a failure condition has been met
+    Pending,
+    /// DTC is no longer present, but is stored in non volatile memory
+    Stored,
+    /// DTC is present and stored in non volatile memory
+    Active,
     /// Unknown DTC Status
     UNKNOWN(u8),
+}
+
+impl DTCStatus {
+    pub (crate) fn from_kwp_status(x: u8) -> DTCStatus {
+        match (x & 0b01100000) >> 5 {
+            0b00 => Self::None,
+            0b01 => Self::Stored,
+            0b10 => Self::Pending,
+            0b11 => Self::Active,
+            _ => Self::UNKNOWN(x & 0b01100000) // Should never happen
+        }
+    }
 }
 
 /// Diagnostic trouble code (DTC) storage struct
@@ -46,4 +67,6 @@ pub struct DTC {
     /// This usually means that the Check engine light is illuminated on the
     /// vehicles instrument cluster
     pub mil_on: bool,
+    /// Indication if the DTC conditions have been met since the last clear.
+    pub readiness_flag: bool,
 }

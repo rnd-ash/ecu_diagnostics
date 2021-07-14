@@ -29,9 +29,13 @@ use crate::{
     ServerEventHandler,
 };
 
-use self::start_diagnostic_session::Kwp2000SessionType;
+use self::start_diagnostic_session::SessionType;
 
 pub mod start_diagnostic_session;
+pub mod ecu_reset;
+pub mod clear_diagnostic_information;
+pub mod read_status_of_dtc;
+pub mod read_dtc_by_status;
 
 /// KWP Command Service IDs.
 ///
@@ -129,7 +133,7 @@ pub enum KWP2000Error {
     /// ECU fault has stopped the transfer of data
     TransferSuspended,
     /// The ECU has accepted the request, but cannot reply right now. If this error occurs,
-    /// the [KwpDiagnosticServer] will automatically stop sending tester present messages and
+    /// the [Kwp2000DiagnosticServer] will automatically stop sending tester present messages and
     /// will wait for the ECUs response. If after 2000ms, the ECU did not respond, then this error
     /// will get returned back to the function call.
     RequestCorrectlyReceivedResponsePending,
@@ -306,7 +310,7 @@ impl Kwp2000DiagnosticServer {
     ) -> DiagServerResult<Self>
     where
         C: IsoTPChannel + 'static,
-        E: ServerEventHandler<Kwp2000SessionType, Kwp2000Cmd> + 'static,
+        E: ServerEventHandler<SessionType, Kwp2000Cmd> + 'static,
     {
         server_channel.set_iso_tp_cfg(channel_cfg)?;
         server_channel.set_ids(settings.send_id, settings.recv_id)?;
@@ -344,8 +348,8 @@ impl Kwp2000DiagnosticServer {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
                                 // Set server session type
-                                if cmd.bytes[1] == Kwp2000SessionType::Passive.into()
-                                    || cmd.bytes[1] == Kwp2000SessionType::Normal.into()
+                                if cmd.bytes[1] == SessionType::Passive.into()
+                                    || cmd.bytes[1] == SessionType::Normal.into()
                                 {
                                     // Default session, disable tester present
                                     send_tester_present = false;

@@ -1,10 +1,25 @@
 //! Provides methods to manipulate the ECUs diagnostic session mode
 
+use crate::DiagServerResult;
+
+use super::{KWP2000Command, Kwp2000DiagnosticServer};
+
 /// KWP2000 diagnostic session type
+/// 
+/// Session support matrix
+/// 
+/// | SessionType | Support by ECUs |
+/// |--|--|
+/// |[SessionType::Normal] | Mandatory |
+/// |[SessionType::Reprogramming] | Optional (Only ECUs which implement the ECU-Flash reprogramming specification) |
+/// |[SessionType::Standby] | Optional |
+/// |[SessionType::Passive] | Optional (Only intended for ECU development) |
+/// |[SessionType::ExtendedDiagnostics] | Mandatory |
+/// |[SessionType::Custom] | Optional |
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Kwp2000SessionType {
+pub enum SessionType {
     /// Normal session. The ECU will typically boot in this state.
-    /// In this mode, only non-intrusive functions are supported
+    /// In this mode, only non-intrusive functions are supported.
     Normal,
     /// Reprogramming session. Used for flashing an ECU. Only functions
     /// for reading/writing to memory are allowed in this mode
@@ -18,9 +33,6 @@ pub enum Kwp2000SessionType {
     /// all normal CAN/LIN communication with the vehicle, effectively putting
     /// the ECU to sleep. IMPORTANT. If the ECU is power cycled, it will
     /// reboot in this mode.
-    ///
-    /// This mode is only intended for ECU development, so it will likely not
-    /// be available on production ECUs.
     Passive,
     /// Extended diagnostics mode. Every service is available here
     ExtendedDiagnostics,
@@ -28,15 +40,24 @@ pub enum Kwp2000SessionType {
     Custom(u8),
 }
 
-impl From<Kwp2000SessionType> for u8 {
-    fn from(x: Kwp2000SessionType) -> Self {
+impl From<SessionType> for u8 {
+    fn from(x: SessionType) -> Self {
         match x {
-            Kwp2000SessionType::Normal => 0x81,
-            Kwp2000SessionType::Reprogramming => 0x85,
-            Kwp2000SessionType::Standby => 0x89,
-            Kwp2000SessionType::Passive => 0x90,
-            Kwp2000SessionType::ExtendedDiagnostics => 0x92,
-            Kwp2000SessionType::Custom(c) => c,
+            SessionType::Normal => 0x81,
+            SessionType::Reprogramming => 0x85,
+            SessionType::Standby => 0x89,
+            SessionType::Passive => 0x90,
+            SessionType::ExtendedDiagnostics => 0x92,
+            SessionType::Custom(c) => c,
         }
     }
+}
+
+/// Sets the ECU into a diagnostic mode
+///
+/// ## Parameters
+/// * server - The KWP2000 Diagnostic server
+/// * mode - The [Kwp2000SessionType] to put the ECU into
+pub fn set_diagnostic_session_mode(server: &mut Kwp2000DiagnosticServer, mode: SessionType) -> DiagServerResult<()> {
+    server.execute_command(KWP2000Command::StartDiagnosticSession, &[mode.into()]).map(|_| ())
 }

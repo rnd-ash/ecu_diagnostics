@@ -131,6 +131,7 @@ pub fn get_dtcs_by_status_mask(
             raw: dtc_code,
             status: DTCStatus::UNKNOWN(status), // TODO
             mil_on: status & 0b10000000 != 0,
+            readiness_flag: false,
         })
     }
 
@@ -178,6 +179,7 @@ pub fn get_mirror_memory_dtcs_by_status_mask(
             raw: dtc_code,
             status: DTCStatus::UNKNOWN(status), // TODO
             mil_on: status & 0b10000000 != 0,
+            readiness_flag: false,
         })
     }
     Ok(result)
@@ -286,6 +288,7 @@ pub fn get_emissions_related_obd_dtcs_by_status_mask(
             raw: dtc_code,
             status: DTCStatus::UNKNOWN(status), // TODO
             mil_on: status & 0b10000000 != 0,
+            readiness_flag: false,
         })
     }
     Ok(result)
@@ -481,6 +484,7 @@ pub fn get_supported_dtc(server: &mut UdsDiagnosticServer) -> DiagServerResult<V
             raw: dtc_code,
             status: DTCStatus::UNKNOWN(status), // TODO
             mil_on: status & 0b10000000 != 0,
+            readiness_flag: false,
         })
     }
     Ok(result)

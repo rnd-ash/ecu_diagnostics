@@ -16,7 +16,7 @@ exclude = [
 
 [lib]
 name = "ecu_diagnostics_ffi"
-crate-type = ["cdylib"]
+crate-type = ["staticlib"]
 
 [badges]
 maintenance = { status = "actively-developed" }
