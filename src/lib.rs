@@ -41,7 +41,6 @@ use channel::ChannelError;
 
 pub mod channel;
 pub mod dtc;
-pub mod ffi;
 pub mod kwp2000;
 pub mod obd2;
 pub mod uds;

@@ -13,12 +13,16 @@ fn main() {
         .display()
         .to_string();
 
-    let config = Config {
+
+    let mut config = Config {
+
         include_guard: Some(String::from("ECU_DIAG_H_")),
         namespace: Some(String::from("ecu_diagnostics")),
         language: Language::Cxx,
         ..Default::default()
     };
+    config.parse.parse_deps = true;
+    config.parse.include = Some(vec!["ecu_diagnostics".into()]);
 
     cbindgen::generate_with_config(&crate_dir, config)
         .unwrap()

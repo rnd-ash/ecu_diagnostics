@@ -189,7 +189,7 @@ pub struct Kwp2000Cmd {
 
 impl std::fmt::Debug for Kwp2000Cmd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("UdsCmd")
+        f.debug_struct("Kwp2000Cmd")
             .field("Cmd", &self.get_kwp_sid())
             .field("Args", &self.get_payload())
             .field("response_required", &self.response_required)
@@ -198,7 +198,7 @@ impl std::fmt::Debug for Kwp2000Cmd {
 }
 
 impl Kwp2000Cmd {
-    /// Creates a new UDS Payload
+    /// Creates a new KWP2000 Payload
     pub fn new(sid: KWP2000Command, args: &[u8], need_response: bool) -> Self {
         let mut b: Vec<u8> = Vec::with_capacity(args.len() + 1);
         b.push(sid as u8);
@@ -274,8 +274,8 @@ impl BaseServerSettings for Kwp2000ServerOptions {
 }
 
 #[derive(Debug)]
-/// UDS Diagnostic server
-pub struct UdsDiagnosticServer {
+/// Kwp2000 Diagnostic server
+pub struct Kwp2000DiagnosticServer {
     server_running: Arc<AtomicBool>,
     settings: Kwp2000ServerOptions,
     tx: mpsc::Sender<Kwp2000Cmd>,
@@ -286,18 +286,18 @@ pub struct UdsDiagnosticServer {
     dtc_format: Option<DTCFormatType>, // Used as a cache
 }
 
-impl UdsDiagnosticServer {
+impl Kwp2000DiagnosticServer {
     /// Creates a new KWP2000 over an ISO-TP connection with the ECU
     ///
     /// On startup, this server will configure the channel with the necessary settings provided in both
     /// settings and channel_cfg
     ///
     /// ## Parameters
-    /// * settings - UDS Server settings
+    /// * settings - KWP2000 Server settings
     /// * channel - ISO-TP communication channel with the ECU
     /// * channel_cfg - The settings to use for the ISO-TP channel
     /// * event_handler - Handler for logging events happening within the server. If you don't want
-    /// to create your own handler, use [UdsVoidHandler]
+    /// to create your own handler, use [Kwp2000VoidHandler]
     pub fn new_over_iso_tp<C, E>(
         settings: Kwp2000ServerOptions,
         mut server_channel: C,
@@ -380,7 +380,7 @@ impl UdsDiagnosticServer {
                             &cmd,
                             &settings,
                             &mut server_channel,
-                            0x78, // UDSError::RequestCorrectlyReceivedResponsePending
+                            0x78, // Kwp2000Error::RequestCorrectlyReceivedResponsePending
                         );
                         //event_handler.on_event(&res);
                         if tx_res.send(res).is_err() {
@@ -444,12 +444,12 @@ impl UdsDiagnosticServer {
         })
     }
 
-    /// Returns true if the internal UDS Server is running
+    /// Returns true if the internal KWP2000 Server is running
     pub fn is_server_running(&self) -> bool {
         self.server_running.load(Ordering::Relaxed)
     }
 
-    /// Returns the current settings used by the UDS Server
+    /// Returns the current settings used by the KWP2000 Server
     pub fn get_settings(&self) -> Kwp2000ServerOptions {
         self.settings
     }
@@ -504,7 +504,7 @@ impl UdsDiagnosticServer {
         self.exec_command(cmd).map(|_| ())
     }
 
-    /// Internal command for sending UDS payload to the ECU
+    /// Internal command for sending KWP2000 payload to the ECU
     fn exec_command(&mut self, cmd: Kwp2000Cmd) -> DiagServerResult<Vec<u8>> {
         match self.tx.send(cmd) {
             Ok(_) => self.rx.recv().unwrap_or(Err(DiagError::ServerNotRunning)),

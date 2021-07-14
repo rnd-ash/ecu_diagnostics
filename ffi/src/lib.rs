@@ -1,15 +1,14 @@
 //! FFI bindings for ECU_Diagnostics
 //!
 //! IMPORTANT. Access to the FFI bindings should be done on one thread! No multi-thread support
+#![no_std]
 
-use core::slice;
-use std::intrinsics::transmute;
+extern crate ecu_diagnostics;
+extern crate alloc;
 
-use crate::{
-    channel::{BaseChannel, ChannelError, IsoTPChannel, IsoTPSettings},
-    uds::{UDSCommand, UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler},
-    DiagError,
-};
+use alloc::vec::Vec;
+
+pub use ecu_diagnostics::{DiagError, channel::{BaseChannel, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings}, uds::{UdsDiagnosticServer, UdsVoidHandler, UdsServerOptions, UDSCommand}};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -28,7 +27,7 @@ impl Default for CallbackPayload {
         Self {
             addr: 0x0000,
             data_len: 0,
-            data: std::ptr::null(),
+            data: core::ptr::null(),
         }
     }
 }
@@ -99,28 +98,28 @@ pub struct BaseChannelCallbackHandler {
 }
 
 impl BaseChannel for BaseChannelCallbackHandler {
-    fn open(&mut self) -> crate::channel::ChannelResult<()> {
+    fn open(&mut self) -> ChannelResult<()> {
         match (self.open_callback)() {
             CallbackHandlerResult::OK => Ok(()),
             x => Err(x.into()),
         }
     }
 
-    fn close(&mut self) -> crate::channel::ChannelResult<()> {
+    fn close(&mut self) -> ChannelResult<()> {
         match (self.close_callback)() {
             CallbackHandlerResult::OK => Ok(()),
             x => Err(x.into()),
         }
     }
 
-    fn set_ids(&mut self, send: u32, recv: u32) -> crate::channel::ChannelResult<()> {
+    fn set_ids(&mut self, send: u32, recv: u32) -> ChannelResult<()> {
         match (self.set_ids_callback)(send, recv) {
             CallbackHandlerResult::OK => Ok(()),
             x => Err(x.into()),
         }
     }
 
-    fn read_bytes(&mut self, timeout_ms: u32) -> crate::channel::ChannelResult<Vec<u8>> {
+    fn read_bytes(&mut self, timeout_ms: u32) -> ChannelResult<Vec<u8>> {
         let mut p = CallbackPayload::default();
         match (self.read_bytes_callback)(&mut p, timeout_ms) {
             CallbackHandlerResult::OK => Ok(
@@ -135,7 +134,7 @@ impl BaseChannel for BaseChannelCallbackHandler {
         addr: u32,
         buffer: &[u8],
         timeout_ms: u32,
-    ) -> crate::channel::ChannelResult<()> {
+    ) -> ChannelResult<()> {
         let p = CallbackPayload {
             addr,
             data_len: buffer.len() as u32,
@@ -148,14 +147,14 @@ impl BaseChannel for BaseChannelCallbackHandler {
         }
     }
 
-    fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
         match (self.clear_rx_callback)() {
             CallbackHandlerResult::OK => Ok(()),
             x => Err(x.into()),
         }
     }
 
-    fn clear_tx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
         match (self.clear_tx_callback)() {
             CallbackHandlerResult::OK => Ok(()),
             x => Err(x.into()),
@@ -172,14 +171,14 @@ pub struct IsoTpChannelCallbackHandler {
     pub base: BaseChannelCallbackHandler,
     /// Callback when [IsoTPChannel::set_iso_tp_cfg] is called
     pub set_iso_tp_cfg_callback:
-        extern "C" fn(cfg: crate::channel::IsoTPSettings) -> CallbackHandlerResult,
+        extern "C" fn(cfg: IsoTPSettings) -> CallbackHandlerResult,
 }
 
 impl IsoTPChannel for IsoTpChannelCallbackHandler {
     fn set_iso_tp_cfg(
         &mut self,
-        cfg: crate::channel::IsoTPSettings,
-    ) -> crate::channel::ChannelResult<()> {
+        cfg: IsoTPSettings,
+    ) -> ChannelResult<()> {
         match (self.set_iso_tp_cfg_callback)(cfg) {
             CallbackHandlerResult::OK => Ok(()),
             x => Err(x.into()),
@@ -188,19 +187,19 @@ impl IsoTPChannel for IsoTpChannelCallbackHandler {
 }
 
 impl BaseChannel for IsoTpChannelCallbackHandler {
-    fn open(&mut self) -> crate::channel::ChannelResult<()> {
+    fn open(&mut self) -> ChannelResult<()> {
         self.base.open()
     }
 
-    fn close(&mut self) -> crate::channel::ChannelResult<()> {
+    fn close(&mut self) -> ChannelResult<()> {
         self.base.close()
     }
 
-    fn set_ids(&mut self, send: u32, recv: u32) -> crate::channel::ChannelResult<()> {
+    fn set_ids(&mut self, send: u32, recv: u32) -> ChannelResult<()> {
         self.base.set_ids(send, recv)
     }
 
-    fn read_bytes(&mut self, timeout_ms: u32) -> crate::channel::ChannelResult<Vec<u8>> {
+    fn read_bytes(&mut self, timeout_ms: u32) -> ChannelResult<Vec<u8>> {
         self.base.read_bytes(timeout_ms)
     }
 
@@ -209,15 +208,15 @@ impl BaseChannel for IsoTpChannelCallbackHandler {
         addr: u32,
         buffer: &[u8],
         timeout_ms: u32,
-    ) -> crate::channel::ChannelResult<()> {
+    ) -> ChannelResult<()> {
         self.base.write_bytes(addr, buffer, timeout_ms)
     }
 
-    fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
         self.base.clear_rx_buffer()
     }
 
-    fn clear_tx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
         self.base.clear_tx_buffer()
     }
 }
@@ -336,7 +335,6 @@ pub extern "C" fn create_uds_server_over_isotp(
     }
 }
 
-#[no_mangle]
 /// Sends a payload to the UDS server, attempts to get the ECUs response
 ///
 /// ## Parameters
@@ -355,6 +353,7 @@ pub extern "C" fn create_uds_server_over_isotp(
 /// will have a new pointer set for args_ptr. **IMPORTANT**. It is up to the caller
 /// of this function to deallocate this pointer after using it. The rust library will
 /// have nothing to do with it once it is returned
+#[no_mangle]
 pub extern "C" fn send_payload_uds(
     payload: &mut UdsPayload,
     response_require: bool,
@@ -371,10 +370,10 @@ pub extern "C" fn send_payload_uds(
                 unsafe { &core::slice::from_raw_parts(payload.args_ptr, payload.args_len as usize) }
                 ) {
                     Ok(mut resp) => {
-                        payload.sid = unsafe { transmute(resp[0] - 0x40) };
+                        payload.sid = unsafe { core::mem::transmute(resp[0] - 0x40) };
                         let len = resp.len() as u32;
                         let resp_ptr = resp.as_mut_ptr();
-                        std::mem::forget(resp); // Forget the response array, its up to the caller to deallocate this
+                        core::mem::forget(resp); // Forget the response array, its up to the caller to deallocate this
                         payload.args_len = len;
                         payload.args_ptr = resp_ptr;
                         DiagServerResult::OK
