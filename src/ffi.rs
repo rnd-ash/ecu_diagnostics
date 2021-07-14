@@ -2,6 +2,7 @@
 //!
 //! IMPORTANT. Access to the FFI bindings should be done on one thread! No multi-thread support
 
+use core::slice;
 use std::intrinsics::transmute;
 
 use crate::{
@@ -18,8 +19,8 @@ pub struct CallbackPayload {
     pub addr: u32,
     /// Data size
     pub data_len: u32,
-    /// Data
-    pub data: [u8; 4096],
+    /// Data pointer
+    pub data: *const u8,
 }
 
 impl Default for CallbackPayload {
@@ -27,7 +28,7 @@ impl Default for CallbackPayload {
         Self {
             addr: 0x0000,
             data_len: 0,
-            data: [0x00; 4096],
+            data: std::ptr::null(),
         }
     }
 }
@@ -122,7 +123,9 @@ impl BaseChannel for BaseChannelCallbackHandler {
     fn read_bytes(&mut self, timeout_ms: u32) -> crate::channel::ChannelResult<Vec<u8>> {
         let mut p = CallbackPayload::default();
         match (self.read_bytes_callback)(&mut p, timeout_ms) {
-            CallbackHandlerResult::OK => Ok(p.data[0..p.data_len as usize].to_vec()),
+            CallbackHandlerResult::OK => Ok(
+                unsafe { Vec::from_raw_parts(p.data as *mut u8, p.data_len as usize, p.data_len as usize) }
+            ),
             x => Err(x.into()),
         }
     }
@@ -133,12 +136,12 @@ impl BaseChannel for BaseChannelCallbackHandler {
         buffer: &[u8],
         timeout_ms: u32,
     ) -> crate::channel::ChannelResult<()> {
-        let mut p = CallbackPayload {
+        let p = CallbackPayload {
             addr,
             data_len: buffer.len() as u32,
-            data: [0; 4096],
+            data: buffer.as_ptr(),
         };
-        p.data[0..buffer.len()].copy_from_slice(buffer);
+
         match (self.write_bytes_callback)(p, timeout_ms) {
             CallbackHandlerResult::OK => Ok(()),
             x => Err(x.into()),
@@ -296,8 +299,8 @@ pub struct UdsPayload {
     pub sid: UDSCommand,
     /// Argument length
     pub args_len: u32,
-    /// Arguments
-    pub args: [u8; 4095],
+    /// Pointer to arguments array
+    pub args_ptr: *mut u8,
 }
 
 /// Gets the last ECU negative response code
@@ -346,6 +349,12 @@ pub extern "C" fn create_uds_server_over_isotp(
 ///
 /// Due to restrictions, the payload SID in the response message will match the original SID,
 /// rather than SID + 0x40.
+/// 
+/// ## Returns
+/// If a response is required, and it completes successfully, then the returned value
+/// will have a new pointer set for args_ptr. **IMPORTANT**. It is up to the caller
+/// of this function to deallocate this pointer after using it. The rust library will
+/// have nothing to do with it once it is returned
 pub extern "C" fn send_payload_uds(
     payload: &mut UdsPayload,
     response_require: bool,
@@ -359,17 +368,25 @@ pub extern "C" fn send_payload_uds(
             if response_require {
                 match server.execute_command_with_response(
                     payload.sid,
-                    &payload.args[0..payload.args_len as usize],
+                unsafe { &core::slice::from_raw_parts(payload.args_ptr, payload.args_len as usize) }
                 ) {
-                    Ok(resp) => {
+                    Ok(mut resp) => {
                         payload.sid = unsafe { transmute(resp[0] - 0x40) };
+                        let len = resp.len() as u32;
+                        let resp_ptr = resp.as_mut_ptr();
+                        std::mem::forget(resp); // Forget the response array, its up to the caller to deallocate this
+                        payload.args_len = len;
+                        payload.args_ptr = resp_ptr;
                         DiagServerResult::OK
                     }
                     Err(e) => e.into(),
                 }
             } else {
                 match server
-                    .execute_command(payload.sid, &payload.args[0..payload.args_len as usize])
+                    .execute_command(
+                        payload.sid, 
+                        unsafe { &core::slice::from_raw_parts(payload.args_ptr, payload.args_len as usize) }
+                    )
                 {
                     Ok(_) => DiagServerResult::OK,
                     Err(e) => e.into(),

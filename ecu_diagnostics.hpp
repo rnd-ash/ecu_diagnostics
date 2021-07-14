@@ -94,8 +94,8 @@ struct CallbackPayload {
   uint32_t addr;
   /// Data size
   uint32_t data_len;
-  /// Data
-  uint8_t data[4096];
+  /// Data pointer
+  const uint8_t *data;
 };
 
 /// Callback handler for base channel to allow access via FFI
@@ -165,8 +165,8 @@ struct UdsPayload {
   UDSCommand sid;
   /// Argument length
   uint32_t args_len;
-  /// Arguments
-  uint8_t args[4095];
+  /// Pointer to arguments array
+  uint8_t *args_ptr;
 };
 
 extern "C" {
@@ -195,6 +195,12 @@ DiagServerResult create_uds_server_over_isotp(UdsServerOptions settings, IsoTPSe
 ///
 /// Due to restrictions, the payload SID in the response message will match the original SID,
 /// rather than SID + 0x40.
+///
+/// ## Returns
+/// If a response is required, and it completes successfully, then the returned value
+/// will have a new pointer set for args_ptr. **IMPORTANT**. It is up to the caller
+/// of this function to deallocate this pointer after using it. The rust library will
+/// have nothing to do with it once it is returned
 DiagServerResult send_payload_uds(UdsPayload *payload, bool response_require);
 
 /// Destroys an existing UDS server
