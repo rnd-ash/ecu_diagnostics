@@ -37,6 +37,8 @@ pub mod clear_diagnostic_information;
 pub mod read_status_of_dtc;
 pub mod read_dtc_by_status;
 pub mod read_ecu_identification;
+pub mod read_data_by_local_id;
+pub mod read_data_by_identifier;
 
 /// KWP Command Service IDs.
 ///
