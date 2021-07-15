@@ -36,6 +36,7 @@ pub mod ecu_reset;
 pub mod clear_diagnostic_information;
 pub mod read_status_of_dtc;
 pub mod read_dtc_by_status;
+pub mod read_ecu_identification;
 
 /// KWP Command Service IDs.
 ///
@@ -241,9 +242,9 @@ impl BaseServerPayload for Kwp2000Cmd {
 #[derive(Debug, Copy, Clone)]
 pub struct Kwp2000VoidHandler;
 
-impl ServerEventHandler<(), Kwp2000Cmd> for Kwp2000VoidHandler {
+impl ServerEventHandler<SessionType, Kwp2000Cmd> for Kwp2000VoidHandler {
     #[inline(always)]
-    fn on_event(&mut self, _e: ServerEvent<(), Kwp2000Cmd>) {}
+    fn on_event(&mut self, _e: ServerEvent<SessionType, Kwp2000Cmd>) {}
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -343,7 +344,8 @@ impl Kwp2000DiagnosticServer {
                             &cmd,
                             &settings,
                             &mut server_channel,
-                            0x78,
+                            0x78, 
+                            0x21
                         ) {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
@@ -384,7 +386,8 @@ impl Kwp2000DiagnosticServer {
                             &cmd,
                             &settings,
                             &mut server_channel,
-                            0x78, // Kwp2000Error::RequestCorrectlyReceivedResponsePending
+                            0x78,
+                            0x21,
                         );
                         //event_handler.on_event(&res);
                         if tx_res.send(res).is_err() {
@@ -420,7 +423,7 @@ impl Kwp2000DiagnosticServer {
                     };
 
                     if let Err(e) =
-                        helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78)
+                        helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78, 0x21)
                     {
                         event_handler.on_event(ServerEvent::TesterPresentError(e))
                     }
@@ -525,4 +528,9 @@ impl Kwp2000DiagnosticServer {
     pub fn set_repeat_interval_count(&mut self, interval_ms: u32) {
         self.repeat_interval = std::time::Duration::from_millis(interval_ms as u64)
     }
+}
+
+/// Returns the KWP2000 error from a given error code
+pub fn get_description_of_ecu_error(error: u8) -> KWP2000Error {
+    error.into()
 }

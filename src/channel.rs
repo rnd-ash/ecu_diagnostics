@@ -82,13 +82,20 @@ pub trait BaseChannel: Send + Sync {
     fn set_ids(&mut self, send: u32, recv: u32) -> ChannelResult<()>;
 
     /// Attempts to read bytes from the channel.
+    /// 
+    /// The contents being read should not include any protocol related bytes,
+    /// just the payload destined for the diagnostic application
     ///
     /// ## Parameters
     /// * timeout_ms - Timeout for reading bytes. If a value of 0 is used, it instructs the channel to immediately
     /// return with whatever was in its receiving buffer
     fn read_bytes(&mut self, timeout_ms: u32) -> ChannelResult<Vec<u8>>;
 
-    /// Attempts to write bytes to the channel
+    /// Attempts to write bytes to the channel.
+    /// 
+    /// The contents being sent will just be the raw payload being sent to the device,
+    /// it is up to the implementor of this function to add related protocol bytes
+    /// to the message where necessary.
     ///
     /// ## Parameters
     /// * Target address of the message
@@ -117,10 +124,13 @@ pub trait BaseChannel: Send + Sync {
         self.read_bytes(read_timeout_ms)
     }
 
-    /// Tells the channel to clear its Rx buffer
+    /// Tells the channel to clear its Rx buffer.
+    /// This means all pending messages to be read should be wiped from the devices queue,
+    /// such that [BaseChannel::read_bytes] does not read them
     fn clear_rx_buffer(&mut self) -> ChannelResult<()>;
 
-    /// Tells the channel to clear its Tx buffer
+    /// Tells the channel to clear its Tx buffer.
+    /// This means all messages that are queued to be sent to the ECU should be wiped.
     fn clear_tx_buffer(&mut self) -> ChannelResult<()>;
 }
 
@@ -133,17 +143,31 @@ pub trait IsoTPChannel: BaseChannel {
     fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()>;
 }
 
-/// ISO-TP configuration options
+/// ISO-TP configuration options (ISO15765-2)
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct IsoTPSettings {
-    /// Block size
+    /// ISO-TP Block size
+    /// 
+    /// This value indicates the number of CAN Frames to send in multi-frame messages,
+    /// before sending or receiving a flow control message.
+    /// 
+    /// A value of 0 indicates send everything without flow control messages.
+    /// 
+    /// NOTE: This value might be overridden by the device's implementation of ISO-TP
     pub block_size: u8,
-    /// Minimum separation time between CAN Frames (In milliseconds)
+    /// Minimum separation time between Tx/Rx CAN Frames.
+    /// 
+    /// 3 ranges are accepted for this value:
+    /// * 0x00 - Send without delay (ECU/Adapter will send frames as fast as the physical bus allows).
+    /// * 0x01-0x7F - Send with delay of 1-127 milliseconds between can frames
+    /// * 0xF1-0xF9 - Send with delay of 100-900 microseconds between can frames
+    /// 
+    /// NOTE: This value might be overridden by the device's implementation of ISO-TP
     pub st_min: u8,
     /// Use extended ISO-TP addressing
     pub extended_addressing: bool,
-    /// Pad frames over ISO-TP if data size < 8
+    /// Pad frames over ISO-TP if data size is less than 8.
     pub pad_frame: bool,
     /// Baud rate of the CAN Network
     pub can_speed: u32,

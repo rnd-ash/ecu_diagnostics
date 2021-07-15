@@ -378,6 +378,7 @@ impl UdsDiagnosticServer {
                             &settings,
                             &mut server_channel,
                             0x78,
+                            0x21
                         ) {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
@@ -417,6 +418,7 @@ impl UdsDiagnosticServer {
                             &settings,
                             &mut server_channel,
                             0x78, // UDSError::RequestCorrectlyReceivedResponsePending
+                            0x21
                         );
                         //event_handler.on_event(&res);
                         if tx_res.send(res).is_err() {
@@ -442,7 +444,7 @@ impl UdsDiagnosticServer {
                     };
 
                     if let Err(e) =
-                        helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78)
+                        helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78, 0x21)
                     {
                         event_handler.on_event(ServerEvent::TesterPresentError(e))
                     }
