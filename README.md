@@ -12,7 +12,13 @@ server's checklist
 
 ## Features
 * Easy to use (Check the examples folder for UDS server usage with SocketCAN)
-* Implements UDS
+* Implements UDS, KWP2000 and OBD2
+* FFI bindings for use in C/C++ projects! (Check the examples folder)
+* Safe to use (Cannot inadvertently send incorrect requests to the ECU)
+* Parsing support - Where possible, data is returned in data structures, being interpreted from the ECU's response, rather than just bytes which have to be manually interpreted
+* ISO-TP transport layer, LIN, J1850 and DoIP is work in progress at this time
+* Diagnostic servers (For KWP2000 and UDS) automatically handle disconnects from ECU
+* Optional diagnostic server event receiving for logging internal server events
 
 
 ## A quick overview of diagnostic servers used by ECUs
