@@ -39,6 +39,8 @@ pub mod read_dtc_by_status;
 pub mod read_ecu_identification;
 pub mod read_data_by_local_id;
 pub mod read_data_by_identifier;
+pub mod read_memory_by_address;
+pub mod security_access;
 
 /// KWP Command Service IDs.
 ///
@@ -49,23 +51,23 @@ pub mod read_data_by_identifier;
 pub enum KWP2000Command {
     /// Start or change ECU diagnostic session mode. See [start_diagnostic_session]
     StartDiagnosticSession = 0x10,
-    /// Reset the ECU
+    /// Reset the ECU. See [ecu_reset]
     ECUReset = 0x11,
-    /// Clears diagnostic information stored on the ECU.
+    /// Clears diagnostic information stored on the ECU. See [clear_diagnostic_information]
     ClearDiagnosticInformation = 0x14,
-    ///
+    /// Reads snapshot data of DTCs stored on the ECU. See [read_status_of_dtc]
     ReadStatusOfDiagnosticTroubleCOdes = 0x17,
-    ///
+    /// Reads DTCs stored on the ECU. See [read_dtc_by_status]
     ReadDiagnosticTroubleCodesByStatus = 0x18,
-    ///
+    /// Reads ECU identification data. See [read_ecu_identification]
     ReadECUIdentification = 0x1A,
-    ///
+    /// Reads data from the ECU using a local identifier. See [read_data_by_local_id]
     ReadDataByLocalIdentifier = 0x21,
-    ///
+    /// Reads data from the ECU using a unique identifier. See [read_data_by_identifier]
     ReadDataByIdentifier = 0x22,
-    ///
+    /// Reads memory from the ECU by address. See [read_memory_by_address]
     ReadMemoryByAddress = 0x23,
-    ///
+    /// Security access functions. See [security_access]
     SecurityAccess = 0x27,
     ///
     DisableNormalMessageTransmission = 0x28,

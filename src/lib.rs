@@ -65,6 +65,9 @@ pub enum DiagError {
     ServerNotRunning,
     /// ECU Responded with a message, but the length was incorrect
     InvalidResponseLength,
+    /// A parameter given to the function is invalid. Check the function's documentation
+    /// for more information
+    ParameterInvalid,
     /// Error with underlying communication channel
     ChannelError(ChannelError),
     /// Denotes a TODO action (Non-implemented function stub)
@@ -79,6 +82,7 @@ impl std::fmt::Display for DiagError {
             DiagError::EmptyResponse => write!(f, "ECU provided an empty response"),
             DiagError::WrongMessage => write!(f, "ECU response message did not match request"),
             DiagError::ServerNotRunning => write!(f, "diagnostic server not running"),
+            DiagError::ParameterInvalid => write!(f, "a parameter provided was invalid"),
             DiagError::InvalidResponseLength => {
                 write!(f, "ECU response message was of invalid length")
             }

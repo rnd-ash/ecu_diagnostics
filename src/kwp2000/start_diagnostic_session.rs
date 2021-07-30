@@ -59,5 +59,5 @@ impl From<SessionType> for u8 {
 /// * server - The KWP2000 Diagnostic server
 /// * mode - The [Kwp2000SessionType] to put the ECU into
 pub fn set_diagnostic_session_mode(server: &mut Kwp2000DiagnosticServer, mode: SessionType) -> DiagServerResult<()> {
-    server.execute_command(KWP2000Command::StartDiagnosticSession, &[mode.into()]).map(|_| ())
+    server.execute_command_with_response(KWP2000Command::StartDiagnosticSession, &[mode.into()]).map(|_| ())
 }
