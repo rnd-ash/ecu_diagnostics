@@ -39,5 +39,5 @@ impl From<ResetMode> for u8 {
 /// * server - KWP2000 diagnostic server
 /// * mode - [ResetMode] to send to the ECU
 pub fn execute_reset(server: &mut Kwp2000DiagnosticServer, mode: ResetMode) -> DiagServerResult<()> {
-    server.execute_command(KWP2000Command::ECUReset, &[mode.into()]).map(|_| ())
+    server.execute_command_with_response(KWP2000Command::ECUReset, &[mode.into()]).map(|_| ())
 }

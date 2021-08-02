@@ -58,5 +58,5 @@ impl From<DTCRange> for u16 {
 /// Executes a DTC clear command on the ECU, given a range of DTCs to clear
 pub fn clear_dtc(server: &mut Kwp2000DiagnosticServer, dtc_range: DTCRange) -> DiagServerResult<()> {
     let dtc_range_num: u16 = dtc_range.into();
-    server.execute_command(KWP2000Command::ClearDiagnosticInformation, &[(dtc_range_num << 8) as u8, dtc_range_num as u8]).map(|_| ())
+    server.execute_command_with_response(KWP2000Command::ClearDiagnosticInformation, &[(dtc_range_num << 8) as u8, dtc_range_num as u8]).map(|_| ())
 }
