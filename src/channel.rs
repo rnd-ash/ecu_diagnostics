@@ -64,9 +64,8 @@ impl std::error::Error for ChannelError {
     }
 }
 
-/// Base trait for interfacing with an ECU.
-/// This trait allows you to write or read bytes from an ECUs interface
-pub trait BaseChannel: Send + Sync {
+/// Base trait for interfacing with an ECU using multi-packet communication protocols
+pub trait PayloadChannel: Send + Sync {
     /// This function opens the interface.
     /// It is ONLY called after set_ids and any other configuration function
     fn open(&mut self) -> ChannelResult<()>;
@@ -134,13 +133,103 @@ pub trait BaseChannel: Send + Sync {
     fn clear_tx_buffer(&mut self) -> ChannelResult<()>;
 }
 
-/// Extended trait for [BaseChannel] when utilizing ISO-TP to send data to the ECU
-pub trait IsoTPChannel: BaseChannel {
+/// Extended trait for [PayloadChannel] when utilizing ISO-TP to send data to the ECU
+pub trait IsoTPChannel: PayloadChannel {
     /// Sets the ISO-TP specific configuration for the Channel
     ///
     /// ## Parameters
     /// * The configuration of the ISO-TP Channel
     fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()>;
+}
+
+/// Trait for sending single communication packets across a network
+/// 
+/// ## Limitations ##
+/// Currently, PacketChannel will always use an open filter when listening
+/// to data, meaning any filtering has to be done in software, not hardware
+pub trait PacketChannel<T: Packet> : Send + Sync {
+    /// Closes the channel
+    fn close(&mut self) -> ChannelResult<()>;
+    /// Writes a list of packets to the raw interface
+    fn write_packets(&mut self, packets: Vec<T>, timeout_ms: u32) -> ChannelResult<()>;
+    /// Reads a list of packets from the raw interface
+    fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<T>>;
+
+    /// Tells the channel to clear its Rx buffer.
+    /// This means all pending messages to be read should be wiped from the devices queue,
+    /// such that [BaseChannel::read_bytes] does not read them
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()>;
+
+    /// Tells the channel to clear its Tx buffer.
+    /// This means all messages that are queued to be sent to the ECU should be wiped.
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()>;
+}
+
+/// Packet channel for sending and receiving individual CAN Frames
+pub trait CanChannel: PacketChannel<CanFrame> {}
+
+/// This trait is for packets that are used by [PacketChannel]
+pub trait Packet: Send + Sync + Sized {
+    /// Returns the address of the packet
+    fn get_address(&self) -> u32;
+    /// Returns the data of the packet
+    fn get_data(&self) -> &[u8];
+    /// Sets the address of the packet
+    fn set_address(&mut self, address: u32);
+    /// Sets the data of the packet
+    fn set_data(&mut self, data: &[u8]);
+}
+
+#[derive(Debug, Copy, Clone)]
+/// CAN Frame
+pub struct CanFrame {
+    id: u32,
+    dlc: u8,
+    data: [u8; 8],
+    ext: bool
+}
+
+impl CanFrame {
+    /// Creates a new CAN Frame given data and an ID.
+    /// ## Parameters
+    /// * id - The CAN ID of the packet
+    /// * data - The data of the CAN packet
+    /// * is_ext - Indication if the CAN packet shall use extended addressing
+    /// 
+    /// NOTE: If [id] is greater than 0x7FF, extended addressing (29bit) will be enabled
+    /// regardless of [is_ext].
+    /// 
+    /// Also, [data] will be limited to 8 bytes.
+    pub fn new(id: u32, data: &[u8], is_ext: bool) -> Self {
+        let max = std::cmp::min(8, data.len());
+        let mut tmp = [0u8; 8];
+        tmp[0..max].copy_from_slice(&data[0..max]);
+        Self {
+            id,
+            dlc: max as u8,
+            data: tmp,
+            ext: is_ext
+        }
+    }
+}
+
+impl Packet for CanFrame {
+    fn get_address(&self) -> u32 {
+        self.id
+    }
+
+    fn get_data(&self) -> &[u8] {
+        &self.data[0..self.dlc as usize]
+    }
+
+    fn set_address(&mut self, address: u32) {
+        self.id = address
+    }
+    fn set_data(&mut self, data: &[u8]) {
+        let max = std::cmp::min(8, data.len());
+        self.data[0..max].copy_from_slice(&data[0..max]);
+        self.dlc = max as u8;
+    }
 }
 
 /// ISO-TP configuration options (ISO15765-2)

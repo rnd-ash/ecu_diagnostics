@@ -581,7 +581,7 @@ unsafe impl Send for UdsDiagnosticServer {}
 pub mod uds_test {
     use std::collections::HashMap;
 
-    use crate::channel::{BaseChannel, ChannelError, ChannelResult};
+    use crate::channel::{PayloadChannel, ChannelError, ChannelResult};
 
     use super::*;
 
@@ -610,7 +610,7 @@ pub mod uds_test {
         }
     }
 
-    impl BaseChannel for FakeIsoTpChannel {
+    impl PayloadChannel for FakeIsoTpChannel {
         fn open(&mut self) -> crate::channel::ChannelResult<()> {
             Ok(())
         }

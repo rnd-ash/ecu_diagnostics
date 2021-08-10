@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use crate::{
-    channel::BaseChannel, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult,
+    channel::PayloadChannel, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult,
 };
 
 /// Checks if the response payload matches the request ServiceID.
@@ -18,7 +18,7 @@ pub(crate) fn check_pos_response_id(sid: u8, resp: Vec<u8>) -> DiagServerResult<
     }
 }
 
-pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: BaseChannel>(
+pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: PayloadChannel>(
     addr: u32,
     cmd: &P,
     settings: &T,

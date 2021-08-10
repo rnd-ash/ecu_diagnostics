@@ -1,7 +1,5 @@
 //! Functions relating to ECU Identification
 
-use std::fmt::format;
-
 use crate::{DiagError, DiagServerResult, helpers::{bcd_decode, bcd_decode_slice}, kwp2000::{KWP2000Command, Kwp2000DiagnosticServer}};
 
 

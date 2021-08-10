@@ -1,7 +1,7 @@
 use core::time;
 use std::{borrow::BorrowMut, cell::RefCell, ops::Deref, time::Instant};
 
-use ecu_diagnostics::channel::{BaseChannel, ChannelError, IsoTPChannel, IsoTPSettings};
+use ecu_diagnostics::channel::{PayloadChannel, ChannelError, IsoTPChannel, IsoTPSettings};
 use socketcan_isotp::{FlowControlOptions, IsoTpBehaviour, IsoTpOptions, IsoTpSocket, EFF_FLAG};
 
 // Convert SocketCAN errors into Channel Errors
@@ -29,7 +29,7 @@ impl SocketCANInterface {
 }
 
 // Base channel implementation for ISOTP
-impl BaseChannel for SocketCANInterface {
+impl PayloadChannel for SocketCANInterface {
     fn open(&mut self) -> ecu_diagnostics::channel::ChannelResult<()> {
         if self.opts.is_none() {
             return Err(ChannelError::APIError {
@@ -106,7 +106,6 @@ impl BaseChannel for SocketCANInterface {
                 if timeout_ms == 0 {
                     // 1 read attempt (Whatever is in the Rx buffer gets read)
                     if let Ok(resp) = iface.read() {
-                        println!("{:02X?}", resp);
                         return Ok(resp.to_vec());
                     } else {
                         return Err(ChannelError::BufferEmpty);

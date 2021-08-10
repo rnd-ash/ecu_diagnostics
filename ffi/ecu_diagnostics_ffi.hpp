@@ -43,6 +43,8 @@ enum class DiagServerResult {
   ServerAlreadyRunning = 7,
   /// No diagnostic server to register the request. Call
   NoDiagnosticServer = 8,
+  /// Parameter provided to a subfunction was invalid
+  ParameterInvalid = 9,
   /// ECU responded with an error, call [get_ecu_error_code]
   /// to retrieve the NRC from the ECU
   ECUError = 98,
@@ -116,15 +118,29 @@ struct BaseChannelCallbackHandler {
   CallbackHandlerResult (*set_ids_callback)(uint32_t send, uint32_t recv);
 };
 
-/// ISO-TP configuration options
+/// ISO-TP configuration options (ISO15765-2)
 struct IsoTPSettings {
-  /// Block size
+  /// ISO-TP Block size
+  ///
+  /// This value indicates the number of CAN Frames to send in multi-frame messages,
+  /// before sending or receiving a flow control message.
+  ///
+  /// A value of 0 indicates send everything without flow control messages.
+  ///
+  /// NOTE: This value might be overridden by the device's implementation of ISO-TP
   uint8_t block_size;
-  /// Minimum separation time between CAN Frames (In milliseconds)
+  /// Minimum separation time between Tx/Rx CAN Frames.
+  ///
+  /// 3 ranges are accepted for this value:
+  /// * 0x00 - Send without delay (ECU/Adapter will send frames as fast as the physical bus allows).
+  /// * 0x01-0x7F - Send with delay of 1-127 milliseconds between can frames
+  /// * 0xF1-0xF9 - Send with delay of 100-900 microseconds between can frames
+  ///
+  /// NOTE: This value might be overridden by the device's implementation of ISO-TP
   uint8_t st_min;
   /// Use extended ISO-TP addressing
   bool extended_addressing;
-  /// Pad frames over ISO-TP if data size < 8
+  /// Pad frames over ISO-TP if data size is less than 8.
   bool pad_frame;
   /// Baud rate of the CAN Network
   uint32_t can_speed;

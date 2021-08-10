@@ -57,7 +57,7 @@ impl DTCStatus {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DTC {
     /// The [DTCFormatType] of the DTC. This is used
-    /// to interpret the raw value of the DTC
+    /// to interpret the raw value of the DTC   
     pub format: DTCFormatType,
     /// The raw value of the DTC according to the ECU
     pub raw: u32,

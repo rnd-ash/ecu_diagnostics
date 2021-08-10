@@ -8,7 +8,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-pub use ecu_diagnostics::{DiagError, channel::{BaseChannel, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings}, uds::{UdsDiagnosticServer, UdsVoidHandler, UdsServerOptions, UDSCommand}};
+pub use ecu_diagnostics::{DiagError, channel::{PayloadChannel, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings}, uds::{UdsDiagnosticServer, UdsVoidHandler, UdsServerOptions, UDSCommand}};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -97,7 +97,7 @@ pub struct BaseChannelCallbackHandler {
     pub set_ids_callback: extern "C" fn(send: u32, recv: u32) -> CallbackHandlerResult,
 }
 
-impl BaseChannel for BaseChannelCallbackHandler {
+impl PayloadChannel for BaseChannelCallbackHandler {
     fn open(&mut self) -> ChannelResult<()> {
         match (self.open_callback)() {
             CallbackHandlerResult::OK => Ok(()),
@@ -186,7 +186,7 @@ impl IsoTPChannel for IsoTpChannelCallbackHandler {
     }
 }
 
-impl BaseChannel for IsoTpChannelCallbackHandler {
+impl PayloadChannel for IsoTpChannelCallbackHandler {
     fn open(&mut self) -> ChannelResult<()> {
         self.base.open()
     }
@@ -263,6 +263,8 @@ pub enum DiagServerResult {
     ServerAlreadyRunning = 7,
     /// No diagnostic server to register the request. Call
     NoDiagnosticServer = 8,
+    /// Parameter provided to a subfunction was invalid
+    ParameterInvalid = 9,
     /// ECU responded with an error, call [get_ecu_error_code]
     /// to retrieve the NRC from the ECU
     ECUError = 98,
@@ -286,6 +288,7 @@ impl From<DiagError> for DiagServerResult {
             DiagError::InvalidResponseLength => DiagServerResult::InvalidResponseLength,
             DiagError::NotImplemented(_) => DiagServerResult::Todo,
             DiagError::ChannelError(_) => DiagServerResult::HandlerError,
+            DiagError::ParameterInvalid => DiagServerResult::ParameterInvalid
         }
     }
 }

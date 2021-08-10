@@ -44,6 +44,7 @@ pub mod dtc;
 pub mod kwp2000;
 pub mod obd2;
 pub mod uds;
+pub mod hardware;
 
 mod helpers;
 

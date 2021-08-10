@@ -87,7 +87,7 @@ pub fn read_supported_dtcs_iso15031(server: &mut Kwp2000DiagnosticServer, range:
                 }
                 // Else keep looping to read DTCs
             },
-            Err(e) => break // Return what we have
+            Err(_) => break // Return what we have
         }
     }
 
