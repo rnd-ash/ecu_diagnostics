@@ -383,7 +383,7 @@ impl UdsDiagnosticServer {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
                                 // Set server session type
-                                if cmd.bytes[1] == UDSSessionType::Default.into() {
+                                if cmd.bytes[1] == u8::from(UDSSessionType::Default) {
                                     // Default session, disable tester present
                                     send_tester_present = false;
                                 } else {

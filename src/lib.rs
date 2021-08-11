@@ -38,6 +38,7 @@
 //!
 
 use channel::ChannelError;
+use hardware::HardwareError;
 
 pub mod channel;
 pub mod dtc;
@@ -74,10 +75,13 @@ pub enum DiagError {
     /// Denotes a TODO action (Non-implemented function stub)
     /// This will be removed in Version 1
     NotImplemented(String),
+    /// Device hardware error
+    HardwareError(HardwareError)
 }
+
 impl std::fmt::Display for DiagError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        match &self {
             DiagError::NotSupported => write!(f, "request not supported"),
             DiagError::ECUError(err) => write!(f, "ECU error 0x{:02X}", err),
             DiagError::EmptyResponse => write!(f, "ECU provided an empty response"),
@@ -91,15 +95,17 @@ impl std::fmt::Display for DiagError {
             DiagError::NotImplemented(s) => {
                 write!(f, "server encountered an unimplemented function: {}", s)
             }
+            &DiagError::HardwareError(e) => write!(f, "Hardware error: {}", e)
         }
     }
 }
+
 impl std::error::Error for DiagError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        if let DiagError::ChannelError(err) = self {
-            Some(err)
-        } else {
-            None
+        match &self {
+            DiagError::ChannelError(e) => Some(e),
+            DiagError::HardwareError(e) => Some(e),
+            _ => None
         }
     }
 }
@@ -107,6 +113,12 @@ impl std::error::Error for DiagError {
 impl From<ChannelError> for DiagError {
     fn from(x: ChannelError) -> Self {
         Self::ChannelError(x)
+    }
+}
+
+impl From<HardwareError> for DiagError {
+    fn from(x: HardwareError) -> Self {
+        Self::HardwareError(x)
     }
 }
 

@@ -354,8 +354,8 @@ impl Kwp2000DiagnosticServer {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
                                 // Set server session type
-                                if cmd.bytes[1] == SessionType::Passive.into()
-                                    || cmd.bytes[1] == SessionType::Normal.into()
+                                if cmd.bytes[1] == u8::from(SessionType::Passive)
+                                    || cmd.bytes[1] == u8::from(SessionType::Normal)
                                 {
                                     // Default session, disable tester present
                                     send_tester_present = false;

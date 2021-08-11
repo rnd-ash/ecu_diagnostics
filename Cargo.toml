@@ -21,9 +21,19 @@ maintenance = { status = "actively-developed" }
 all-features = true
 default-target = "i686-pc-windows-msvc"
 
-
 [workspace]
 members = [
     "examples/uds_over_socketcan",
     "ffi"
 ]
+
+[dependencies]
+j2534_rust = { git="https://github.com/rnd-ash/j2534-rust" }
+serde_json = "1.0"
+libloading = "0.7.0"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.8"
+
+[target.'cfg(unix)'.dependencies]
+shellexpand = "2.0.0"
