@@ -4,6 +4,8 @@
 //! * [BaseChannel] - Basic channel, all channels inherit this trait
 //! * [IsoTPChannel] - IsoTP (ISO15765) channel
 
+use crate::hardware::HardwareError;
+
 /// Communication channel result
 pub type ChannelResult<T> = Result<T, ChannelError>;
 
@@ -25,14 +27,7 @@ pub enum ChannelError {
     /// The interface is not open
     InterfaceNotOpen,
     /// Underlying API error with hardware
-    APIError {
-        /// Name of the API EG: 'socketCAN', 'Passthru'
-        api_name: String,
-        /// Internal API error code
-        code: u8,
-        /// API error description
-        desc: String,
-    },
+    HardwareError(HardwareError)
 }
 
 impl std::fmt::Display for ChannelError {
@@ -45,12 +40,14 @@ impl std::fmt::Display for ChannelError {
             ChannelError::BufferFull => write!(f, "channel's Transmit buffer is full"),
             ChannelError::BufferEmpty => write!(f, "channel's Receive buffer is empty"),
             ChannelError::InterfaceNotOpen => write!(f, "channel's interface is not open"),
-            ChannelError::APIError {
-                api_name,
-                code,
-                desc,
-            } => write!(f, "underlying {} API error ({}): {}", api_name, code, desc),
+            ChannelError::HardwareError(err) => write!(f, "Channel hardware error: {}", err),
         }
+    }
+}
+
+impl From<HardwareError> for ChannelError {
+    fn from(err: HardwareError) -> Self {
+        Self::HardwareError(err)
     }
 }
 
@@ -58,6 +55,8 @@ impl std::error::Error for ChannelError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         if let Self::IOError(io_err) = self {
             Some(io_err)
+        } else if let Self::HardwareError(err) = self {
+            Some(err)
         } else {
             None
         }
@@ -166,7 +165,10 @@ pub trait PacketChannel<T: Packet> : Send + Sync {
 }
 
 /// Packet channel for sending and receiving individual CAN Frames
-pub trait CanChannel: PacketChannel<CanFrame> {}
+pub trait CanChannel: PacketChannel<CanFrame> {
+    /// Opens the CAN Channel
+    fn open(&mut self, baud: u32, use_extended: bool) -> ChannelResult<()>;
+}
 
 /// This trait is for packets that are used by [PacketChannel]
 pub trait Packet: Send + Sync + Sized {
@@ -210,6 +212,11 @@ impl CanFrame {
             data: tmp,
             ext: is_ext
         }
+    }
+
+    /// Returns true if the CAN Frame uses Extended (29bit) addressing
+    pub fn is_extended(&self) -> bool {
+        self.ext
     }
 }
 

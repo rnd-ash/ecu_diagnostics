@@ -556,8 +556,8 @@ impl UdsDiagnosticServer {
 ///
 /// ## Example:
 /// ```
-/// #extern crate ecu_diagnostics;
-/// #use ecu_diagnostics::{DiagError, uds};
+/// extern crate ecu_diagnostics;
+/// use ecu_diagnostics::{DiagError, uds};
 ///
 /// let result = DiagError::ECUError(0x10);
 ///
