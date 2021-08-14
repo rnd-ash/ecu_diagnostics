@@ -1,6 +1,6 @@
 [package]
 name = "ecu_diagnostics"
-version = "0.0.8"
+version = "0.1.0"
 authors = ["Ashcon Mohseninia <ashconm@outlook.com>"]
 edition = "2018"
 description = "A rust crate for ECU diagnostic servers"
@@ -23,12 +23,13 @@ default-target = "i686-pc-windows-msvc"
 
 [workspace]
 members = [
+    "examples/passthru_isotp",
     "examples/uds_over_socketcan",
     "ffi"
 ]
 
 [dependencies]
-j2534_rust = { git="https://github.com/rnd-ash/j2534-rust" }
+j2534_rust = "1.0"
 serde_json = "1.0"
 libloading = "0.7.0"
 
