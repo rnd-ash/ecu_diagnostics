@@ -7,12 +7,12 @@
 A cross-platform crate with FFI bindings to allow for complex vehicle ECU diagnostics.
 
 ## IMPORTANT
-Currently this crate is not 100% ready for use. Check the feature matrix below for each diagnostic
-server's checklist
+This crate is a work in progress, and ECU compatibility may vary! This crate goes by the KWP2000 and UDS specification, but some ECUs choose to deviate slightly from the official specification!
 
 ## Features
-* Easy to use (Check the examples folder for UDS server usage with SocketCAN)
+* Easy to use (Check the examples folder)
 * Implements UDS, KWP2000 and OBD2
+* Hardware API for accessing common OBD-2 adapter types (Passthru)
 * FFI bindings for use in C/C++ projects! (Check the examples folder)
 * Safe to use (Cannot inadvertently send incorrect requests to the ECU)
 * Parsing support - Where possible, data is returned in data structures, being interpreted from the ECU's response, rather than just bytes which have to be manually interpreted
@@ -20,15 +20,12 @@ server's checklist
 * Diagnostic servers (For KWP2000 and UDS) automatically handle disconnects from ECU
 * Optional diagnostic server event receiving for logging internal server events
 
-
 ## A quick overview of diagnostic servers used by ECUs
 
 ### On-board diagnostics (OBD2)
 ISO9141 - OBD2 is a legal requirement on all vehicles produced from 2002, allowing for
 reading of sensor data, reading and clearing standard DTCs, and reading basic vehicle information.
 OBD2 is designed to be safe and simple, and does not write data to the ECU.
-
-
 
 ### Keyword protocol 2000 (KWP2000)
 ISO14230 - KWP2000 is a advanced diagnostic protocol utilized by many vehicle manufacturers from 2000-2006 (Superseded by UDS).
@@ -77,3 +74,24 @@ Working specification services:
 * ECUReset
 * ReadDTCInformation
 * SecurityAccess
+
+
+## Hardware API checklist
+
+The Hardware API contains a common interface for scanning for compatible devices on a system as well as an API
+for creating Channels for diagnostic servers using the hardware
+
+### Passthru (SAE J2534)
+* ISO-TP
+* CAN
+* Read Battery voltage
+
+### SocketCAN
+TBA
+
+### D-PDU (ISO 22900-2)
+TBA
+
+
+# Notable contributions
+* @LLBlumire
