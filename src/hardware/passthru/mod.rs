@@ -460,8 +460,8 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             Ok(_) => Ok(()), // Channel setup complete
             Err(e) => {
                 // Oops! Teardown
-                todo!("Handle close");
-                //self.close();
+                std::mem::drop(device);
+                self.close();
                 return Err(e.into());
             }
         }
@@ -632,8 +632,8 @@ impl PayloadChannel for PassthruIsoTpChannel {
             Ok(_) => Ok(()), // Channel setup complete
             Err(e) => {
                 // Oops! Teardown
-                todo!("Handle ISO-TP close");
-                //self.close();
+                std::mem::drop(device);
+                self.close();
                 return Err(e.into());
             }
         }
