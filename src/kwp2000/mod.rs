@@ -31,16 +31,16 @@ use crate::{
 
 use self::start_diagnostic_session::SessionType;
 
-pub mod start_diagnostic_session;
-pub mod ecu_reset;
 pub mod clear_diagnostic_information;
-pub mod read_status_of_dtc;
+pub mod ecu_reset;
+pub mod read_data_by_identifier;
+pub mod read_data_by_local_id;
 pub mod read_dtc_by_status;
 pub mod read_ecu_identification;
-pub mod read_data_by_local_id;
-pub mod read_data_by_identifier;
 pub mod read_memory_by_address;
+pub mod read_status_of_dtc;
 pub mod security_access;
+pub mod start_diagnostic_session;
 
 /// KWP Command Service IDs.
 ///
@@ -307,7 +307,7 @@ impl Kwp2000DiagnosticServer {
     /// * channel_cfg - The settings to use for the ISO-TP channel
     /// * event_handler - Handler for logging events happening within the server. If you don't want
     /// to create your own handler, use [Kwp2000VoidHandler]
-    pub fn new_over_iso_tp<C, E>(
+    pub fn new_over_iso_tp<'a, C, E>(
         settings: Kwp2000ServerOptions,
         mut server_channel: C,
         channel_cfg: IsoTPSettings,
@@ -348,8 +348,8 @@ impl Kwp2000DiagnosticServer {
                             &cmd,
                             &settings,
                             &mut server_channel,
-                            0x78, 
-                            0x21
+                            0x78,
+                            0x21,
                         ) {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {

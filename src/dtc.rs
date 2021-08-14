@@ -42,13 +42,13 @@ pub enum DTCStatus {
 }
 
 impl DTCStatus {
-    pub (crate) fn from_kwp_status(x: u8) -> DTCStatus {
+    pub(crate) fn from_kwp_status(x: u8) -> DTCStatus {
         match (x & 0b01100000) >> 5 {
             0b00 => Self::None,
             0b01 => Self::Stored,
             0b10 => Self::Pending,
             0b11 => Self::Active,
-            _ => Self::UNKNOWN(x & 0b01100000) // Should never happen
+            _ => Self::UNKNOWN(x & 0b01100000), // Should never happen
         }
     }
 }

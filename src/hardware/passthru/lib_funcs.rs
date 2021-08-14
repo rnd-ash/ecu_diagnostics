@@ -5,7 +5,6 @@ use std::os::raw::c_char;
 use std::sync::{Arc, RwLock};
 use std::{ffi::*, fmt};
 
-
 #[cfg(windows)]
 use winreg::enums::*;
 
@@ -15,8 +14,7 @@ use winreg::{RegKey, RegValue};
 /// Result which contains a PASSTHRU_ERROR in it's Err() variant
 pub type PassthruResult<T> = std::result::Result<T, j2534_rust::PassthruError>;
 
-type PassThruOpenFn =
-    unsafe extern "stdcall" fn(name: *const c_void, device_id: *mut u32) -> i32;
+type PassThruOpenFn = unsafe extern "stdcall" fn(name: *const c_void, device_id: *mut u32) -> i32;
 type PassThruCloseFn = unsafe extern "stdcall" fn(device_id: u32) -> i32;
 type PassThruConnectFn = unsafe extern "stdcall" fn(
     device_id: u32,
@@ -62,8 +60,7 @@ type PassThruReadVersionFn = unsafe extern "stdcall" fn(
     dll_version: *mut c_char,
     api_version: *mut c_char,
 ) -> i32;
-type PassThruGetLastErrorFn =
-    unsafe extern "stdcall" fn(error_description: *mut c_char) -> i32;
+type PassThruGetLastErrorFn = unsafe extern "stdcall" fn(error_description: *mut c_char) -> i32;
 type PassThruIoctlFn = unsafe extern "stdcall" fn(
     handle_id: u32,
     ioctl_id: u32,
@@ -275,7 +272,7 @@ impl PassthruDrv {
                 timeout,
             )
         };
-        if res == PassthruError::ERR_BUFFER_EMPTY as i32 && msg_count != 0 {
+        if res == PassthruError::ERR_BUFFER_EMPTY as i32 {
             write_array.truncate(msg_count as usize);
             return ret_res(0x00, write_array);
         }
@@ -341,7 +338,13 @@ impl PassthruDrv {
 
     //type PassThruConnectFn = unsafe extern "stdcall" fn(device_id: u32, protocol_id: u32, flags: u32, baudrate: u32, channel_id: *mut u32) -> i32;
     /// Returns channel ID
-    pub fn connect(&self, dev_id: u32, protocol: Protocol, flags: u32, baud: u32) -> PassthruResult<u32> {
+    pub fn connect(
+        &self,
+        dev_id: u32,
+        protocol: Protocol,
+        flags: u32,
+        baud: u32,
+    ) -> PassthruResult<u32> {
         let mut channel_id: u32 = 0;
         let res = unsafe {
             (&self.connect_fn)(
@@ -439,7 +442,12 @@ impl PassthruDrv {
 
     //type PassThruSetProgrammingVoltageFn = unsafe extern "stdcall" fn(device_id: u32, pin_number: u32, voltage: u32) -> i32;
     #[allow(dead_code)]
-    pub fn set_programming_voltage(&self, dev_id: u32, pin: u32, voltage: u32) -> PassthruResult<()> {
+    pub fn set_programming_voltage(
+        &self,
+        dev_id: u32,
+        pin: u32,
+        voltage: u32,
+    ) -> PassthruResult<()> {
         ret_res(unsafe { (&self.set_prog_v_fn)(dev_id, pin, voltage) }, ())
     }
 }

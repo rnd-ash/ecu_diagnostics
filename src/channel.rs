@@ -4,6 +4,11 @@
 //! * [BaseChannel] - Basic channel, all channels inherit this trait
 //! * [IsoTPChannel] - IsoTP (ISO15765) channel
 
+use std::{
+    borrow::BorrowMut,
+    sync::{Arc, Mutex},
+};
+
 use crate::hardware::HardwareError;
 
 /// Communication channel result
@@ -27,7 +32,11 @@ pub enum ChannelError {
     /// The interface is not open
     InterfaceNotOpen,
     /// Underlying API error with hardware
-    HardwareError(HardwareError)
+    HardwareError(HardwareError),
+    /// Channel is not open, so cannot read/write data to it!
+    NotOpen,
+    /// Channel not configured prior to opening
+    ConfigurationError,
 }
 
 impl std::fmt::Display for ChannelError {
@@ -41,6 +50,10 @@ impl std::fmt::Display for ChannelError {
             ChannelError::BufferEmpty => write!(f, "channel's Receive buffer is empty"),
             ChannelError::InterfaceNotOpen => write!(f, "channel's interface is not open"),
             ChannelError::HardwareError(err) => write!(f, "Channel hardware error: {}", err),
+            ChannelError::NotOpen => write!(f, "Channel has not been opened"),
+            ChannelError::ConfigurationError => {
+                write!(f, "Channel opened prior to being configured")
+            }
         }
     }
 }
@@ -63,7 +76,8 @@ impl std::error::Error for ChannelError {
     }
 }
 
-/// Base trait for interfacing with an ECU using multi-packet communication protocols
+/// A payload channel is a way for a device to have a bi-directional communication
+/// link with a specific ECU
 pub trait PayloadChannel: Send + Sync {
     /// This function opens the interface.
     /// It is ONLY called after set_ids and any other configuration function
@@ -80,7 +94,7 @@ pub trait PayloadChannel: Send + Sync {
     fn set_ids(&mut self, send: u32, recv: u32) -> ChannelResult<()>;
 
     /// Attempts to read bytes from the channel.
-    /// 
+    ///
     /// The contents being read should not include any protocol related bytes,
     /// just the payload destined for the diagnostic application
     ///
@@ -90,7 +104,7 @@ pub trait PayloadChannel: Send + Sync {
     fn read_bytes(&mut self, timeout_ms: u32) -> ChannelResult<Vec<u8>>;
 
     /// Attempts to write bytes to the channel.
-    /// 
+    ///
     /// The contents being sent will just be the raw payload being sent to the device,
     /// it is up to the implementor of this function to add related protocol bytes
     /// to the message where necessary.
@@ -141,14 +155,22 @@ pub trait IsoTPChannel: PayloadChannel {
     fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()>;
 }
 
-/// Trait for sending single communication packets across a network
-/// 
-/// ## Limitations ##
-/// Currently, PacketChannel will always use an open filter when listening
-/// to data, meaning any filtering has to be done in software, not hardware
-pub trait PacketChannel<T: Packet> : Send + Sync {
-    /// Closes the channel
+/// A PacketChannel is a way for a device to send and receive individual network packets
+/// across an ECU network. Unlike [PayloadChannel], this channel type
+/// is unfiltered, so all network traffic may be visible, and filtering should be done
+/// in software. Most of the protocols that implement [PayloadChannel] are actually higher-level 
+/// PacketChannels which use multiple packets to send larger payloads. Such is the case with ISO-TP over CAN.
+pub trait PacketChannel<T: Packet>: Send + Sync {
+    /// Opens the channel, from this point forward,
+    /// the network filter will be applied to be fully open
+    /// so data has to be polled rapidly to avoid a driver's
+    /// internal buffer from filling up rapidly
+    fn open(&mut self) -> ChannelResult<()>;
+
+    /// Closes the channel. Once closed, no more traffic
+    /// can be polled or written to the channel.
     fn close(&mut self) -> ChannelResult<()>;
+
     /// Writes a list of packets to the raw interface
     fn write_packets(&mut self, packets: Vec<T>, timeout_ms: u32) -> ChannelResult<()>;
     /// Reads a list of packets from the raw interface
@@ -166,8 +188,144 @@ pub trait PacketChannel<T: Packet> : Send + Sync {
 
 /// Packet channel for sending and receiving individual CAN Frames
 pub trait CanChannel: PacketChannel<CanFrame> {
-    /// Opens the CAN Channel
-    fn open(&mut self, baud: u32, use_extended: bool) -> ChannelResult<()>;
+    /// Sets the CAN network configuration
+    fn set_can_cfg(&mut self, baud: u32, use_extended: bool) -> ChannelResult<()>;
+}
+
+impl<T: PayloadChannel + ?Sized> PayloadChannel for Box<T> {
+    fn open(&mut self) -> ChannelResult<()> {
+        T::open(self)
+    }
+
+    fn close(&mut self) -> ChannelResult<()> {
+        T::close(self)
+    }
+
+    fn set_ids(&mut self, send: u32, recv: u32) -> ChannelResult<()> {
+        T::set_ids(self, send, recv)
+    }
+
+    fn read_bytes(&mut self, timeout_ms: u32) -> ChannelResult<Vec<u8>> {
+        T::read_bytes(self, timeout_ms)
+    }
+
+    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+        T::write_bytes(self, addr, buffer, timeout_ms)
+    }
+
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
+        T::clear_rx_buffer(self)
+    }
+
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
+        T::clear_tx_buffer(self)
+    }
+}
+
+impl<T: IsoTPChannel + ?Sized> IsoTPChannel for Box<T> {
+    fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()> {
+        T::set_iso_tp_cfg(self, cfg)
+    }
+}
+
+impl<X: Packet, T: PacketChannel<X> + ?Sized> PacketChannel<X> for Box<T> {
+    fn open(&mut self) -> ChannelResult<()> {
+        T::open(self)
+    }
+
+    fn close(&mut self) -> ChannelResult<()> {
+        T::close(self)
+    }
+
+    fn write_packets(&mut self, packets: Vec<X>, timeout_ms: u32) -> ChannelResult<()> {
+        T::write_packets(self, packets, timeout_ms)
+    }
+
+    fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<X>> {
+        T::read_packets(self, max, timeout_ms)
+    }
+
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
+        T::clear_rx_buffer(self)
+    }
+
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
+        T::clear_tx_buffer(self)
+    }
+}
+
+impl<T: CanChannel + ?Sized> CanChannel for Box<T> {
+    fn set_can_cfg(&mut self, baud: u32, use_extended: bool) -> ChannelResult<()> {
+        T::set_can_cfg(self, baud, use_extended)
+    }
+}
+
+impl<T: PayloadChannel + ?Sized> PayloadChannel for Arc<Mutex<T>> {
+    fn open(&mut self) -> ChannelResult<()> {
+        T::open(self.lock()?.borrow_mut())
+    }
+
+    fn close(&mut self) -> ChannelResult<()> {
+        T::close(self.lock()?.borrow_mut())
+    }
+
+    fn set_ids(&mut self, send: u32, recv: u32) -> ChannelResult<()> {
+        T::set_ids(self.lock()?.borrow_mut(), send, recv)
+    }
+
+    fn read_bytes(&mut self, timeout_ms: u32) -> ChannelResult<Vec<u8>> {
+        T::read_bytes(self.lock()?.borrow_mut(), timeout_ms)
+    }
+
+    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+        T::write_bytes(self.lock()?.borrow_mut(), addr, buffer, timeout_ms)
+    }
+
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
+        T::clear_rx_buffer(self.lock()?.borrow_mut())
+    }
+
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
+        T::clear_tx_buffer(self.lock()?.borrow_mut())
+    }
+}
+
+impl<T: IsoTPChannel + ?Sized> IsoTPChannel for Arc<Mutex<T>> {
+    fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()> {
+        T::set_iso_tp_cfg(self.lock()?.borrow_mut(), cfg)
+    }
+}
+
+impl<X: Packet, T: PacketChannel<X> + ?Sized> PacketChannel<X> for Arc<Mutex<T>> {
+    fn open(&mut self) -> ChannelResult<()> {
+        T::open(self.lock()?.borrow_mut())
+    }
+
+    fn close(&mut self) -> ChannelResult<()> {
+        T::close(self.lock()?.borrow_mut())
+    }
+
+    fn write_packets(&mut self, packets: Vec<X>, timeout_ms: u32) -> ChannelResult<()> {
+        T::write_packets(self.lock()?.borrow_mut(), packets, timeout_ms)
+    }
+
+    fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<X>> {
+        T::read_packets(self.lock()?.borrow_mut(), max, timeout_ms)
+    }
+
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
+        T::clear_rx_buffer(self.lock()?.borrow_mut())
+    }
+
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
+        T::clear_tx_buffer(self.lock()?.borrow_mut())
+    }
+}
+
+impl<T: CanChannel + ?Sized> CanChannel for Arc<Mutex<T>> {
+    fn set_can_cfg(&mut self, baud: u32, use_extended: bool) -> ChannelResult<()> {
+        T::set_can_cfg(self.lock()?.borrow_mut(), baud, use_extended)
+    }
 }
 
 /// This trait is for packets that are used by [PacketChannel]
@@ -188,7 +346,7 @@ pub struct CanFrame {
     id: u32,
     dlc: u8,
     data: [u8; 8],
-    ext: bool
+    ext: bool,
 }
 
 impl CanFrame {
@@ -197,10 +355,10 @@ impl CanFrame {
     /// * id - The CAN ID of the packet
     /// * data - The data of the CAN packet
     /// * is_ext - Indication if the CAN packet shall use extended addressing
-    /// 
+    ///
     /// NOTE: If [id] is greater than 0x7FF, extended addressing (29bit) will be enabled
     /// regardless of [is_ext].
-    /// 
+    ///
     /// Also, [data] will be limited to 8 bytes.
     pub fn new(id: u32, data: &[u8], is_ext: bool) -> Self {
         let max = std::cmp::min(8, data.len());
@@ -210,7 +368,7 @@ impl CanFrame {
             id,
             dlc: max as u8,
             data: tmp,
-            ext: is_ext
+            ext: is_ext,
         }
     }
 
@@ -244,21 +402,21 @@ impl Packet for CanFrame {
 #[repr(C)]
 pub struct IsoTPSettings {
     /// ISO-TP Block size
-    /// 
+    ///
     /// This value indicates the number of CAN Frames to send in multi-frame messages,
     /// before sending or receiving a flow control message.
-    /// 
+    ///
     /// A value of 0 indicates send everything without flow control messages.
-    /// 
+    ///
     /// NOTE: This value might be overridden by the device's implementation of ISO-TP
     pub block_size: u8,
     /// Minimum separation time between Tx/Rx CAN Frames.
-    /// 
+    ///
     /// 3 ranges are accepted for this value:
     /// * 0x00 - Send without delay (ECU/Adapter will send frames as fast as the physical bus allows).
     /// * 0x01-0x7F - Send with delay of 1-127 milliseconds between can frames
     /// * 0xF1-0xF9 - Send with delay of 100-900 microseconds between can frames
-    /// 
+    ///
     /// NOTE: This value might be overridden by the device's implementation of ISO-TP
     pub st_min: u8,
     /// Use extended ISO-TP addressing

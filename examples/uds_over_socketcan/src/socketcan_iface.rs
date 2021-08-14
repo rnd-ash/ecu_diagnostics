@@ -1,7 +1,7 @@
 use core::time;
 use std::{borrow::BorrowMut, cell::RefCell, ops::Deref, time::Instant};
 
-use ecu_diagnostics::channel::{PayloadChannel, ChannelError, IsoTPChannel, IsoTPSettings};
+use ecu_diagnostics::channel::{ChannelError, IsoTPChannel, IsoTPSettings, PayloadChannel};
 use socketcan_isotp::{FlowControlOptions, IsoTpBehaviour, IsoTpOptions, IsoTpSocket, EFF_FLAG};
 
 // Convert SocketCAN errors into Channel Errors

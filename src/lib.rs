@@ -42,10 +42,10 @@ use hardware::HardwareError;
 
 pub mod channel;
 pub mod dtc;
+pub mod hardware;
 pub mod kwp2000;
 pub mod obd2;
 pub mod uds;
-pub mod hardware;
 
 mod helpers;
 
@@ -76,7 +76,7 @@ pub enum DiagError {
     /// This will be removed in Version 1
     NotImplemented(String),
     /// Device hardware error
-    HardwareError(HardwareError)
+    HardwareError(HardwareError),
 }
 
 impl std::fmt::Display for DiagError {
@@ -95,7 +95,7 @@ impl std::fmt::Display for DiagError {
             DiagError::NotImplemented(s) => {
                 write!(f, "server encountered an unimplemented function: {}", s)
             }
-            &DiagError::HardwareError(e) => write!(f, "Hardware error: {}", e)
+            &DiagError::HardwareError(e) => write!(f, "Hardware error: {}", e),
         }
     }
 }
@@ -105,7 +105,7 @@ impl std::error::Error for DiagError {
         match &self {
             DiagError::ChannelError(e) => Some(e),
             DiagError::HardwareError(e) => Some(e),
-            _ => None
+            _ => None,
         }
     }
 }

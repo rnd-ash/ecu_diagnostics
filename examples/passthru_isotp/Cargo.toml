@@ -1,0 +1,9 @@
+[package]
+name = "passthru_isotp"
+version = "0.1.0"
+authors = ["Ashcon Mohseninia <ashconm@outlook.com>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+ecu_diagnostics = { path = "../../" }

@@ -24,7 +24,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: Payloa
     settings: &T,
     channel: &mut C,
     await_response_byte: u8,
-    busy_repeat_byte: u8
+    busy_repeat_byte: u8,
 ) -> DiagServerResult<Vec<u8>> {
     // Clear IO buffers
     channel.clear_rx_buffer()?;
@@ -45,10 +45,18 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: Payloa
         return Err(DiagError::EmptyResponse);
     }
     if res[0] == 0x7F {
-        if res[2] == busy_repeat_byte { // Wait 100ms and retry
+        if res[2] == busy_repeat_byte {
+            // Wait 100ms and retry
             println!("Repeating request!");
             std::thread::sleep(std::time::Duration::from_millis(500));
-            return perform_cmd(addr, cmd, settings, channel, await_response_byte, busy_repeat_byte)
+            return perform_cmd(
+                addr,
+                cmd,
+                settings,
+                channel,
+                await_response_byte,
+                busy_repeat_byte,
+            );
         }
         if res[2] == await_response_byte {
             // For both UDS or
@@ -75,17 +83,16 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: Payloa
     check_pos_response_id(target, res) // ECU Response OK!
 }
 
-
-pub (crate) fn bcd_decode(input: u8) -> String {
+pub(crate) fn bcd_decode(input: u8) -> String {
     format!("{}{}", (input & 0xF0) >> 4, input & 0x0F)
 }
 
-pub (crate) fn bcd_decode_slice(input: &[u8], sep: Option<&str>) -> String {
+pub(crate) fn bcd_decode_slice(input: &[u8], sep: Option<&str>) -> String {
     let mut res = String::new();
     for (pos, x) in input.iter().enumerate() {
         res.push_str(bcd_decode(*x).as_str());
         if let Some(separator) = sep {
-            if pos != input.len()-1 {
+            if pos != input.len() - 1 {
                 res.push_str(separator)
             }
         }

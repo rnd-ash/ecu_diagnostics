@@ -5,7 +5,14 @@ use socketcan_iface::SocketCANInterface;
 mod sim_ecu;
 mod socketcan_iface;
 
-use ecu_diagnostics::{DiagError, DiagServerResult, channel::IsoTPSettings, kwp2000::{self, Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler, read_ecu_identification::*, start_diagnostic_session, read_data_by_local_id::*}};
+use ecu_diagnostics::{
+    channel::IsoTPSettings,
+    kwp2000::{
+        self, read_data_by_local_id::*, read_ecu_identification::*, start_diagnostic_session,
+        Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler,
+    },
+    DiagError, DiagServerResult,
+};
 
 fn main() {
     // Vcan device
@@ -44,7 +51,10 @@ fn main() {
         }
     };
 
-    match start_diagnostic_session::set_diagnostic_session_mode(&mut kwp_server, start_diagnostic_session::SessionType::ExtendedDiagnostics) {
+    match start_diagnostic_session::set_diagnostic_session_mode(
+        &mut kwp_server,
+        start_diagnostic_session::SessionType::ExtendedDiagnostics,
+    ) {
         Ok(_) => println!("ECU is now in Extended Diag mode!"),
         Err(e) => {
             if let DiagError::ECUError(x) = e {
@@ -59,33 +69,88 @@ fn main() {
         }
     }
 
-    test_kwp_operation("read_dcs_identification", read_dcs_identification(&mut kwp_server));
-    test_kwp_operation("read_dcx_mmc_identification", read_dcx_mmc_identification(&mut kwp_server));
+    test_kwp_operation(
+        "read_dcs_identification",
+        read_dcs_identification(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_dcx_mmc_identification",
+        read_dcx_mmc_identification(&mut kwp_server),
+    );
     test_kwp_operation("read_original_vin", read_original_vin(&mut kwp_server));
-    test_kwp_operation("read_diagnostic_variant_code", read_diagnostic_variant_code(&mut kwp_server));
+    test_kwp_operation(
+        "read_diagnostic_variant_code",
+        read_diagnostic_variant_code(&mut kwp_server),
+    );
     test_kwp_operation("read_current_vin", read_current_vin(&mut kwp_server));
     test_kwp_operation("read_calibration_id", read_calibration_id(&mut kwp_server));
     test_kwp_operation("read_cvn", read_cvn(&mut kwp_server));
-    test_kwp_operation("read_ecu_code_fingerprint", read_ecu_code_fingerprint(&mut kwp_server));
-    test_kwp_operation("read_ecu_data_fingerprint", read_ecu_data_fingerprint(&mut kwp_server));
-    test_kwp_operation("read_ecu_code_software_id", read_ecu_code_software_id(&mut kwp_server));
-    test_kwp_operation("read_ecu_data_software_id", read_ecu_data_software_id(&mut kwp_server));
-    test_kwp_operation("read_ecu_boot_software_id", read_ecu_boot_software_id(&mut kwp_server));
-    test_kwp_operation("read_ecu_boot_fingerprint", read_ecu_boot_fingerprint(&mut kwp_server));
-    test_kwp_operation("read_ecu_development_data", read_ecu_development_data(&mut kwp_server));
-    test_kwp_operation("read_ecu_serial_number", read_ecu_serial_number(&mut kwp_server));
+    test_kwp_operation(
+        "read_ecu_code_fingerprint",
+        read_ecu_code_fingerprint(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_data_fingerprint",
+        read_ecu_data_fingerprint(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_code_software_id",
+        read_ecu_code_software_id(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_data_software_id",
+        read_ecu_data_software_id(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_boot_software_id",
+        read_ecu_boot_software_id(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_boot_fingerprint",
+        read_ecu_boot_fingerprint(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_development_data",
+        read_ecu_development_data(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_serial_number",
+        read_ecu_serial_number(&mut kwp_server),
+    );
     test_kwp_operation("read_ecu_dbcom_data", read_ecu_dbcom_data(&mut kwp_server));
     test_kwp_operation("read_ecu_os_version", read_ecu_os_version(&mut kwp_server));
-    test_kwp_operation("read_ecu_reprogramming_fault_report", read_ecu_reprogramming_fault_report(&mut kwp_server));
-    test_kwp_operation("read_ecu_vehicle_info", read_ecu_vehicle_info(&mut kwp_server));
-    test_kwp_operation("read_ecu_flash_info_1", read_ecu_flash_info_1(&mut kwp_server));
-    test_kwp_operation("read_ecu_flash_info_2", read_ecu_flash_info_2(&mut kwp_server));
-    test_kwp_operation("read_system_diag_general_param_data", read_system_diag_general_param_data(&mut kwp_server));
-    test_kwp_operation("read_system_diag_global_param_data", read_system_diag_global_param_data(&mut kwp_server));
-    test_kwp_operation("read_ecu_configuration", read_ecu_configuration(&mut kwp_server));
-    test_kwp_operation("read_diag_protocol_info", read_diag_protocol_info(&mut kwp_server));
-
-    
+    test_kwp_operation(
+        "read_ecu_reprogramming_fault_report",
+        read_ecu_reprogramming_fault_report(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_vehicle_info",
+        read_ecu_vehicle_info(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_flash_info_1",
+        read_ecu_flash_info_1(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_flash_info_2",
+        read_ecu_flash_info_2(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_system_diag_general_param_data",
+        read_system_diag_general_param_data(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_system_diag_global_param_data",
+        read_system_diag_global_param_data(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_ecu_configuration",
+        read_ecu_configuration(&mut kwp_server),
+    );
+    test_kwp_operation(
+        "read_diag_protocol_info",
+        read_diag_protocol_info(&mut kwp_server),
+    );
 
     // If execution reaches here, Then ECU will be in extended diagnostic mode, allowing
     // for all UDS functionality. NOTE: This might trigger some warning lights on a cars

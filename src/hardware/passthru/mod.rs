@@ -6,7 +6,7 @@
 //! [1]: http://github.com/rnd-ash/macchina-J2534
 //!
 //! The API supports the following communication protocols:
-//! * ISO9141 
+//! * ISO9141
 //! * ISO15475
 //! * ISO14230-4
 //! * J1850 PWM
@@ -18,11 +18,31 @@
 //! querying the [super::HardwareCapabilities] matrix should be used to determine which protocols
 //! are supported
 
-use std::{borrow::{Borrow, BorrowMut}, cell::RefCell, convert::TryInto, ffi::c_void, sync::{Arc, Mutex}};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    cell::RefCell,
+    convert::TryInto,
+    default,
+    ffi::c_void,
+    sync::{Arc, LockResult, Mutex, PoisonError},
+    time::Instant,
+};
 
-use j2534_rust::{ConnectFlags, IoctlID, Loggable, PASSTHRU_MSG, PassthruError, TxFlag};
+#[cfg(windows)]
+use winreg::enums::*;
 
-use crate::channel::{CanChannel, CanFrame, ChannelError, IsoTPChannel, Packet, PacketChannel};
+#[cfg(windows)]
+use winreg::{RegKey, RegValue};
+
+
+use j2534_rust::{
+    ConnectFlags, FilterType, IoctlID, Loggable, PassthruError, Protocol, TxFlag, PASSTHRU_MSG,
+};
+
+use crate::channel::{
+    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet,
+    PacketChannel, PayloadChannel,
+};
 
 use self::lib_funcs::PassthruDrv;
 
@@ -30,15 +50,18 @@ use super::{HardwareCapabilities, HardwareError, HardwareInfo, HardwareResult};
 
 mod lib_funcs;
 
-/// Passthru API device scanner
+/// Device scanner for Passthru supported devices
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PassthruScanner{
-    devices: Vec<PassthruInfo>
+pub struct PassthruScanner {
+    devices: Vec<PassthruInfo>,
 }
 
 impl PassthruScanner {
     #[cfg(unix)]
-    /// Creates a passthru scanner
+    /// Creates a passthru scanner. Scanning is done
+    /// by scanning the ~/.passthru folder on the users PC for supported passthru
+    /// JSON entries. This is UNOFFICIAL and should be considered experimental
+    /// as Passthru API does not out of the box support UNIX Operating systems.
     pub fn new() -> Self {
         match std::fs::read_dir(shellexpand::tilde("~/.passthru").to_string()) {
             Ok(list) => {
@@ -54,18 +77,38 @@ impl PassthruScanner {
                         // Keep Oks that were found, any entries that ended with errors are discarded
                         .filter_map(|s| s.ok())
                         // Convert result into vector
-                        .collect()
+                        .collect(),
                 }
             }
             Err(_) => Self {
-                devices: Vec::new()
+                devices: Vec::new(),
             },
         }
     }
 
     #[cfg(windows)]
+    /// Creates a passthru scanner. This scanner scans for devices by checking
+    /// the windows registry entry `HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\PassthruSupport.04.04`
     pub fn new() -> Self {
-        todo!()
+        match RegKey::predef(HKEY_LOCAL_MACHINE)
+            .open_subkey("SOFTWARE\\WOW6432Node\\PassThruSupport.04.04")
+        {
+            Ok(r) => {
+                Self {
+                    devices: r
+                    .enum_keys()
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                    .map(|key| r.open_subkey(key))
+                    .map(|x| PassthruInfo::new(&x.unwrap()))
+                    .filter_map(|d| d.ok())
+                    .collect()
+                }
+            },
+            Err(_) => Self {
+                devices: Vec::new(),
+            },
+        }
     }
 }
 
@@ -74,16 +117,19 @@ impl super::HardwareScanner<PassthruDevice> for PassthruScanner {
         self.devices.iter().map(|x| x.into()).collect()
     }
 
-    fn open_device_by_index(&self, idx: usize) -> super::HardwareResult<PassthruDevice> {
+    fn open_device_by_index(
+        &self,
+        idx: usize,
+    ) -> super::HardwareResult<Arc<Mutex<PassthruDevice>>> {
         match self.devices.get(idx) {
-            Some(info) => PassthruDevice::open_device(info),
+            Some(info) => Ok(Arc::new(Mutex::new(PassthruDevice::open_device(info)?))),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
 
-    fn open_device_by_name(&self, name: &str) -> super::HardwareResult<PassthruDevice> {
+    fn open_device_by_name(&self, name: &str) -> super::HardwareResult<Arc<Mutex<PassthruDevice>>> {
         match self.devices.iter().find(|s| s.name == name) {
-            Some(info) => PassthruDevice::open_device(info),
+            Some(info) => Ok(Arc::new(Mutex::new(PassthruDevice::open_device(info)?))),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
@@ -103,7 +149,7 @@ struct PassthruInfo {
     sci_a_engine: bool,
     sci_b_engine: bool,
     sci_a_trans: bool,
-    sci_b_trans: bool
+    sci_b_trans: bool,
 }
 
 impl PassthruInfo {
@@ -152,6 +198,41 @@ impl PassthruInfo {
         j[s].as_bool().unwrap_or(false)
     }
 
+
+    #[cfg(windows)]
+    pub fn new(r: &RegKey) -> HardwareResult<Self> {
+        let lib: String = match r.get_value("FunctionLibrary") {
+            Ok(s) => s,
+            Err(_) => "UNKNOWN PASSTHRU DEVICE FUNCTION LIB".into(),
+        };
+
+        let name: String = match r.get_value("Name") {
+            Ok(s) => s,
+            Err(_) => "UNKNOWN PASSTHRU DEVICE".into(),
+        };
+
+        let vend: String = match r.get_value("Vendor") {
+            Ok(s) => s,
+            Err(_) => "UNKNOWN PASSTHRU DEVICE VENDOR".into(),
+        };
+
+        Ok(PassthruInfo {
+            function_lib: String::from(lib),
+            name: String::from(name),
+            vendor: String::from(vend),
+            can: Self::read_bool(&r, "CAN"),
+            iso15765: Self::read_bool(&r, "ISO15765"),
+            iso14230: Self::read_bool(&r, "ISO14230"),
+            iso9141: Self::read_bool(&r, "ISO9141"),
+            j1850pwm: Self::read_bool(&r, "J1850PWM"),
+            j1850vpw: Self::read_bool(&r, "J1850VPW"),
+            sci_a_engine: Self::read_bool(&r, "SCI_A_ENGINE"),
+            sci_a_trans: Self::read_bool(&r, "SCN_A_TRANS"),
+            sci_b_engine: Self::read_bool(&r, "SCI_B_ENGINE"),
+            sci_b_trans: Self::read_bool(&r, "SCI_B_TRANS"),
+        })
+    }
+
     #[cfg(windows)]
     #[inline]
     fn read_bool(k: &RegKey, name: &str) -> bool {
@@ -168,26 +249,26 @@ impl Into<HardwareInfo> for &PassthruInfo {
         HardwareInfo {
             name: self.name.clone(),
             vendor: self.vendor.clone(),
-            capabilities: HardwareCapabilities { 
-                iso_tp: self.iso15765, 
-                can: self.can, 
-                kline: self.iso9141, 
-                kline_kwp: self.iso14230, 
-                sae_j1850: self.j1850pwm && self.j1850vpw, 
-                sci: self.sci_a_engine && self.sci_a_trans && self.sci_b_engine && self.sci_b_trans, 
-                ip: false // Passthru never supports this protocol
-            }
+            capabilities: HardwareCapabilities {
+                iso_tp: self.iso15765,
+                can: self.can,
+                kline: self.iso9141,
+                kline_kwp: self.iso14230,
+                sae_j1850: self.j1850pwm && self.j1850vpw,
+                sci: self.sci_a_engine && self.sci_a_trans && self.sci_b_engine && self.sci_b_trans,
+                ip: false, // Passthru never supports this protocol
+            },
         }
     }
 }
 
 /// Passthru device
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PassthruDevice {
     info: HardwareInfo,
     drv: PassthruDrv,
     device_idx: Option<u32>,
-    can_channel: bool
+    can_channel: bool,
 }
 
 impl PassthruDevice {
@@ -200,22 +281,30 @@ impl PassthruDevice {
             info: info.into(),
             drv,
             device_idx: Some(idx),
-            can_channel: false
+            can_channel: false,
         })
     }
 
-    pub (crate) fn safe_passthru_op<X, T: FnOnce(u32, PassthruDrv) -> lib_funcs::PassthruResult<X>>(&self, f: T) -> HardwareResult<X> {
+    pub(crate) fn safe_passthru_op<
+        X,
+        T: FnOnce(u32, PassthruDrv) -> lib_funcs::PassthruResult<X>,
+    >(
+        &self,
+        f: T,
+    ) -> HardwareResult<X> {
         match self.device_idx {
             Some(idx) => match f(idx, self.drv.clone()) {
                 Ok(res) => Ok(res),
                 Err(e) => {
-                    if e == PassthruError::ERR_FAILED { // Err failed, query the adapter for error!
+                    if e == PassthruError::ERR_FAILED {
+                        // Err failed, query the adapter for error!
                         if let Ok(reason) = self.drv.get_last_error() {
                             Err(HardwareError::APIError {
                                 code: e as u32,
-                                desc: reason
+                                desc: reason,
                             })
-                        } else { // No reason, just ERR_FAILED
+                        } else {
+                            // No reason, just ERR_FAILED
                             Err(e.into())
                         }
                     } else {
@@ -223,7 +312,7 @@ impl PassthruDevice {
                     }
                 }
             },
-            None => Err(HardwareError::DeviceNotOpen)
+            None => Err(HardwareError::DeviceNotOpen),
         }
     }
 }
@@ -238,36 +327,58 @@ impl Drop for PassthruDevice {
     }
 }
 
-impl<'a> super::Hardware<'a> for PassthruDevice {
-    fn create_iso_tp_channel(&'a mut self) -> HardwareResult<Box<&'a dyn IsoTPChannel>> {
-        if !self.info.capabilities.iso_tp {
-            return Err(HardwareError::ChannelNotSupported)
+impl super::Hardware for PassthruDevice {
+    fn create_iso_tp_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn IsoTPChannel>> {
+        {
+            let this = this.lock()?;
+            if !this.info.capabilities.iso_tp {
+                return Err(HardwareError::ChannelNotSupported);
+            }
+            if this.can_channel {
+                return Err(HardwareError::ConflictingChannel);
+            }
         }
-        todo!()
+        let iso_tp_channel = PassthruIsoTpChannel {
+            device: this,
+            channel_id: None,
+            cfg: IsoTPSettings::default(),
+            ids: (0, 0),
+            cfg_complete: false,
+        };
+        Ok(Box::new(iso_tp_channel))
     }
 
-    fn create_can_channel(&'a mut self) -> HardwareResult<Box<&'a dyn CanChannel>> {
-        if !self.info.capabilities.can {
-            return Err(HardwareError::ChannelNotSupported)
-        }
-        if self.can_channel {
-            return Err(HardwareError::ConflictingChannel)
+    fn create_can_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn CanChannel>> {
+        {
+            let this = this.lock()?;
+            if !this.info.capabilities.can {
+                return Err(HardwareError::ChannelNotSupported);
+            }
+            if this.can_channel {
+                return Err(HardwareError::ConflictingChannel);
+            }
         }
         let can_channel = PassthruCanChannel {
-            device: self,
-            channel_id: 0
+            device: this,
+            channel_id: None,
+            baud: 0,
+            use_ext: false,
         };
-
-        Ok(Box::new(&can_channel))
+        Ok(Box::new(can_channel))
     }
 
     fn read_battery_voltage(&mut self) -> Option<f32> {
         let mut output: u32 = 0;
         match self.safe_passthru_op(|idx, drv: PassthruDrv| {
-            drv.ioctl(idx, IoctlID::READ_VBATT, std::ptr::null_mut(), (&mut output) as *mut _ as *mut c_void)
+            drv.ioctl(
+                idx,
+                IoctlID::READ_VBATT,
+                std::ptr::null_mut(),
+                (&mut output) as *mut _ as *mut c_void,
+            )
         }) {
             Ok(_) => Some(output as f32 / 1000.0),
-            Err(_) => None
+            Err(_) => None,
         }
     }
 
@@ -278,74 +389,384 @@ impl<'a> super::Hardware<'a> for PassthruDevice {
 
 /// Passthru device CAN Channel
 #[derive(Debug)]
-pub struct PassthruCanChannel<'a> {
-    pub (crate) device: &'a mut PassthruDevice,
-    pub (crate) channel_id: u32
+pub struct PassthruCanChannel {
+    pub(crate) device: Arc<Mutex<PassthruDevice>>,
+    pub(crate) channel_id: Option<u32>,
+    pub(crate) baud: u32,
+    pub(crate) use_ext: bool,
 }
 
-impl<'a> CanChannel for PassthruCanChannel<'a> {
-    fn open(&mut self, baud: u32, use_extended: bool) -> crate::channel::ChannelResult<()> {
-        let mut flags: u32 = 0;
-        if use_extended {
+impl PassthruCanChannel {
+    fn get_channel_id(&self) -> ChannelResult<u32> {
+        match self.channel_id {
+            None => Err(ChannelError::NotOpen),
+            Some(x) => Ok(x),
+        }
+    }
+}
+
+impl CanChannel for PassthruCanChannel {
+    fn set_can_cfg(&mut self, baud: u32, use_extended: bool) -> crate::channel::ChannelResult<()> {
+        self.baud = baud;
+        self.use_ext = use_extended;
+        Ok(())
+    }
+}
+
+impl PacketChannel<CanFrame> for PassthruCanChannel {
+    fn open(&mut self) -> crate::channel::ChannelResult<()> {
+        let mut device = self.device.lock()?;
+        // Already open, ignore request
+        if self.channel_id.is_some() {
+            return Ok(());
+        }
+
+        let mut flags = 0u32;
+        if self.use_ext {
             flags |= ConnectFlags::CAN_29BIT_ID as u32;
         }
-        match self.device.safe_passthru_op(|idx, device| {
-            device.connect(idx, j2534_rust::Protocol::CAN, flags, baud)
+        // Initialize the interface
+        let channel_id = device
+            .safe_passthru_op(|device_id, device| {
+                device.connect(device_id, Protocol::CAN, flags, self.baud)
+            })
+            .map_err(|e| ChannelError::HardwareError(e))?;
+        device.can_channel = true; // Acknowledge CAN is open now
+        self.channel_id = Some(channel_id);
+
+        // Now create open filter
+        let mut mask = PASSTHRU_MSG {
+            protocol_id: Protocol::CAN as u32,
+            data_size: 4,
+            ..Default::default()
+        };
+
+        let mut pattern = PASSTHRU_MSG {
+            protocol_id: Protocol::CAN as u32,
+            data_size: 4,
+            ..Default::default()
+        };
+
+        // For open filter,
+        // mask and pattern both need to be 0x0000
+        //
+        // CANID & 0x0000 == 0x0000
+        mask.data[0..4].copy_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+        pattern.data[0..4].copy_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+
+        match device.safe_passthru_op(|_, device| {
+            device.start_msg_filter(channel_id, FilterType::PASS_FILTER, &mask, &pattern, None)
         }) {
-            Ok(channel) => {
-                self.channel_id = channel;
-                Ok(())
-            },
-            Err(e) => Err(ChannelError::HardwareError(e))
+            Ok(_) => Ok(()), // Channel setup complete
+            Err(e) => {
+                // Oops! Teardown
+                todo!("Handle close");
+                //self.close();
+                return Err(e.into());
+            }
         }
     }
-}
-
-impl<'a> PacketChannel<CanFrame> for PassthruCanChannel<'a> {
     fn close(&mut self) -> crate::channel::ChannelResult<()> {
-        self.device.safe_passthru_op(|_, device|{
-            device.disconnect(self.channel_id)
-        }).map_err(|e| e.into())
+        let mut device = self.device.lock()?;
+        // Channel already closed, ignore request
+        if self.channel_id.is_none() {
+            return Ok(());
+        }
+        let id = self.get_channel_id().unwrap(); // Unwrap as we checked previously if none
+        device
+            .safe_passthru_op(|_, device| device.disconnect(id))
+            .map_err(|e| ChannelError::HardwareError(e))?;
+        device.can_channel = false;
+        self.channel_id = None;
+        Ok(())
     }
 
-    fn write_packets(&mut self, packets: Vec<CanFrame>, timeout_ms: u32) -> crate::channel::ChannelResult<()> {
+    fn write_packets(
+        &mut self,
+        packets: Vec<CanFrame>,
+        timeout_ms: u32,
+    ) -> crate::channel::ChannelResult<()> {
+        let channel_id = self.get_channel_id()?;
         let mut msgs: Vec<PASSTHRU_MSG> = packets.iter().map(|f| f.into()).collect();
-        self.device.safe_passthru_op(|_, device| {
-            device.write_messages(self.channel_id, &mut msgs, timeout_ms)
-        }).map_err(|e| e.into())
-        .map(|_|())
+        self.device
+            .lock()?
+            .safe_passthru_op(|_, device| device.write_messages(channel_id, &mut msgs, timeout_ms))
+            .map_err(|e| e.into())
+            .map(|_| ())
     }
 
-    fn read_packets(&mut self, max: usize, timeout_ms: u32) -> crate::channel::ChannelResult<Vec<CanFrame>> {
-        match self.device.safe_passthru_op(|_, device| {
-            device.read_messages(self.channel_id, max as u32, timeout_ms)
-        }) {
-            Ok(res) => {
-                Ok(res.iter().map(|pt| CanFrame::from(pt)).collect())
-            },
-            Err(e) => Err(e.into())
+    fn read_packets(
+        &mut self,
+        max: usize,
+        timeout_ms: u32,
+    ) -> crate::channel::ChannelResult<Vec<CanFrame>> {
+        let channel_id = self.get_channel_id()?;
+        match self
+            .device
+            .lock()?
+            .safe_passthru_op(|_, device| device.read_messages(channel_id, max as u32, timeout_ms))
+        {
+            Ok(res) => Ok(res.iter().map(|pt| CanFrame::from(pt)).collect()),
+            Err(e) => Err(e.into()),
         }
     }
 
     fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
-        self.device.safe_passthru_op(|_, device| {
-            device.ioctl(self.channel_id, IoctlID::CLEAR_RX_BUFFER, std::ptr::null_mut(), std::ptr::null_mut())
-        }).map_err(|e| e.into())
+        let channel_id = self.get_channel_id()?;
+        self.device
+            .lock()?
+            .safe_passthru_op(|_, device| {
+                device.ioctl(
+                    channel_id,
+                    IoctlID::CLEAR_RX_BUFFER,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                )
+            })
+            .map_err(|e| e.into())
     }
 
     fn clear_tx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
-        self.device.safe_passthru_op(|_, device| {
-            device.ioctl(self.channel_id, IoctlID::CLEAR_TX_BUFFER, std::ptr::null_mut(), std::ptr::null_mut())
-        }).map_err(|e| e.into())
+        let channel_id = self.get_channel_id()?;
+        self.device
+            .lock()?
+            .safe_passthru_op(|_, device| {
+                device.ioctl(
+                    channel_id,
+                    IoctlID::CLEAR_TX_BUFFER,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                )
+            })
+            .map_err(|e| e.into())
     }
 }
 
-impl<'a> Drop for PassthruCanChannel<'a> {
+impl Drop for PassthruCanChannel {
     #[allow(unused_must_use)]
     fn drop(&mut self) {
-        println!("CAN Channel drop called");
+        // Close the channel before dropping!
         self.close();
-        self.device.can_channel = false;
+    }
+}
+
+/// Passthru ISO TP Channel
+#[derive(Debug)]
+pub struct PassthruIsoTpChannel {
+    device: Arc<Mutex<PassthruDevice>>,
+    channel_id: Option<u32>,
+    cfg: IsoTPSettings,
+    ids: (u32, u32),
+    cfg_complete: bool,
+}
+
+impl PassthruIsoTpChannel {
+    fn get_channel_id(&self) -> ChannelResult<u32> {
+        match self.channel_id {
+            None => Err(ChannelError::NotOpen),
+            Some(x) => Ok(x),
+        }
+    }
+}
+
+impl PayloadChannel for PassthruIsoTpChannel {
+    fn open(&mut self) -> ChannelResult<()> {
+        if self.channel_id.is_some() {
+            return Ok(());
+        }
+        let mut flags = 0u32;
+        if self.cfg.can_use_ext_addr {
+            flags |= ConnectFlags::CAN_29BIT_ID as u32;
+        }
+        if self.cfg.extended_addressing {
+            flags |= ConnectFlags::ISO15765_ADDR_TYPE as u32;
+        }
+
+        let mut device = self.device.lock()?;
+
+        // Initialize the interface
+        let channel_id = device
+            .safe_passthru_op(|device_id, device| {
+                device.connect(device_id, Protocol::ISO15765, flags, self.cfg.can_speed)
+            })
+            .map_err(|e| ChannelError::HardwareError(e))?;
+        device.can_channel = true; // Acknowledge CAN is open now
+        self.channel_id = Some(channel_id);
+
+        // Now create open filter
+        let mut mask = PASSTHRU_MSG {
+            protocol_id: Protocol::ISO15765 as u32,
+            data_size: 4,
+            ..Default::default()
+        };
+
+        let mut pattern = PASSTHRU_MSG {
+            protocol_id: Protocol::ISO15765 as u32,
+            data_size: 4,
+            ..Default::default()
+        };
+
+        let mut flow_control = PASSTHRU_MSG {
+            protocol_id: Protocol::ISO15765 as u32,
+            data_size: 4,
+            ..Default::default()
+        };
+
+        // 3 filters are to be configured like so:
+        // Mask: 0xFFFF
+        // Pattern: Recv ID
+        // FC: Send ID
+        mask.data[0..4].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
+        pattern.data[0..4].copy_from_slice(&self.ids.1.to_be_bytes());
+        flow_control.data[0..4].copy_from_slice(&self.ids.0.to_be_bytes());
+
+        match device.safe_passthru_op(|_, device| {
+            device.start_msg_filter(
+                channel_id,
+                FilterType::FLOW_CONTROL_FILTER,
+                &mask,
+                &pattern,
+                Some(flow_control),
+            )
+        }) {
+            Ok(_) => Ok(()), // Channel setup complete
+            Err(e) => {
+                // Oops! Teardown
+                todo!("Handle ISO-TP close");
+                //self.close();
+                return Err(e.into());
+            }
+        }
+    }
+
+    fn close(&mut self) -> ChannelResult<()> {
+        // Channel already closed, ignore request
+        if self.channel_id.is_none() {
+            return Ok(());
+        }
+        {
+            let mut device = self.device.lock()?;
+            let id = self.get_channel_id().unwrap(); // Unwrap as we checked previously if none
+            device
+                .safe_passthru_op(|_, device| device.disconnect(id))
+                .map_err(|e| ChannelError::HardwareError(e))?;
+            device.can_channel = false;
+            self.channel_id = None;
+        }
+        Ok(())
+    }
+
+    fn set_ids(&mut self, send: u32, recv: u32) -> ChannelResult<()> {
+        Ok(self.ids = (send, recv))
+    }
+
+    fn read_bytes(&mut self, timeout_ms: u32) -> ChannelResult<Vec<u8>> {
+        let channel_id = self.get_channel_id()?;
+        let start = Instant::now();
+        let timeout = std::cmp::max(1, timeout_ms); // Need 1ms minimum
+        while start.elapsed().as_millis() <= timeout as u128 {
+            let read = self
+                .device
+                .lock()?
+                .safe_passthru_op(|_, device| device.read_messages(channel_id, 1, 0))
+                .map_err(|e| ChannelError::HardwareError(e))?;
+            if let Some(msg) = read.get(0) {
+                // Ignore messages with length of 4 as these
+                // are Tx confirm or Rx confirm messages with Passthru API's ISO-TP
+                if msg.data_size != 4 {
+                    // Read complete!
+                    // First 4 bytes are CAN ID, so ignore those
+                    return Ok(msg.data[4..msg.data_size as usize].to_vec());
+                }
+            }
+        }
+        if timeout_ms == 0 {
+            Err(ChannelError::BufferEmpty)
+        } else {
+            Err(ChannelError::ReadTimeout)
+        }
+    }
+
+    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+        let channel_id = self.get_channel_id()?;
+        let mut write_msg = PASSTHRU_MSG {
+            protocol_id: Protocol::ISO15765 as u32,
+            data_size: 4 + buffer.len() as u32, // First 4 bytes are CAN ID
+            ..Default::default()
+        };
+
+        let mut tx_flags = 0u32;
+        if self.cfg.can_use_ext_addr {
+            tx_flags |= TxFlag::CAN_29BIT_ID.bits();
+        }
+        if self.cfg.pad_frame {
+            tx_flags |= TxFlag::ISO15765_FRAME_PAD.bits();
+        }
+        if self.cfg.extended_addressing {
+            tx_flags |= TxFlag::ISO15765_EXT_ADDR.bits();
+        }
+
+        write_msg.tx_flags = tx_flags;
+        write_msg.data[0] = (addr >> 24) as u8;
+        write_msg.data[1] = (addr >> 16) as u8;
+        write_msg.data[2] = (addr >> 8) as u8;
+        write_msg.data[3] = addr as u8;
+        write_msg.data[4..4 + buffer.len()].copy_from_slice(buffer);
+
+        // Now transmit our message!
+
+        self.device
+            .lock()?
+            .safe_passthru_op(|_, device| {
+                device.write_messages(channel_id, &mut [write_msg], timeout_ms)
+            })
+            .map_err(|e| ChannelError::HardwareError(e))
+            .map(|_| ())
+    }
+
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
+        let channel_id = self.get_channel_id()?;
+        self.device
+            .lock()?
+            .safe_passthru_op(|_, device| {
+                device.ioctl(
+                    channel_id,
+                    IoctlID::CLEAR_RX_BUFFER,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                )
+            })
+            .map_err(|e| e.into())
+    }
+
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
+        let channel_id = self.get_channel_id()?;
+        self.device
+            .lock()?
+            .safe_passthru_op(|_, device| {
+                device.ioctl(
+                    channel_id,
+                    IoctlID::CLEAR_TX_BUFFER,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                )
+            })
+            .map_err(|e| e.into())
+    }
+}
+
+impl<'a> IsoTPChannel for PassthruIsoTpChannel {
+    fn set_iso_tp_cfg(&mut self, cfg: crate::channel::IsoTPSettings) -> ChannelResult<()> {
+        self.cfg_complete = true;
+        Ok(self.cfg = cfg)
+    }
+}
+
+impl<'a> Drop for PassthruIsoTpChannel {
+    #[allow(unused_must_use)]
+    fn drop(&mut self) {
+        // Close the channel before dropping!
+        self.close();
     }
 }
 
@@ -360,30 +781,46 @@ impl From<&CanFrame> for PASSTHRU_MSG {
         f.data[1] = (frame.get_address() >> 16) as u8;
         f.data[2] = (frame.get_address() >> 8) as u8;
         f.data[3] = frame.get_address() as u8;
-        f.data[4..4+frame.get_data().len()].copy_from_slice(frame.get_data());
+        f.data[4..4 + frame.get_data().len()].copy_from_slice(frame.get_data());
         f
     }
 }
 
 impl From<&PASSTHRU_MSG> for CanFrame {
     fn from(msg: &PASSTHRU_MSG) -> CanFrame {
-        let id = 
-            (msg.data[0] as u32) << 24 |
-            (msg.data[1] as u32) << 16 |
-            (msg.data[2] as u32) << 8 |
-            (msg.data[3] as u32);
+        let id = (msg.data[0] as u32) << 24
+            | (msg.data[1] as u32) << 16
+            | (msg.data[2] as u32) << 8
+            | (msg.data[3] as u32);
         let data = &msg.data[4..msg.data_size as usize];
         let is_ext = msg.tx_flags & TxFlag::CAN_29BIT_ID.bits() != 0;
         CanFrame::new(id, data, is_ext)
     }
 }
 
-
 impl From<j2534_rust::PassthruError> for HardwareError {
     fn from(err: j2534_rust::PassthruError) -> Self {
         HardwareError::APIError {
             code: err as u32,
             desc: err.to_string().into(),
+        }
+    }
+}
+
+impl<T> From<PoisonError<T>> for ChannelError {
+    fn from(x: PoisonError<T>) -> Self {
+        ChannelError::HardwareError(HardwareError::APIError {
+            code: 99,
+            desc: "PoisonError".into(),
+        })
+    }
+}
+
+impl<T> From<PoisonError<T>> for HardwareError {
+    fn from(x: PoisonError<T>) -> Self {
+        HardwareError::APIError {
+            code: 99,
+            desc: "PoisonError".into(),
         }
     }
 }
@@ -398,12 +835,17 @@ pub mod passthru_test {
     pub fn scan_test() {
         let scanner = PassthruScanner::new();
         println!("{:#?}", scanner.list_devices());
-        let mut device =  scanner.open_device_by_name("Macchina A0").unwrap();
+        let mut device = scanner.open_device_by_name("Macchina A0").unwrap();
         println!("ECU DIAG TEST ==> Loaded device: {:#?}", device);
-        println!("ECU DIAG TEST ==> Battery voltage: {:?}", device.read_battery_voltage());
-        let mut can_channel = device.create_can_channel().unwrap();
-        can_channel.open(500000, false).unwrap();
-        let packets = can_channel.read_packets(100, 0).unwrap();
-        println!("{:?}", packets);
+        println!(
+            "ECU DIAG TEST ==> Battery voltage: {:?}",
+            device.lock().unwrap().read_battery_voltage()
+        );
+        let mut can_channel = PassthruDevice::create_can_channel(device).unwrap();
+        can_channel.set_can_cfg(500000, false).unwrap();
+        can_channel.open().unwrap();
+        let packets = can_channel.read_packets(100, 1000).unwrap();
+        println!("ECU DIAG TEST ==> Read {} CAN Packets", packets.len());
+        can_channel.close();
     }
 }

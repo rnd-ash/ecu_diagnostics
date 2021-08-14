@@ -1,6 +1,6 @@
 //! Read data by Local identifier
 
-use crate::{DiagError, DiagServerResult, kwp2000::KWP2000Command};
+use crate::{kwp2000::KWP2000Command, DiagError, DiagServerResult};
 
 use super::Kwp2000DiagnosticServer;
 
@@ -22,9 +22,9 @@ pub struct DevelopmentData {
     /// DBkom version. Formatted as XX.YY
     pub dbkom_version: String,
     /// Flexer version. Formatted as XX.YY.
-    /// 
+    ///
     /// NOTE: DCA ECUs won't support this, so it'll always be 99.99
-    pub flexer_version: String
+    pub flexer_version: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -56,7 +56,7 @@ pub struct VehicleInfo {
     /// Vehicle body style code
     pub body_style: u8,
     /// Vehicle country code
-    pub country_code: u8
+    pub country_code: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -92,8 +92,7 @@ pub struct DiagGlobalParamData {
     /// First position within diagnostic CAN Frame
     pub position_in_can_data_frame: u16,
     /// List of process data
-    pub process_data: Vec<GlobalProcessData>
-
+    pub process_data: Vec<GlobalProcessData>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -104,9 +103,8 @@ pub struct GlobalProcessData {
     /// Timebase of global process data
     pub timebase: u16,
     /// Size of global process data
-    pub size: u8
+    pub size: u8,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Diagnostic protocol information. Used by [read_diag_protocol_info]
@@ -116,98 +114,158 @@ pub struct DiagProtocolInfo {
     /// Implemented version of the flash reprogramming specification
     pub flash_reprogramming_definition_version: u8,
     /// KWP2000 maximum diagnostic level supported
-    pub diagnostic_level_support: u8
+    pub diagnostic_level_support: u8,
 }
 
 /// Reads development data from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
-pub fn read_ecu_development_data(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<DevelopmentData> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE0])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+pub fn read_ecu_development_data(
+    server: &mut Kwp2000DiagnosticServer,
+) -> DiagServerResult<DevelopmentData> {
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE0])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
 /// Reads the ECU Serial number.
-/// 
-/// This function returns the bytes of just the serial number of the ECU, which 
+///
+/// This function returns the bytes of just the serial number of the ECU, which
 /// can be interpreted as either ASCII (DCA ECUs), or Model line specification (Varies from OEM to OEM)
 pub fn read_ecu_serial_number(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<Vec<u8>> {
-    let mut res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE1])?;
+    let mut res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE1])?;
     res.drain(0..2);
     Ok(res)
 }
 
 /// Reads DBCom data from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
 pub fn read_ecu_dbcom_data(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<DBComData> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE2])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE2])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
 /// Reads the Operating system version on the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
 pub fn read_ecu_os_version(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<String> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE3])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE3])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
 /// Reads reprogramming fault report. The format is binary.
 /// This is to be interpreted by GSP/SDE.
-pub fn read_ecu_reprogramming_fault_report(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<Vec<u8>> {
-    let mut res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE4])?;
+pub fn read_ecu_reprogramming_fault_report(
+    server: &mut Kwp2000DiagnosticServer,
+) -> DiagServerResult<Vec<u8>> {
+    let mut res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE4])?;
     res.drain(0..2);
     Ok(res)
 }
 
 /// Reads vehicle information from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
-pub fn read_ecu_vehicle_info(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<VehicleInfo> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0xE5])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+pub fn read_ecu_vehicle_info(
+    server: &mut Kwp2000DiagnosticServer,
+) -> DiagServerResult<VehicleInfo> {
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0xE5])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
 /// Reads flash data from block 1. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
 pub fn read_ecu_flash_info_1(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<Vec<u8>> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE6])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE6])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
 /// Reads flash data from block 2. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
 pub fn read_ecu_flash_info_2(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<Vec<u8>> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE7])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE7])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
 /// Reads general diagnostic parameter data from the ECU (SDCOM). NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
-pub fn read_system_diag_general_param_data(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<DiagGeneralParamData> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE8])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+pub fn read_system_diag_general_param_data(
+    server: &mut Kwp2000DiagnosticServer,
+) -> DiagServerResult<DiagGeneralParamData> {
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE8])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
 /// Reads global diagnostic parameter data from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
-pub fn read_system_diag_global_param_data(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<DiagGlobalParamData> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE9])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+pub fn read_system_diag_global_param_data(
+    server: &mut Kwp2000DiagnosticServer,
+) -> DiagServerResult<DiagGlobalParamData> {
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE9])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
 /// Reads the ECU's current configuration status. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
 pub fn read_ecu_configuration(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<Vec<u8>> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xEA])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xEA])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
 /// Reads ECU protocol information. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
-pub fn read_diag_protocol_info(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<DiagProtocolInfo> {
-    let res = server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xEB])?;
-    Err(DiagError::NotImplemented(format!("ECU Response: {:02X?}", res)))
+pub fn read_diag_protocol_info(
+    server: &mut Kwp2000DiagnosticServer,
+) -> DiagServerResult<DiagProtocolInfo> {
+    let res =
+        server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xEB])?;
+    Err(DiagError::NotImplemented(format!(
+        "ECU Response: {:02X?}",
+        res
+    )))
 }
 
-/// Reads data from a custom local identifier 
-/// 
+/// Reads data from a custom local identifier
+///
 /// ## Supported local identifier ranges
 /// * 0x01-0x7F - Record local identifier
 /// * 0xA0-0xDF - Record local identifier
 /// * 0xF0-0xF9 - Dynamically defined local identifier
-/// 
+///
 /// ## Important notes:
 /// 1. Do NOT use Identifiers between 0x80-0x9F. These are for [crate::kwp2000::read_ecu_identification] only!
 /// 2. Identifiers between 0xE0 and 0xEB are handled by the other functions in this module, and return
 /// the data as parsed responses
-pub fn read_custom_local_identifier(server: &mut Kwp2000DiagnosticServer, local_identifier: u8) -> DiagServerResult<Vec<u8>> {
-    server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[local_identifier])
+pub fn read_custom_local_identifier(
+    server: &mut Kwp2000DiagnosticServer,
+    local_identifier: u8,
+) -> DiagServerResult<Vec<u8>> {
+    server.execute_command_with_response(
+        KWP2000Command::ReadDataByLocalIdentifier,
+        &[local_identifier],
+    )
 }

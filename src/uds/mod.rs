@@ -378,7 +378,7 @@ impl UdsDiagnosticServer {
                             &settings,
                             &mut server_channel,
                             0x78,
-                            0x21
+                            0x21,
                         ) {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
@@ -418,7 +418,7 @@ impl UdsDiagnosticServer {
                             &settings,
                             &mut server_channel,
                             0x78, // UDSError::RequestCorrectlyReceivedResponsePending
-                            0x21
+                            0x21,
                         );
                         //event_handler.on_event(&res);
                         if tx_res.send(res).is_err() {
@@ -581,7 +581,7 @@ unsafe impl Send for UdsDiagnosticServer {}
 pub mod uds_test {
     use std::collections::HashMap;
 
-    use crate::channel::{PayloadChannel, ChannelError, ChannelResult};
+    use crate::channel::{ChannelError, ChannelResult, PayloadChannel};
 
     use super::*;
 
