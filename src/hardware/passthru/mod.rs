@@ -824,28 +824,3 @@ impl<T> From<PoisonError<T>> for HardwareError {
         }
     }
 }
-
-#[cfg(test)]
-pub mod passthru_test {
-    use crate::hardware::{Hardware, HardwareScanner};
-
-    use super::*;
-
-    #[test]
-    pub fn scan_test() {
-        let scanner = PassthruScanner::new();
-        println!("{:#?}", scanner.list_devices());
-        let mut device = scanner.open_device_by_name("Macchina A0 Passthru").unwrap();
-        println!("ECU DIAG TEST ==> Loaded device: {:#?}", device);
-        println!(
-            "ECU DIAG TEST ==> Battery voltage: {:?}",
-            device.lock().unwrap().read_battery_voltage()
-        );
-        let mut can_channel = PassthruDevice::create_can_channel(device).unwrap();
-        can_channel.set_can_cfg(500000, false).unwrap();
-        can_channel.open().unwrap();
-        let packets = can_channel.read_packets(100, 1000).unwrap();
-        println!("ECU DIAG TEST ==> Read {} CAN Packets", packets.len());
-        can_channel.close();
-    }
-}

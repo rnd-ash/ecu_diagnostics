@@ -392,18 +392,3 @@ impl From<std::io::Error> for ChannelError {
         Self::IOError(e)
     }
 }
-
-#[cfg(test)]
-pub mod tests {
-    use super::*;
-
-    #[test]
-    pub fn test_scan() {
-        let scanner = SocketCanScanner::new();
-        let hw = scanner.open_device_by_name("can0").unwrap();
-        let mut can_channel = Hardware::create_can_channel(hw).unwrap();
-        can_channel.open().unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        println!("{:?}", can_channel.read_packets(1000, 0).unwrap());
-    }
-}
