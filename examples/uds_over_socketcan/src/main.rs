@@ -1,22 +1,30 @@
 use std::process::exit;
 
-use socketcan_iface::SocketCANInterface;
-
 mod sim_ecu;
-mod socketcan_iface;
 
-use ecu_diagnostics::{
-    channel::IsoTPSettings,
-    kwp2000::{
+use ecu_diagnostics::{DiagError, DiagServerResult, channel::IsoTPSettings, hardware::{Hardware, HardwareScanner, socketcan::SocketCanScanner}, kwp2000::{
         self, read_data_by_local_id::*, read_ecu_identification::*, start_diagnostic_session,
         Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler,
-    },
-    DiagError, DiagServerResult,
-};
+    }};
 
 fn main() {
+    let scanner = SocketCanScanner::new();
     // Vcan device
-    let vcan0 = SocketCANInterface::new("can0".to_string());
+    let iface = match scanner.open_device_by_name("can0") {
+        Ok(i) => i,
+        Err(e) => {
+            println!("Could not open can0 interface!: {}", e);
+            exit(0)
+        }
+    };
+
+    let socket_can_isotp = match Hardware::create_iso_tp_channel(iface) {
+        Ok(iface) => iface,
+        Err(e) => {
+            println!("Could not open IsoTP socket on can0: {}", e);
+            exit(0)
+        }
+    };
 
     // Setup KWP server
     let kwp_server_settings = Kwp2000ServerOptions {
@@ -40,7 +48,7 @@ fn main() {
 
     let mut kwp_server: Kwp2000DiagnosticServer = match Kwp2000DiagnosticServer::new_over_iso_tp(
         kwp_server_settings,
-        vcan0,
+        socket_can_isotp,
         isotp_cfg,
         Kwp2000VoidHandler,
     ) {

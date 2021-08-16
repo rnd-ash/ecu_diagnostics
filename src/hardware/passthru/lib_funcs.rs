@@ -276,6 +276,10 @@ impl PassthruDrv {
             write_array.truncate(msg_count as usize);
             return ret_res(0x00, write_array);
         }
+        if res == PassthruError::ERR_TIMEOUT as i32 {
+            write_array.truncate(msg_count as usize);
+            return ret_res(0x00, write_array);
+        }
         if msg_count != max_msgs {
             // Trim the output vector to size
             write_array.truncate(msg_count as usize);

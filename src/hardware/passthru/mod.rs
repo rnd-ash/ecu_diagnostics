@@ -835,7 +835,7 @@ pub mod passthru_test {
     pub fn scan_test() {
         let scanner = PassthruScanner::new();
         println!("{:#?}", scanner.list_devices());
-        let mut device = scanner.open_device_by_name("Macchina A0").unwrap();
+        let mut device = scanner.open_device_by_name("Macchina A0 Passthru").unwrap();
         println!("ECU DIAG TEST ==> Loaded device: {:#?}", device);
         println!(
             "ECU DIAG TEST ==> Battery voltage: {:?}",

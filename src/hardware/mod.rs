@@ -4,6 +4,9 @@
 
 pub mod passthru;
 
+#[cfg(unix)]
+pub mod socketcan;
+
 use std::sync::{Arc, Mutex};
 
 use crate::channel::{CanChannel, IsoTPChannel};
