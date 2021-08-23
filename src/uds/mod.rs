@@ -13,17 +13,19 @@ use std::{
     time::Instant,
 };
 
-use crate::{
-    channel::IsoTPChannel, channel::IsoTPSettings, dtc::DTCFormatType, helpers, BaseServerPayload,
-    BaseServerSettings, DiagError, DiagServerResult, ServerEvent, ServerEventHandler,
-};
+use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent, ServerEventHandler, channel::IsoTPChannel, channel::IsoTPSettings, dtc::DTCFormatType, helpers};
 
 use self::diagnostic_session_control::UDSSessionType;
 
-pub mod diagnostic_session_control;
-pub mod ecu_reset;
-pub mod read_dtc_information;
-pub mod security_access;
+mod diagnostic_session_control;
+mod ecu_reset;
+mod read_dtc_information;
+mod security_access;
+
+pub use diagnostic_session_control::*;
+pub use ecu_reset::*;
+pub use read_dtc_information::*;
+pub use security_access::*;
 
 /// UDS Command Service IDs
 #[allow(missing_docs)]
@@ -31,37 +33,104 @@ pub mod security_access;
 #[repr(u8)]
 pub enum UDSCommand {
     /// Diagnostic session control. See [diagnostic_session_control]
-    DiagnosticSessionControl = 0x10,
+    DiagnosticSessionControl,
     /// ECU Reset. See [ecu_reset]
-    ECUReset = 0x11,
+    ECUReset,
     /// Security access. See [security_access]
-    SecurityAccess = 0x27,
+    SecurityAccess,
     /// Controls communication functionality of the ECU
-    CommunicationControl = 0x28,
+    CommunicationControl,
     /// Tester present command.
-    TesterPresent = 0x3E,
-    AccessTimingParameters = 0x83,
-    SecuredDataTransmission = 0x84,
-    ControlDTCSettings = 0x85,
-    ResponseOnEvent = 0x86,
-    LinkControl = 0x87,
-    ReadDataByIdentifier = 0x22,
-    ReadMemoryByAddress = 0x23,
-    ReadScalingDataByIdentifier = 0x24,
-    ReadDataByPeriodicIdentifier = 0x2A,
-    DynamicallyDefineDataIdentifier = 0x2C,
-    WriteDataByIdentifier = 0x2E,
-    WriteMemoryByAddress = 0x3D,
-    ClearDiagnosticInformation = 0x14,
+    TesterPresent,
+    AccessTimingParameters,
+    SecuredDataTransmission,
+    ControlDTCSettings,
+    ResponseOnEvent,
+    LinkControl,
+    ReadDataByIdentifier,
+    ReadMemoryByAddress,
+    ReadScalingDataByIdentifier,
+    ReadDataByPeriodicIdentifier,
+    DynamicallyDefineDataIdentifier,
+    WriteDataByIdentifier,
+    WriteMemoryByAddress,
+    ClearDiagnosticInformation,
     /// Reading and querying diagnostic trouble codes
     /// stored on the ECU. See [read_dtc_information]
-    ReadDTCInformation = 0x19,
-    InputOutputControlByIdentifier = 0x2F,
-    RoutineControl = 0x31,
-    RequestDownload = 0x34,
-    RequestUpload = 0x35,
-    TransferData = 0x36,
-    RequestTransferExit = 0x37,
+    ReadDTCInformation,
+    InputOutputControlByIdentifier,
+    RoutineControl,
+    RequestDownload,
+    RequestUpload,
+    TransferData,
+    RequestTransferExit,
+    Other(u8)
+}
+
+impl From<u8> for UDSCommand {
+    fn from(sid: u8) -> Self {
+        match sid {
+            0x10 => UDSCommand::DiagnosticSessionControl,
+            0x11 => UDSCommand::ECUReset,
+            0x27 => UDSCommand::SecurityAccess,
+            0x28 => UDSCommand::CommunicationControl,
+            0x3E => UDSCommand::TesterPresent,
+            0x83 => UDSCommand::AccessTimingParameters,
+            0x84 => UDSCommand::SecuredDataTransmission,
+            0x85 => UDSCommand::ControlDTCSettings,
+            0x86 => UDSCommand::ResponseOnEvent,
+            0x87 => UDSCommand::LinkControl,
+            0x22 => UDSCommand::ReadDataByIdentifier,
+            0x23 => UDSCommand::ReadMemoryByAddress,
+            0x24 => UDSCommand::ReadScalingDataByIdentifier,
+            0x2A => UDSCommand::ReadDataByPeriodicIdentifier,
+            0x2C => UDSCommand::DynamicallyDefineDataIdentifier,
+            0x2E => UDSCommand::WriteDataByIdentifier,
+            0x3D => UDSCommand::WriteMemoryByAddress,
+            0x14 => UDSCommand::ClearDiagnosticInformation,
+            0x19 => UDSCommand::ReadDTCInformation,
+            0x2F => UDSCommand::InputOutputControlByIdentifier,
+            0x31 => UDSCommand::RoutineControl,
+            0x34 => UDSCommand::RequestDownload,
+            0x35 => UDSCommand::RequestUpload,
+            0x36 => UDSCommand::TransferData,
+            0x37 => UDSCommand::RequestTransferExit,
+            _ => UDSCommand::Other(sid)
+        }
+    }
+}
+
+impl From<UDSCommand> for u8 {
+    fn from(cmd: UDSCommand) -> Self {
+        match cmd {
+            UDSCommand::DiagnosticSessionControl => 0x10,
+            UDSCommand::ECUReset => 0x11,
+            UDSCommand::SecurityAccess => 0x27,
+            UDSCommand::CommunicationControl => 0x28,
+            UDSCommand::TesterPresent => 0x3E,
+            UDSCommand::AccessTimingParameters => 0x83,
+            UDSCommand::SecuredDataTransmission => 0x84,
+            UDSCommand::ControlDTCSettings => 0x85,
+            UDSCommand::ResponseOnEvent => 0x86,
+            UDSCommand::LinkControl => 0x87,
+            UDSCommand::ReadDataByIdentifier => 0x22,
+            UDSCommand::ReadMemoryByAddress => 0x23,
+            UDSCommand::ReadScalingDataByIdentifier => 0x24,
+            UDSCommand::ReadDataByPeriodicIdentifier => 0x2A,
+            UDSCommand::DynamicallyDefineDataIdentifier => 0x2C,
+            UDSCommand::WriteDataByIdentifier => 0x2E,
+            UDSCommand::WriteMemoryByAddress => 0x3D,
+            UDSCommand::ClearDiagnosticInformation => 0x14,
+            UDSCommand::ReadDTCInformation => 0x19,
+            UDSCommand::InputOutputControlByIdentifier => 0x2F,
+            UDSCommand::RoutineControl => 0x31,
+            UDSCommand::RequestDownload => 0x34,
+            UDSCommand::RequestUpload => 0x35,
+            UDSCommand::TransferData => 0x36,
+            UDSCommand::RequestTransferExit => 0x37,
+            UDSCommand::Other(s) => s,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -270,7 +339,7 @@ impl UdsCmd {
     /// Creates a new UDS Payload
     pub fn new(sid: UDSCommand, args: &[u8], need_response: bool) -> Self {
         let mut b: Vec<u8> = Vec::with_capacity(args.len() + 1);
-        b.push(sid as u8);
+        b.push(sid.into());
         b.extend_from_slice(args);
         Self {
             bytes: b,
@@ -278,9 +347,16 @@ impl UdsCmd {
         }
     }
 
+    pub (crate) fn from_raw(r: &[u8], response_required: bool) -> Self {
+        Self {
+            bytes: r.to_vec(),
+            response_required
+        }
+    }
+
     /// Returns the UDS Service ID of the command
     pub fn get_uds_sid(&self) -> UDSCommand {
-        unsafe { transmute(self.bytes[0]) } // This unsafe operation will always succeed!
+        self.bytes[0].into()
     }
 }
 
@@ -472,14 +548,24 @@ impl UdsDiagnosticServer {
         })
     }
 
-    /// Returns true if the internal UDS Server is running
-    pub fn is_server_running(&self) -> bool {
-        self.server_running.load(Ordering::Relaxed)
-    }
-
     /// Returns the current settings used by the UDS Server
     pub fn get_settings(&self) -> UdsServerOptions {
         self.settings
+    }
+
+    /// Internal command for sending UDS payload to the ECU
+    fn exec_command(&mut self, cmd: UdsCmd) -> DiagServerResult<Vec<u8>> {
+        match self.tx.send(cmd) {
+            Ok(_) => self.rx.recv().unwrap_or(Err(DiagError::ServerNotRunning)),
+            Err(_) => Err(DiagError::ServerNotRunning), // Server must have crashed!
+        }
+    }
+}
+
+impl DiagnosticServer<UDSCommand> for UdsDiagnosticServer {
+
+    fn is_server_running(&self) -> bool {
+        self.server_running.load(Ordering::Relaxed)
     }
 
     /// Send a command to the ECU, and receive its response
@@ -491,7 +577,7 @@ impl UdsDiagnosticServer {
     /// ## Returns
     /// If the function is successful, and the ECU responds with an OK response (Containing data),
     /// then the full ECU response is returned. The response will begin with the sid + 0x40
-    pub fn execute_command_with_response(
+    fn execute_command_with_response(
         &mut self,
         sid: UDSCommand,
         args: &[u8],
@@ -527,27 +613,31 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * sid - The Service ID of the command
     /// * args - The arguments for the service
-    pub fn execute_command(&mut self, sid: UDSCommand, args: &[u8]) -> DiagServerResult<()> {
+    fn execute_command(&mut self, sid: UDSCommand, args: &[u8]) -> DiagServerResult<()> {
         let cmd = UdsCmd::new(sid, args, false);
         self.exec_command(cmd).map(|_| ())
     }
 
-    /// Internal command for sending UDS payload to the ECU
-    fn exec_command(&mut self, cmd: UdsCmd) -> DiagServerResult<Vec<u8>> {
-        match self.tx.send(cmd) {
-            Ok(_) => self.rx.recv().unwrap_or(Err(DiagError::ServerNotRunning)),
-            Err(_) => Err(DiagError::ServerNotRunning), // Server must have crashed!
-        }
-    }
-
     /// Sets the command retry counter
-    pub fn set_repeat_count(&mut self, count: u32) {
+    fn set_repeat_count(&mut self, count: u32) {
         self.repeat_count = count
     }
 
     /// Sets the command retry interval
-    pub fn set_repeat_interval_count(&mut self, interval_ms: u32) {
+    fn set_repeat_interval_count(&mut self, interval_ms: u32) {
         self.repeat_interval = std::time::Duration::from_millis(interval_ms as u64)
+    }
+
+    /// Sends an arbitrary byte array to the ECU, and does not query response from the ECU
+    fn send_byte_array(&mut self, arr: &[u8]) -> DiagServerResult<()> {
+        let cmd = UdsCmd::from_raw(arr, false);
+        self.exec_command(cmd).map(|_| ())
+    }
+
+    /// Sends an arbitrary byte array to the ECU, and polls for the ECU's response
+    fn send_byte_array_with_response(&mut self, arr: &[u8]) -> DiagServerResult<Vec<u8>> {
+        let cmd = UdsCmd::from_raw(arr, true);
+        self.exec_command(cmd)
     }
 }
 
@@ -576,136 +666,3 @@ pub fn get_description_of_ecu_error(error: u8) -> UDSError {
 
 unsafe impl Sync for UdsDiagnosticServer {}
 unsafe impl Send for UdsDiagnosticServer {}
-
-#[cfg(test)]
-pub mod uds_test {
-    use std::collections::HashMap;
-
-    use crate::channel::{ChannelError, ChannelResult, PayloadChannel};
-
-    use super::*;
-
-    #[derive(Debug, Clone)]
-    pub struct FakeIsoTpChannel {
-        triggers: HashMap<(u8, Option<u8>), Vec<u8>>,
-        resp_queue: Vec<Vec<u8>>,
-    }
-
-    impl FakeIsoTpChannel {
-        pub fn new() -> Self {
-            Self {
-                triggers: HashMap::new(),
-                resp_queue: Vec::new(),
-            }
-        }
-
-        pub fn add_sid_respose(&mut self, sid: u8, pid: Option<u8>, resp: &[u8]) {
-            self.triggers.insert((sid, pid), resp.to_vec());
-        }
-    }
-
-    impl IsoTPChannel for FakeIsoTpChannel {
-        fn set_iso_tp_cfg(&mut self, _cfg: IsoTPSettings) -> crate::channel::ChannelResult<()> {
-            Ok(())
-        }
-    }
-
-    impl PayloadChannel for FakeIsoTpChannel {
-        fn open(&mut self) -> crate::channel::ChannelResult<()> {
-            Ok(())
-        }
-
-        fn close(&mut self) -> crate::channel::ChannelResult<()> {
-            Ok(())
-        }
-
-        fn set_ids(&mut self, _send: u32, _recv: u32) -> crate::channel::ChannelResult<()> {
-            Ok(())
-        }
-
-        fn read_bytes(&mut self, _timeout_ms: u32) -> crate::channel::ChannelResult<Vec<u8>> {
-            if self.resp_queue.len() > 0 {
-                let ret = self.resp_queue[0].clone();
-                self.resp_queue.drain(0..1);
-                return Ok(ret);
-            }
-            Err(ChannelError::ReadTimeout)
-        }
-
-        fn write_bytes(
-            &mut self,
-            _addr: u32,
-            buffer: &[u8],
-            _timeout_ms: u32,
-        ) -> crate::channel::ChannelResult<()> {
-            // Pretend we are in the ECU here
-            if buffer.len() == 1 {
-                if let Some(((sid, _), buf)) = self.triggers.get_key_value(&(buffer[0], None)) {
-                    // Check for function
-                    // Function found
-                    let mut res = vec![sid + 0x40];
-                    res.extend_from_slice(buf);
-                    self.resp_queue.push(res)
-                } else {
-                    // Function not in trigger!? Respond with unsupported
-                    self.resp_queue.push(vec![0x7F, buffer[0], 0x11]) // 0x11 - Service not supported
-                }
-            }
-
-            if let Some(((sid, pid), buf)) =
-                self.triggers.get_key_value(&(buffer[0], Some(buffer[1])))
-            {
-                // Check for function
-                // Function found
-                let mut res = vec![sid + 0x40, buffer[1]];
-                res.extend_from_slice(buf);
-                self.resp_queue.push(res)
-            } else {
-                // Function not in trigger!? Respond with unsupported
-                self.resp_queue.push(vec![0x7F, buffer[0], 0x11]) // 0x11 - Service not supported
-            }
-            Ok(())
-        }
-
-        fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
-            Ok(self.resp_queue.clear())
-        }
-
-        fn clear_tx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
-            Ok(())
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct TestUdsServer {
-        pub uds: super::UdsDiagnosticServer,
-    }
-
-    impl TestUdsServer {
-        pub fn new(fake_channel_data: FakeIsoTpChannel) -> Self {
-            let server = UdsDiagnosticServer::new_over_iso_tp(
-                UdsServerOptions {
-                    send_id: 0x01,
-                    recv_id: 0x02,
-                    read_timeout_ms: 1000,
-                    write_timeout_ms: 1000,
-                    global_tp_id: 0,
-                    tester_present_interval_ms: 2000,
-                    tester_present_require_response: false,
-                },
-                fake_channel_data,
-                IsoTPSettings {
-                    block_size: 20,
-                    st_min: 8,
-                    extended_addressing: false,
-                    pad_frame: true,
-                    can_speed: 500000,
-                    can_use_ext_addr: false,
-                },
-                UdsVoidHandler,
-            )
-            .unwrap();
-            Self { uds: server }
-        }
-    }
-}

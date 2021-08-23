@@ -4,7 +4,7 @@
 //! Currently, only default seed/key (0x01/0x02) are supported
 
 use super::{UDSCommand, UdsDiagnosticServer};
-use crate::DiagServerResult;
+use crate::{DiagServerResult, DiagnosticServer};
 
 /// Security operation request
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]

@@ -2,10 +2,7 @@ use std::process::exit;
 
 mod sim_ecu;
 
-use ecu_diagnostics::{DiagError, DiagServerResult, channel::IsoTPSettings, hardware::{Hardware, HardwareScanner, socketcan::SocketCanScanner}, kwp2000::{
-        self, read_data_by_local_id::*, read_ecu_identification::*, start_diagnostic_session,
-        Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler,
-    }};
+use ecu_diagnostics::{DiagError, DiagServerResult, channel::IsoTPSettings, hardware::{Hardware, HardwareScanner, socketcan::SocketCanScanner}, kwp2000::*};
 
 fn main() {
     let scanner = SocketCanScanner::new();
@@ -59,9 +56,9 @@ fn main() {
         }
     };
 
-    match start_diagnostic_session::set_diagnostic_session_mode(
+    match set_diagnostic_session_mode(
         &mut kwp_server,
-        start_diagnostic_session::SessionType::ExtendedDiagnostics,
+        SessionType::ExtendedDiagnostics,
     ) {
         Ok(_) => println!("ECU is now in Extended Diag mode!"),
         Err(e) => {
@@ -69,7 +66,7 @@ fn main() {
                 // Error from ECU. Query the error
                 eprintln!(
                     "ECU Rejected the request: {:?}",
-                    kwp2000::get_description_of_ecu_error(x)
+                    get_description_of_ecu_error(x)
                 );
             } else {
                 eprintln!("Error setting Extended Diag mode: {:?}. Aborting", e);
@@ -175,7 +172,7 @@ pub fn test_kwp_operation<T: std::fmt::Debug>(func: &str, res: DiagServerResult<
                 println!(
                     "ECU Rejected the request for '{}'! Error: {:?}",
                     func,
-                    kwp2000::get_description_of_ecu_error(e)
+                    get_description_of_ecu_error(e)
                 )
             } else {
                 println!("Error executing '{}': {}", func, err);

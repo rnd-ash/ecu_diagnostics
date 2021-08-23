@@ -1,6 +1,6 @@
 //! This service requests blocks of data from the ECU.
 
-use crate::DiagServerResult;
+use crate::{DiagServerResult, DiagnosticServer};
 
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 

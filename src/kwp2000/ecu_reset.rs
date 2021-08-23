@@ -1,6 +1,6 @@
 //! This service requests the ECU to perform a reset
 
-use crate::DiagServerResult;
+use crate::{DiagServerResult, DiagnosticServer};
 
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 

@@ -1,7 +1,7 @@
 //! This service allows for the clearing of DTCs
 //! (Diagnostic trouble codes) from the ECU
 
-use crate::DiagServerResult;
+use crate::{DiagServerResult, DiagnosticServer};
 
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 
@@ -18,7 +18,7 @@ use super::{KWP2000Command, Kwp2000DiagnosticServer};
 /// |[DTCRange::AllNetwork]|Optional|
 /// |[DTCRange::AllDTCs]|Mandatory|
 /// |[DTCRange::SingleDTC]|Optional|
-pub enum DTCRange {
+pub enum ClearDTCRange {
     /// All powertrain related DTCs
     AllPowertrain,
     /// All Chassis related DTCs
@@ -39,15 +39,15 @@ pub enum DTCRange {
     SingleDTC(u16),
 }
 
-impl From<DTCRange> for u16 {
-    fn from(x: DTCRange) -> Self {
+impl From<ClearDTCRange> for u16 {
+    fn from(x: ClearDTCRange) -> Self {
         match x {
-            DTCRange::AllPowertrain => 0x0000,
-            DTCRange::AllChassis => 0x4000,
-            DTCRange::AllBody => 0x8000,
-            DTCRange::AllNetwork => 0xC000,
-            DTCRange::AllDTCs => 0xFF00,
-            DTCRange::SingleDTC(x) => x,
+            ClearDTCRange::AllPowertrain => 0x0000,
+            ClearDTCRange::AllChassis => 0x4000,
+            ClearDTCRange::AllBody => 0x8000,
+            ClearDTCRange::AllNetwork => 0xC000,
+            ClearDTCRange::AllDTCs => 0xFF00,
+            ClearDTCRange::SingleDTC(x) => x,
         }
     }
 }
@@ -55,7 +55,7 @@ impl From<DTCRange> for u16 {
 /// Executes a DTC clear command on the ECU, given a range of DTCs to clear
 pub fn clear_dtc(
     server: &mut Kwp2000DiagnosticServer,
-    dtc_range: DTCRange,
+    dtc_range: ClearDTCRange,
 ) -> DiagServerResult<()> {
     let dtc_range_num: u16 = dtc_range.into();
     server

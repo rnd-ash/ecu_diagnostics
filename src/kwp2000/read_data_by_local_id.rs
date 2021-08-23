@@ -1,6 +1,6 @@
 //! Read data by Local identifier
 
-use crate::{kwp2000::KWP2000Command, DiagError, DiagServerResult};
+use crate::{kwp2000::KWP2000Command, DiagError, DiagServerResult, DiagnosticServer};
 
 use super::Kwp2000DiagnosticServer;
 

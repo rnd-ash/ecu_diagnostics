@@ -1,7 +1,7 @@
 //!  Provides methods to reset the ECU in order to simulate power cycling and resetting memory regions
 
 use super::{UDSCommand, UdsDiagnosticServer};
-use crate::{DiagError, DiagServerResult};
+use crate::{DiagError, DiagServerResult, DiagnosticServer};
 
 /// Options for resetting the ECU
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]

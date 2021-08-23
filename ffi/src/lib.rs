@@ -3,12 +3,17 @@
 //! IMPORTANT. Access to the FFI bindings should be done on one thread! No multi-thread support
 #![no_std]
 
-extern crate ecu_diagnostics;
 extern crate alloc;
+extern crate ecu_diagnostics;
 
 use alloc::vec::Vec;
 
-pub use ecu_diagnostics::{DiagError, channel::{PayloadChannel, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings}, uds::{UdsDiagnosticServer, UdsVoidHandler, UdsServerOptions, UDSCommand}};
+use ecu_diagnostics::{DiagnosticServer, hardware::HardwareError};
+pub use ecu_diagnostics::{
+    channel::{ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, PayloadChannel},
+    uds::{UDSCommand, UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler},
+    DiagError,
+};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -56,16 +61,18 @@ impl From<CallbackHandlerResult> for ChannelError {
             }
             CallbackHandlerResult::ReadTimeout => ChannelError::ReadTimeout,
             CallbackHandlerResult::WriteTimeout => ChannelError::WriteTimeout,
-            CallbackHandlerResult::CallbackAlreadyExists => ChannelError::APIError {
-                api_name: "NativeCallback".into(),
-                code: 98,
-                desc: "Callback already registered".into(),
-            },
-            CallbackHandlerResult::APIError => ChannelError::APIError {
-                api_name: "NativeCallback".into(),
-                code: 99,
-                desc: "Unknown".into(),
-            },
+            CallbackHandlerResult::CallbackAlreadyExists => ChannelError::HardwareError(
+                HardwareError::APIError {
+                    code: 99,
+                    desc: "Callback already exists".into(),
+                }
+            ),
+            CallbackHandlerResult::APIError => ChannelError::HardwareError(
+                HardwareError::APIError {
+                    code: 99,
+                    desc: "Unknown error".into(),
+                }
+            )
         }
     }
 }
@@ -122,19 +129,14 @@ impl PayloadChannel for BaseChannelCallbackHandler {
     fn read_bytes(&mut self, timeout_ms: u32) -> ChannelResult<Vec<u8>> {
         let mut p = CallbackPayload::default();
         match (self.read_bytes_callback)(&mut p, timeout_ms) {
-            CallbackHandlerResult::OK => Ok(
-                unsafe { Vec::from_raw_parts(p.data as *mut u8, p.data_len as usize, p.data_len as usize) }
-            ),
+            CallbackHandlerResult::OK => Ok(unsafe {
+                Vec::from_raw_parts(p.data as *mut u8, p.data_len as usize, p.data_len as usize)
+            }),
             x => Err(x.into()),
         }
     }
 
-    fn write_bytes(
-        &mut self,
-        addr: u32,
-        buffer: &[u8],
-        timeout_ms: u32,
-    ) -> ChannelResult<()> {
+    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
         let p = CallbackPayload {
             addr,
             data_len: buffer.len() as u32,
@@ -164,21 +166,16 @@ impl PayloadChannel for BaseChannelCallbackHandler {
 
 #[repr(C)]
 #[derive(Clone)]
-#[allow(missing_debug_implementations)]
 /// Callback handler for [IsoTPChannel]
 pub struct IsoTpChannelCallbackHandler {
     /// Base handler
     pub base: BaseChannelCallbackHandler,
     /// Callback when [IsoTPChannel::set_iso_tp_cfg] is called
-    pub set_iso_tp_cfg_callback:
-        extern "C" fn(cfg: IsoTPSettings) -> CallbackHandlerResult,
+    pub set_iso_tp_cfg_callback: extern "C" fn(cfg: IsoTPSettings) -> CallbackHandlerResult,
 }
 
 impl IsoTPChannel for IsoTpChannelCallbackHandler {
-    fn set_iso_tp_cfg(
-        &mut self,
-        cfg: IsoTPSettings,
-    ) -> ChannelResult<()> {
+    fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()> {
         match (self.set_iso_tp_cfg_callback)(cfg) {
             CallbackHandlerResult::OK => Ok(()),
             x => Err(x.into()),
@@ -203,12 +200,7 @@ impl PayloadChannel for IsoTpChannelCallbackHandler {
         self.base.read_bytes(timeout_ms)
     }
 
-    fn write_bytes(
-        &mut self,
-        addr: u32,
-        buffer: &[u8],
-        timeout_ms: u32,
-    ) -> ChannelResult<()> {
+    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
         self.base.write_bytes(addr, buffer, timeout_ms)
     }
 
@@ -265,6 +257,7 @@ pub enum DiagServerResult {
     NoDiagnosticServer = 8,
     /// Parameter provided to a subfunction was invalid
     ParameterInvalid = 9,
+    HardwareError = 10,
     /// ECU responded with an error, call [get_ecu_error_code]
     /// to retrieve the NRC from the ECU
     ECUError = 98,
@@ -288,7 +281,8 @@ impl From<DiagError> for DiagServerResult {
             DiagError::InvalidResponseLength => DiagServerResult::InvalidResponseLength,
             DiagError::NotImplemented(_) => DiagServerResult::Todo,
             DiagError::ChannelError(_) => DiagServerResult::HandlerError,
-            DiagError::ParameterInvalid => DiagServerResult::ParameterInvalid
+            DiagError::ParameterInvalid => DiagServerResult::ParameterInvalid,
+            DiagError::HardwareError(_) => DiagServerResult::HardwareError,
         }
     }
 }
@@ -350,7 +344,7 @@ pub extern "C" fn create_uds_server_over_isotp(
 ///
 /// Due to restrictions, the payload SID in the response message will match the original SID,
 /// rather than SID + 0x40.
-/// 
+///
 /// ## Returns
 /// If a response is required, and it completes successfully, then the returned value
 /// will have a new pointer set for args_ptr. **IMPORTANT**. It is up to the caller
@@ -368,12 +362,11 @@ pub extern "C" fn send_payload_uds(
     match unsafe { UDS_SERVER.as_mut() } {
         Some(server) => {
             if response_require {
-                match server.execute_command_with_response(
-                    payload.sid,
-                unsafe { &core::slice::from_raw_parts(payload.args_ptr, payload.args_len as usize) }
-                ) {
+                match server.execute_command_with_response(payload.sid, unsafe {
+                    &core::slice::from_raw_parts(payload.args_ptr, payload.args_len as usize)
+                }) {
                     Ok(mut resp) => {
-                        payload.sid = unsafe { core::mem::transmute(resp[0] - 0x40) };
+                        payload.sid = (resp[0] - 0x40).into();
                         let len = resp.len() as u32;
                         let resp_ptr = resp.as_mut_ptr();
                         core::mem::forget(resp); // Forget the response array, its up to the caller to deallocate this
@@ -384,12 +377,9 @@ pub extern "C" fn send_payload_uds(
                     Err(e) => e.into(),
                 }
             } else {
-                match server
-                    .execute_command(
-                        payload.sid, 
-                        unsafe { &core::slice::from_raw_parts(payload.args_ptr, payload.args_len as usize) }
-                    )
-                {
+                match server.execute_command(payload.sid, unsafe {
+                    &core::slice::from_raw_parts(payload.args_ptr, payload.args_len as usize)
+                }) {
                     Ok(_) => DiagServerResult::OK,
                     Err(e) => e.into(),
                 }

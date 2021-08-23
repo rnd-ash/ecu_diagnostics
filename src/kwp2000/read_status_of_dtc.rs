@@ -1,7 +1,7 @@
 //! Reads environmental data from the ECU about a requested Diagnostic
 //! trouble code (DTC).
 
-use crate::DiagServerResult;
+use crate::{DiagServerResult, DiagnosticServer};
 
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 
@@ -25,7 +25,7 @@ pub fn read_status_of_dtc(
     dtc: u16,
 ) -> DiagServerResult<Vec<u8>> {
     server.execute_command_with_response(
-        KWP2000Command::ReadStatusOfDiagnosticTroubleCOdes,
+        KWP2000Command::ReadStatusOfDiagnosticTroubleCodes,
         &[(dtc << 8) as u8, dtc as u8],
     )
 }

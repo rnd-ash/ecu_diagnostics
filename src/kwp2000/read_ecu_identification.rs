@@ -3,7 +3,7 @@
 use crate::{
     helpers::{bcd_decode, bcd_decode_slice},
     kwp2000::{KWP2000Command, Kwp2000DiagnosticServer},
-    DiagError, DiagServerResult,
+    DiagError, DiagServerResult, DiagnosticServer
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

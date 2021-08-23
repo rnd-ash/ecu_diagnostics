@@ -1,9 +1,6 @@
 //!  Provides methods to read and query DTCs on the ECU, as well as grabbing Env data about each DTC
 
-use crate::{
-    dtc::{self, DTCFormatType, DTCStatus, DTC},
-    DiagError, DiagServerResult,
-};
+use crate::{DiagError, DiagServerResult, DiagnosticServer, dtc::{self, DTCFormatType, DTCStatus, DTC}};
 
 use super::{UDSCommand, UdsDiagnosticServer};
 
@@ -588,30 +585,4 @@ pub fn get_dtc_with_permanent_status(
         "ReportDTCWithPermanentStatus ECU Response was: {:02X?}",
         resp
     )))
-}
-
-#[cfg(test)]
-pub mod sim_ecu_test {
-    use crate::uds::uds_test::{FakeIsoTpChannel, TestUdsServer};
-
-    use super::*;
-
-    #[test]
-    fn get_dtcs_by_status_mask() {
-        let mut fake_ecu = FakeIsoTpChannel::new();
-        fake_ecu.add_sid_respose(0x19, Some(0x01), &[0x7B, 0x01, 0x00, 0x0C]);
-        fake_ecu.add_sid_respose(
-            0x19,
-            Some(0x02),
-            &[
-                0x7B, 0x06, 0x10, 0x00, 0x28, 0xA1, 0xDC, 0x01, 0x69, 0xD1, 0x60, 0x00, 0x28, 0x17,
-                0x2C, 0x13, 0x40, 0x9A, 0x39, 0x87, 0x50, 0xA1, 0x0A, 0x00, 0x40, 0xA1, 0x0B, 0x00,
-                0x40, 0xA2, 0x01, 0x00, 0x40, 0xC1, 0x22, 0x08, 0x40, 0xC1, 0x22, 0x87, 0x40, 0xD1,
-                0x98, 0x00, 0x40, 0xD4, 0x0F, 0x00, 0x40,
-            ],
-        );
-        let mut s = TestUdsServer::new(fake_ecu);
-        let result = super::get_dtcs_by_status_mask(&mut s.uds, 0xFF);
-        println!("{:?}", result);
-    }
 }

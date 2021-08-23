@@ -28,7 +28,7 @@ fn main() {
         );
     }
 
-    let device = match passthru_scanner.open_device_by_index(0) {
+    let device = match passthru_scanner.open_device_by_index(1) {
         Ok(d) => d,
         Err(e) => {
             println!("Error opening passthru device 0: {}", e);
@@ -77,17 +77,17 @@ fn main() {
     };
 
     // Put server into extended diag mode
-    match kwp2000::start_diagnostic_session::set_diagnostic_session_mode(
+    match kwp2000::set_diagnostic_session_mode(
         &mut kwp_server,
-        kwp2000::start_diagnostic_session::SessionType::ExtendedDiagnostics,
+        kwp2000::SessionType::ExtendedDiagnostics,
     ) {
         Ok(_) => println!("ECU now in extended diagnostic mode!"),
         Err(e) => println!("Error executing extended diagnostic mode request: {}", e),
     }
 
-    match kwp2000::read_dtc_by_status::read_stored_dtcs(
+    match kwp2000::read_stored_dtcs(
         &mut kwp_server,
-        kwp2000::read_dtc_by_status::DTCRange::All,
+        kwp2000::DTCRange::All
     ) {
         Ok(res) => println!("List of DTCs stored on the ECU: {:#?}", res),
         Err(e) => println!("Error reading DTCs from ECU: {}", e),

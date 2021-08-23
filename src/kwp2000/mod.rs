@@ -22,25 +22,30 @@ use std::{
     time::Instant,
 };
 
-use crate::{
-    channel::{IsoTPChannel, IsoTPSettings},
-    dtc::DTCFormatType,
-    helpers, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, ServerEvent,
-    ServerEventHandler,
-};
+use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent, ServerEventHandler, channel::{IsoTPChannel, IsoTPSettings}, dtc::DTCFormatType, helpers};
 
-use self::start_diagnostic_session::SessionType;
+mod clear_diagnostic_information;
+mod ecu_reset;
+mod read_data_by_identifier;
+mod read_data_by_local_id;
+mod read_dtc_by_status;
+mod read_ecu_identification;
+mod read_memory_by_address;
+mod read_status_of_dtc;
+mod security_access;
+mod start_diagnostic_session;
 
-pub mod clear_diagnostic_information;
-pub mod ecu_reset;
-pub mod read_data_by_identifier;
-pub mod read_data_by_local_id;
-pub mod read_dtc_by_status;
-pub mod read_ecu_identification;
-pub mod read_memory_by_address;
-pub mod read_status_of_dtc;
-pub mod security_access;
-pub mod start_diagnostic_session;
+
+pub use clear_diagnostic_information::*;
+pub use ecu_reset::*;
+pub use read_data_by_identifier::*;
+pub use read_data_by_local_id::*;
+pub use read_dtc_by_status::*;
+pub use read_ecu_identification::*;
+pub use read_memory_by_address::*;
+pub use read_status_of_dtc::*;
+pub use security_access::*;
+pub use start_diagnostic_session::*;
 
 /// KWP Command Service IDs.
 ///
@@ -50,59 +55,131 @@ pub mod start_diagnostic_session;
 #[repr(u8)]
 pub enum KWP2000Command {
     /// Start or change ECU diagnostic session mode. See [start_diagnostic_session]
-    StartDiagnosticSession = 0x10,
+    StartDiagnosticSession,
     /// Reset the ECU. See [ecu_reset]
-    ECUReset = 0x11,
+    ECUReset,
     /// Clears diagnostic information stored on the ECU. See [clear_diagnostic_information]
-    ClearDiagnosticInformation = 0x14,
+    ClearDiagnosticInformation,
     /// Reads snapshot data of DTCs stored on the ECU. See [read_status_of_dtc]
-    ReadStatusOfDiagnosticTroubleCOdes = 0x17,
+    ReadStatusOfDiagnosticTroubleCodes,
     /// Reads DTCs stored on the ECU. See [read_dtc_by_status]
-    ReadDiagnosticTroubleCodesByStatus = 0x18,
+    ReadDiagnosticTroubleCodesByStatus,
     /// Reads ECU identification data. See [read_ecu_identification]
-    ReadECUIdentification = 0x1A,
+    ReadECUIdentification,
     /// Reads data from the ECU using a local identifier. See [read_data_by_local_id]
-    ReadDataByLocalIdentifier = 0x21,
+    ReadDataByLocalIdentifier,
     /// Reads data from the ECU using a unique identifier. See [read_data_by_identifier]
-    ReadDataByIdentifier = 0x22,
+    ReadDataByIdentifier,
     /// Reads memory from the ECU by address. See [read_memory_by_address]
-    ReadMemoryByAddress = 0x23,
+    ReadMemoryByAddress,
     /// Security access functions. See [security_access]
-    SecurityAccess = 0x27,
+    SecurityAccess,
     ///
-    DisableNormalMessageTransmission = 0x28,
+    DisableNormalMessageTransmission,
     ///
-    EnableNormalMessageTransmission = 0x29,
+    EnableNormalMessageTransmission,
     ///
-    DynamicallyDefineLocalIdentifier = 0x2C,
+    DynamicallyDefineLocalIdentifier,
     ///
-    WriteDataByIdentifier = 0x2E,
+    WriteDataByIdentifier,
     ///
-    InputOutputControlByLocalIdentifier = 0x30,
+    InputOutputControlByLocalIdentifier,
     ///
-    StartRoutineByLocalIdentifier = 0x31,
+    StartRoutineByLocalIdentifier,
     ///
-    StopRoutineByLocalIdentifier = 0x32,
+    StopRoutineByLocalIdentifier,
     ///
-    RequestRoutineResultsByLocalIdentifier = 0x33,
+    RequestRoutineResultsByLocalIdentifier,
     ///
-    RequestDownload = 0x34,
+    RequestDownload,
     ///
-    RequestUpload = 0x35,
+    RequestUpload,
     ///
-    TransferData = 0x36,
+    TransferData,
     ///
-    RequestTransferExit = 0x37,
+    RequestTransferExit,
     ///
-    WriteDataByLocalIdentifier = 0x3B,
+    WriteDataByLocalIdentifier,
     ///
-    WriteMemoryByAddress = 0x3D,
+    WriteMemoryByAddress,
     ///
-    TesterPresent = 0x3E,
+    TesterPresent,
     ///
-    ControlDTCSettings = 0x85,
+    ControlDTCSettings,
     ///
-    ResponseOnEvent = 0x86,
+    ResponseOnEvent,
+    /// Custom KWP2000 SID not part of the official specification
+    CustomSid(u8)
+}
+
+impl From<u8> for KWP2000Command {
+    fn from(sid: u8) -> Self {
+        match sid {
+            0x10 => KWP2000Command::StartDiagnosticSession,
+            0x11 => KWP2000Command::ECUReset,
+            0x14 => KWP2000Command::ClearDiagnosticInformation,
+            0x17 => KWP2000Command::ReadStatusOfDiagnosticTroubleCodes,
+            0x18 => KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
+            0x1A => KWP2000Command::ReadECUIdentification,
+            0x21 => KWP2000Command::ReadDataByLocalIdentifier,
+            0x22 => KWP2000Command::ReadDataByIdentifier,
+            0x23 => KWP2000Command::ReadMemoryByAddress,
+            0x27 => KWP2000Command::SecurityAccess,
+            0x28 => KWP2000Command::DisableNormalMessageTransmission,
+            0x29 => KWP2000Command::EnableNormalMessageTransmission,
+            0x2C => KWP2000Command::DynamicallyDefineLocalIdentifier,
+            0x2E => KWP2000Command::WriteDataByIdentifier,
+            0x30 => KWP2000Command::InputOutputControlByLocalIdentifier,
+            0x31 => KWP2000Command::StartRoutineByLocalIdentifier,
+            0x32 => KWP2000Command::StopRoutineByLocalIdentifier,
+            0x33 => KWP2000Command::RequestRoutineResultsByLocalIdentifier,
+            0x34 => KWP2000Command::RequestDownload,
+            0x35 => KWP2000Command::RequestUpload,
+            0x36 => KWP2000Command::TransferData,
+            0x37 => KWP2000Command::RequestTransferExit,
+            0x3B => KWP2000Command::WriteDataByLocalIdentifier,
+            0x3D => KWP2000Command::WriteMemoryByAddress,
+            0x3E => KWP2000Command::TesterPresent,
+            0x85 => KWP2000Command::ControlDTCSettings,
+            0x86 => KWP2000Command::ResponseOnEvent,
+            s => KWP2000Command::CustomSid(s),
+        }
+    }
+}
+
+impl From<KWP2000Command> for u8 {
+    fn from(cmd: KWP2000Command) -> Self {
+        match cmd {
+            KWP2000Command::StartDiagnosticSession => 0x10,
+            KWP2000Command::ECUReset => 0x11,
+            KWP2000Command::ClearDiagnosticInformation => 0x14,
+            KWP2000Command::ReadStatusOfDiagnosticTroubleCodes => 0x17,
+            KWP2000Command::ReadDiagnosticTroubleCodesByStatus => 0x18,
+            KWP2000Command::ReadECUIdentification => 0x1A,
+            KWP2000Command::ReadDataByLocalIdentifier => 0x21,
+            KWP2000Command::ReadDataByIdentifier => 0x22,
+            KWP2000Command::ReadMemoryByAddress => 0x23,
+            KWP2000Command::SecurityAccess => 0x27,
+            KWP2000Command::DisableNormalMessageTransmission => 0x28,
+            KWP2000Command::EnableNormalMessageTransmission => 0x29,
+            KWP2000Command::DynamicallyDefineLocalIdentifier => 0x2C,
+            KWP2000Command::WriteDataByIdentifier => 0x2E,
+            KWP2000Command::InputOutputControlByLocalIdentifier => 0x30,
+            KWP2000Command::StartRoutineByLocalIdentifier => 0x31,
+            KWP2000Command::StopRoutineByLocalIdentifier => 0x32,
+            KWP2000Command::RequestRoutineResultsByLocalIdentifier => 0x33,
+            KWP2000Command::RequestDownload => 0x34,
+            KWP2000Command::RequestUpload => 0x35,
+            KWP2000Command::TransferData => 0x36,
+            KWP2000Command::RequestTransferExit => 0x37,
+            KWP2000Command::WriteDataByLocalIdentifier => 0x3B,
+            KWP2000Command::WriteMemoryByAddress => 0x3D,
+            KWP2000Command::TesterPresent => 0x3E,
+            KWP2000Command::ControlDTCSettings => 0x85,
+            KWP2000Command::ResponseOnEvent => 0x86,
+            KWP2000Command::CustomSid(s) => s,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -210,7 +287,7 @@ impl Kwp2000Cmd {
     /// Creates a new KWP2000 Payload
     pub fn new(sid: KWP2000Command, args: &[u8], need_response: bool) -> Self {
         let mut b: Vec<u8> = Vec::with_capacity(args.len() + 1);
-        b.push(sid as u8);
+        b.push(u8::from(sid));
         b.extend_from_slice(args);
         Self {
             bytes: b,
@@ -218,9 +295,16 @@ impl Kwp2000Cmd {
         }
     }
 
+    pub (crate) fn from_raw(s: &[u8], response_required: bool) -> Self {
+        Self {
+            bytes: s.to_vec(),
+            response_required
+        }
+    }
+
     /// Returns the KWP2000 Service ID of the command
     pub fn get_kwp_sid(&self) -> KWP2000Command {
-        unsafe { transmute(self.bytes[0]) } // This unsafe operation will always succeed!
+        self.bytes[0].into()
     }
 }
 
@@ -455,15 +539,21 @@ impl Kwp2000DiagnosticServer {
         })
     }
 
-    /// Returns true if the internal KWP2000 Server is running
-    pub fn is_server_running(&self) -> bool {
-        self.server_running.load(Ordering::Relaxed)
-    }
-
     /// Returns the current settings used by the KWP2000 Server
     pub fn get_settings(&self) -> Kwp2000ServerOptions {
         self.settings
     }
+
+    /// Internal command for sending KWP2000 payload to the ECU
+    fn exec_command(&mut self, cmd: Kwp2000Cmd) -> DiagServerResult<Vec<u8>> {
+        match self.tx.send(cmd) {
+            Ok(_) => self.rx.recv().unwrap_or(Err(DiagError::ServerNotRunning)),
+            Err(_) => Err(DiagError::ServerNotRunning), // Server must have crashed!
+        }
+    }
+}
+
+impl DiagnosticServer<KWP2000Command> for Kwp2000DiagnosticServer {
 
     /// Send a command to the ECU, and receive its response
     ///
@@ -474,7 +564,7 @@ impl Kwp2000DiagnosticServer {
     /// ## Returns
     /// If the function is successful, and the ECU responds with an OK response (Containing data),
     /// then the full ECU response is returned. The response will begin with the sid + 0x40
-    pub fn execute_command_with_response(
+    fn execute_command_with_response(
         &mut self,
         sid: KWP2000Command,
         args: &[u8],
@@ -510,27 +600,36 @@ impl Kwp2000DiagnosticServer {
     /// ## Parameters
     /// * sid - The Service ID of the command
     /// * args - The arguments for the service
-    pub fn execute_command(&mut self, sid: KWP2000Command, args: &[u8]) -> DiagServerResult<()> {
+    fn execute_command(&mut self, sid: KWP2000Command, args: &[u8]) -> DiagServerResult<()> {
         let cmd = Kwp2000Cmd::new(sid, args, false);
         self.exec_command(cmd).map(|_| ())
     }
 
-    /// Internal command for sending KWP2000 payload to the ECU
-    fn exec_command(&mut self, cmd: Kwp2000Cmd) -> DiagServerResult<Vec<u8>> {
-        match self.tx.send(cmd) {
-            Ok(_) => self.rx.recv().unwrap_or(Err(DiagError::ServerNotRunning)),
-            Err(_) => Err(DiagError::ServerNotRunning), // Server must have crashed!
-        }
+    /// Sends an arbitrary byte array to the ECU, and does not query response from the ECU
+    fn send_byte_array(&mut self, arr: &[u8]) -> DiagServerResult<()> {
+        let cmd = Kwp2000Cmd::from_raw(arr, false);
+        self.exec_command(cmd).map(|_| ())
+    }
+
+    /// Sends an arbitrary byte array to the ECU, and polls for the ECU's response
+    fn send_byte_array_with_response(&mut self, arr: &[u8]) -> DiagServerResult<Vec<u8>> {
+        let cmd = Kwp2000Cmd::from_raw(arr, true);
+        self.exec_command(cmd)
     }
 
     /// Sets the command retry counter
-    pub fn set_repeat_count(&mut self, count: u32) {
+    fn set_repeat_count(&mut self, count: u32) {
         self.repeat_count = count
     }
 
     /// Sets the command retry interval
-    pub fn set_repeat_interval_count(&mut self, interval_ms: u32) {
+    fn set_repeat_interval_count(&mut self, interval_ms: u32) {
         self.repeat_interval = std::time::Duration::from_millis(interval_ms as u64)
+    }
+
+    /// Returns true if the internal KWP2000 Server is running
+    fn is_server_running(&self) -> bool {
+        self.server_running.load(Ordering::Relaxed)
     }
 }
 

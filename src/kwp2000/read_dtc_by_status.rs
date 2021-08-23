@@ -1,9 +1,6 @@
 //! Functions for reading DTCs from ECU
 
-use crate::{
-    dtc::{DTCFormatType, DTCStatus, DTC},
-    DiagError, DiagServerResult,
-};
+use crate::{{DiagServerResult, DiagnosticServer}, DiagError, dtc::{DTCFormatType, DTCStatus, DTC}};
 
 use super::{KWP2000Command, KWP2000Error, Kwp2000DiagnosticServer};
 

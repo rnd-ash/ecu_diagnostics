@@ -13,9 +13,7 @@ fn main() {
         .display()
         .to_string();
 
-
     let mut config = Config {
-
         include_guard: Some(String::from("ECU_DIAG_H_")),
         namespace: Some(String::from("ecu_diagnostics")),
         language: Language::Cxx,

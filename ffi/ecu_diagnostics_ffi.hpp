@@ -45,6 +45,7 @@ enum class DiagServerResult {
   NoDiagnosticServer = 8,
   /// Parameter provided to a subfunction was invalid
   ParameterInvalid = 9,
+  HardwareError = 10,
   /// ECU responded with an error, call [get_ecu_error_code]
   /// to retrieve the NRC from the ECU
   ECUError = 98,
@@ -52,42 +53,6 @@ enum class DiagServerResult {
   HandlerError = 99,
   /// Function not completed in code (Will be removed in Version 1.0)
   Todo = 100,
-};
-
-/// UDS Command Service IDs
-enum class UDSCommand : uint8_t {
-  /// Diagnostic session control. See [diagnostic_session_control]
-  DiagnosticSessionControl = 16,
-  /// ECU Reset. See [ecu_reset]
-  ECUReset = 17,
-  /// Security access. See [security_access]
-  SecurityAccess = 39,
-  /// Controls communication functionality of the ECU
-  CommunicationControl = 40,
-  /// Tester present command.
-  TesterPresent = 62,
-  AccessTimingParameters = 131,
-  SecuredDataTransmission = 132,
-  ControlDTCSettings = 133,
-  ResponseOnEvent = 134,
-  LinkControl = 135,
-  ReadDataByIdentifier = 34,
-  ReadMemoryByAddress = 35,
-  ReadScalingDataByIdentifier = 36,
-  ReadDataByPeriodicIdentifier = 42,
-  DynamicallyDefineDataIdentifier = 44,
-  WriteDataByIdentifier = 46,
-  WriteMemoryByAddress = 61,
-  ClearDiagnosticInformation = 20,
-  /// Reading and querying diagnostic trouble codes
-  /// stored on the ECU. See [read_dtc_information]
-  ReadDTCInformation = 25,
-  InputOutputControlByIdentifier = 47,
-  RoutineControl = 49,
-  RequestDownload = 52,
-  RequestUpload = 53,
-  TransferData = 54,
-  RequestTransferExit = 55,
 };
 
 /// Callback handler payload
@@ -173,6 +138,55 @@ struct UdsServerOptions {
   uint32_t tester_present_interval_ms;
   /// Configures if the diagnostic server will poll for a response from tester present.
   bool tester_present_require_response;
+};
+
+/// UDS Command Service IDs
+union UDSCommand {
+  enum class Tag : uint8_t {
+    /// Diagnostic session control. See [diagnostic_session_control]
+    DiagnosticSessionControl,
+    /// ECU Reset. See [ecu_reset]
+    ECUReset,
+    /// Security access. See [security_access]
+    SecurityAccess,
+    /// Controls communication functionality of the ECU
+    CommunicationControl,
+    /// Tester present command.
+    TesterPresent,
+    AccessTimingParameters,
+    SecuredDataTransmission,
+    ControlDTCSettings,
+    ResponseOnEvent,
+    LinkControl,
+    ReadDataByIdentifier,
+    ReadMemoryByAddress,
+    ReadScalingDataByIdentifier,
+    ReadDataByPeriodicIdentifier,
+    DynamicallyDefineDataIdentifier,
+    WriteDataByIdentifier,
+    WriteMemoryByAddress,
+    ClearDiagnosticInformation,
+    /// Reading and querying diagnostic trouble codes
+    /// stored on the ECU. See [read_dtc_information]
+    ReadDTCInformation,
+    InputOutputControlByIdentifier,
+    RoutineControl,
+    RequestDownload,
+    RequestUpload,
+    TransferData,
+    RequestTransferExit,
+    Other,
+  };
+
+  struct Other_Body {
+    Tag tag;
+    uint8_t _0;
+  };
+
+  struct {
+    Tag tag;
+  };
+  Other_Body other;
 };
 
 /// Payload to send to the UDS server

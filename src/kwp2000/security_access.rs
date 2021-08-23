@@ -1,7 +1,7 @@
 //! Functions for unlocking secure regions on the ECU
 
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
-use crate::{DiagError, DiagServerResult};
+use crate::{DiagError, DiagServerResult, DiagnosticServer};
 
 /// Requests a seed from the ECU
 ///

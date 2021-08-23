@@ -1,6 +1,6 @@
 //!  Provides methods to manipulate the ECUs diagnostic session mode
 
-use crate::DiagServerResult;
+use crate::{DiagServerResult, DiagnosticServer};
 
 use super::{UDSCommand, UdsDiagnosticServer};
 

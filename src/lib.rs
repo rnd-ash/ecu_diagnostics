@@ -1,4 +1,5 @@
 #![deny(missing_docs, missing_debug_implementations)]
+#![allow(dead_code)]
 
 //! A crate which provides the most common ECU diagnostic protocols used by modern ECUs in vehicles.
 //!
@@ -161,6 +162,30 @@ unsafe impl<'a, SessionType, RequestType> Sync for ServerEvent<'a, SessionType, 
 pub trait ServerEventHandler<SessionState, RequestType>: Send + Sync {
     /// Handle incoming server events
     fn on_event(&mut self, e: ServerEvent<SessionState, RequestType>);
+}
+
+/// Base trait for diagnostic servers
+pub trait DiagnosticServer<CommandType> {
+
+    /// Sends a command to the ECU, and doesn't poll for its response
+    fn execute_command(&mut self, cmd: CommandType, args: &[u8]) -> DiagServerResult<()>;
+    /// Sends a command to the ECU, and polls for its response
+    fn execute_command_with_response(&mut self, cmd: CommandType, args: &[u8]) -> DiagServerResult<Vec<u8>>;
+    /// Sends an arbitrary byte array to the ECU, and doesn't poll for its response
+    fn send_byte_array(&mut self, bytes: &[u8]) -> DiagServerResult<()>;
+    /// Sends an arbitrary byte array to the ECU, and polls for its response
+    fn send_byte_array_with_response(&mut self, bytes: &[u8]) -> DiagServerResult<Vec<u8>>;
+
+    /// Returns if the diagnostic server is running or not
+    fn is_server_running(&self) -> bool;
+
+    /// Sets the maximum number of retries to send a command to the ECU
+    /// if a failure occurs during transmission of the command to the ECU
+    fn set_repeat_count(&mut self, count: u32);
+
+    /// Sets the minimum interval in milliseconds
+    /// between a command failure and an attempted repeat transmission
+    fn set_repeat_interval_count(&mut self, interval_ms: u32);
 }
 
 /// Basic diagnostic server settings

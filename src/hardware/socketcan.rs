@@ -380,7 +380,7 @@ impl From<socketcan_isotp::Error> for ChannelError {
     fn from(e: socketcan_isotp::Error) -> Self {
         Self::HardwareError(
             HardwareError::APIError {
-                code: 98,
+                code: 99,
                 desc: e.to_string(),
             }
         )
