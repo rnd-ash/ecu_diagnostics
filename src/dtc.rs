@@ -70,3 +70,40 @@ pub struct DTC {
     /// Indication if the DTC conditions have been met since the last clear.
     pub readiness_flag: bool,
 }
+
+impl DTC {
+    /// Returns the error in a string format. EG: raw of 8276 = error P
+    pub fn get_name_as_string(&self) -> String {
+        match self.format {
+            DTCFormatType::ISO15031_6 => { // 2 bytes
+                let component_prefix = match self.raw & 0b00000011 {
+                    0b00 => "P",
+                    0b01 => "C",
+                    0b10 => "B",
+                    0b11 => "U",
+                    _ => "N" // Should never happen
+                };
+                format!("{}{:04X}", component_prefix, self.raw & 0b11111100)
+            },
+            _ => format!("{}", self.raw)
+        }
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use super::DTC;
+
+    #[test]
+    pub fn test_dtc_parse_raw() {
+        let iso15031_6_dtc = DTC {
+            format: super::DTCFormatType::ISO15031_6,
+            raw: 8276,
+            status: super::DTCStatus::None,
+            mil_on: false,
+            readiness_flag: false,
+        };
+        println!("{:04X}", iso15031_6_dtc.raw);
+        println!("{}", iso15031_6_dtc.get_name_as_string());
+    }
+}
