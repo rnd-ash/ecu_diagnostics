@@ -271,8 +271,8 @@ impl From<DiagError> for DiagServerResult {
     fn from(x: DiagError) -> Self {
         match x {
             DiagError::NotSupported => DiagServerResult::NotSupported,
-            DiagError::ECUError(x) => {
-                unsafe { ECU_ERROR = x };
+            DiagError::ECUError {code, def} => {
+                unsafe { ECU_ERROR = code };
                 DiagServerResult::ECUError
             }
             DiagError::EmptyResponse => DiagServerResult::EmptyResponse,

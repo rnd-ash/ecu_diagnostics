@@ -235,6 +235,10 @@ pub enum KWP2000Error {
     EcuAddressUnknown,
 }
 
+fn lookup_kwp_nrc(x: u8) -> String {
+    format!("{:?}", KWP2000Error::from(x))
+}
+
 impl From<u8> for KWP2000Error {
     fn from(p: u8) -> Self {
         match p {
@@ -434,6 +438,7 @@ impl Kwp2000DiagnosticServer {
                             &mut server_channel,
                             0x78,
                             0x21,
+                            lookup_kwp_nrc
                         ) {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
@@ -476,6 +481,7 @@ impl Kwp2000DiagnosticServer {
                             &mut server_channel,
                             0x78,
                             0x21,
+                            lookup_kwp_nrc
                         );
                         //event_handler.on_event(&res);
                         if tx_res.send(res).is_err() {
@@ -511,7 +517,7 @@ impl Kwp2000DiagnosticServer {
                     };
 
                     if let Err(e) =
-                        helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78, 0x21)
+                        helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78, 0x21, lookup_kwp_nrc)
                     {
                         event_handler.on_event(ServerEvent::TesterPresentError(e))
                     }
@@ -580,8 +586,8 @@ impl DiagnosticServer<KWP2000Command> for Kwp2000DiagnosticServer {
                 match self.exec_command(cmd.clone()) {
                     Ok(resp) => return Ok(resp),
                     Err(e) => {
-                        if let DiagError::ECUError(_) = e {
-                            return Err(e); // ECU Error. Sending again won't help.
+                        if let DiagError::ECUError {code, def} = e {
+                            return Err(DiagError::ECUError {code, def}); // ECU Error. Sending again won't help.
                         }
                         last_err = Some(e); // Other error. Sleep and then try again
                         if let Some(sleep_time) = self.repeat_interval.checked_sub(start.elapsed())

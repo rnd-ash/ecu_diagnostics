@@ -1,12 +1,13 @@
 use std::process::exit;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
-use ecu_diagnostics::{self, kwp2000};
+use ecu_diagnostics::uds::{UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler};
+use ecu_diagnostics::{self, uds};
 
-use ecu_diagnostics::channel::IsoTPSettings;
+use ecu_diagnostics::channel::{CanChannel, CanFrame, IsoTPSettings};
 use ecu_diagnostics::hardware::passthru::*;
 use ecu_diagnostics::hardware::{Hardware, HardwareScanner};
-use ecu_diagnostics::kwp2000::{Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler};
 
 /// A simple example of using a KWP2000 diagnostic server over ISO-TP
 /// using a passthru adapter!
@@ -28,7 +29,7 @@ fn main() {
         );
     }
 
-    let device = match passthru_scanner.open_device_by_index(1) {
+    let device = match passthru_scanner.open_device_by_name("Macchina M2 Under the dash") {
         Ok(d) => d,
         Err(e) => {
             println!("Error opening passthru device 0: {}", e);
@@ -36,15 +37,15 @@ fn main() {
         }
     };
 
-    let iso_tp_channel = match PassthruDevice::create_iso_tp_channel(device) {
-        Ok(c) => c,
+    let iso_tp_channel = match Hardware::create_iso_tp_channel(device) {
+        Ok(d) => d,
         Err(e) => {
-            println!("Error creating ISO-TP channel on passthru device 0: {}", e);
+            println!("Error opening passthru device 0: {}", e);
             exit(1)
         }
     };
 
-    let kwp_settings = Kwp2000ServerOptions {
+    let uds_settings = UdsServerOptions {
         send_id: 0x07E0,
         recv_id: 0x07E8,
         read_timeout_ms: 1000,
@@ -57,17 +58,17 @@ fn main() {
     let iso_tp_settings = IsoTPSettings {
         block_size: 8,
         st_min: 20,
-        extended_addressing: false,
+        extended_addressing: true,
         pad_frame: true,
         can_speed: 500000,
         can_use_ext_addr: false,
     };
 
-    let mut kwp_server = match Kwp2000DiagnosticServer::new_over_iso_tp(
-        kwp_settings,
+    let mut uds_server = match UdsDiagnosticServer::new_over_iso_tp(
+        uds_settings,
         iso_tp_channel,
         iso_tp_settings,
-        Kwp2000VoidHandler {},
+        UdsVoidHandler {},
     ) {
         Ok(s) => s,
         Err(e) => {
@@ -76,20 +77,10 @@ fn main() {
         }
     };
 
-    // Put server into extended diag mode
-    match kwp2000::set_diagnostic_session_mode(
-        &mut kwp_server,
-        kwp2000::SessionType::ExtendedDiagnostics,
-    ) {
-        Ok(_) => println!("ECU now in extended diagnostic mode!"),
-        Err(e) => println!("Error executing extended diagnostic mode request: {}", e),
-    }
-
-    match kwp2000::read_stored_dtcs(
-        &mut kwp_server,
-        kwp2000::DTCRange::All
-    ) {
-        Ok(res) => println!("List of DTCs stored on the ECU: {:#?}", res),
-        Err(e) => println!("Error reading DTCs from ECU: {}", e),
+    match uds::get_dtcs_by_status_mask(&mut uds_server, 0xFF) {
+        Ok(dtcs) => {
+            println!("DTCs: {:?}", dtcs)
+        },
+        Err(e) => println!("Error reading DTCs from ECU: {}", e)
     }
 }

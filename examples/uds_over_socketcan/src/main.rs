@@ -62,11 +62,11 @@ fn main() {
     ) {
         Ok(_) => println!("ECU is now in Extended Diag mode!"),
         Err(e) => {
-            if let DiagError::ECUError(x) = e {
+            if let DiagError::ECUError {code, def} = e {
                 // Error from ECU. Query the error
                 eprintln!(
                     "ECU Rejected the request: {:?}",
-                    get_description_of_ecu_error(x)
+                    get_description_of_ecu_error(code)
                 );
             } else {
                 eprintln!("Error setting Extended Diag mode: {:?}. Aborting", e);
@@ -168,11 +168,11 @@ pub fn test_kwp_operation<T: std::fmt::Debug>(func: &str, res: DiagServerResult<
     match res {
         Ok(x) => println!("{} succeeded. Result: {:#?}", func, x),
         Err(err) => {
-            if let DiagError::ECUError(e) = err {
+            if let DiagError::ECUError {code, def} = err {
                 println!(
                     "ECU Rejected the request for '{}'! Error: {:?}",
                     func,
-                    get_description_of_ecu_error(e)
+                    get_description_of_ecu_error(code)
                 )
             } else {
                 println!("Error executing '{}': {}", func, err);

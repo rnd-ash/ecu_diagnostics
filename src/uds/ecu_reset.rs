@@ -1,6 +1,6 @@
 //!  Provides methods to reset the ECU in order to simulate power cycling and resetting memory regions
 
-use super::{UDSCommand, UdsDiagnosticServer};
+use super::{UDSCommand, UdsDiagnosticServer, lookup_uds_nrc};
 use crate::{DiagError, DiagServerResult, DiagnosticServer};
 
 /// Options for resetting the ECU
@@ -95,7 +95,7 @@ pub fn enable_rapid_power_shutdown(server: &mut UdsDiagnosticServer) -> DiagServ
         &[ResetType::EnableRapidPowerShutDown.into()],
     )?;
     match res.get(2) {
-        Some(&time) if time == 0xFF => Err(DiagError::ECUError(0x10)), // General reject
+        Some(&time) if time == 0xFF => Err(DiagError::ECUError {code: 0x10, def: Some(lookup_uds_nrc(0x10))}), // General reject
         Some(&time) => Ok(time),
         None => Err(DiagError::InvalidResponseLength),
     }

@@ -221,12 +221,12 @@ pub fn read_extended_supported_dtcs(
             }
         }
         Err(e) => {
-            if let DiagError::ECUError(err) = e {
+            if let DiagError::ECUError{code, def } = e {
                 // ECU error, check if sub function not supported, in which case just return 0!
-                if KWP2000Error::from(err) == KWP2000Error::SubFunctionNotSupportedInvalidFormat {
+                if KWP2000Error::from(code) == KWP2000Error::SubFunctionNotSupportedInvalidFormat {
                     Ok(0)
                 } else {
-                    Err(e)
+                    Err(DiagError::ECUError{code, def})
                 }
             } else {
                 return Err(e);

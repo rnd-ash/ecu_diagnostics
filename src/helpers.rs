@@ -18,13 +18,14 @@ pub(crate) fn check_pos_response_id(sid: u8, resp: Vec<u8>) -> DiagServerResult<
     }
 }
 
-pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: PayloadChannel>(
+pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: PayloadChannel, L: FnOnce(u8) -> String>(
     addr: u32,
     cmd: &P,
     settings: &T,
     channel: &mut C,
     await_response_byte: u8,
     busy_repeat_byte: u8,
+    lookup_func: L
 ) -> DiagServerResult<Vec<u8>> {
     // Clear IO buffers
     channel.clear_rx_buffer()?;
@@ -56,6 +57,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: Payloa
                 channel,
                 await_response_byte,
                 busy_repeat_byte,
+                lookup_func
             );
         }
         if res[2] == await_response_byte {
@@ -69,7 +71,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: Payloa
                     }
                     if res2[0] == 0x7F {
                         // Still an error. Give up
-                        return Err(super::DiagError::ECUError(res2[2]));
+                        return Err(super::DiagError::ECUError { code: res2[2], def: Some(lookup_func(res2[2])) });
                     } else {
                         // Response OK! Set last tester time so we don't flood the ECU too quickly
                         return check_pos_response_id(target, res2);
@@ -78,7 +80,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: Payloa
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
         }
-        return Err(super::DiagError::ECUError(res[2]));
+        return Err(super::DiagError::ECUError{ code: res[2], def: Some(lookup_func(res[2])) });
     }
     check_pos_response_id(target, res) // ECU Response OK!
 }

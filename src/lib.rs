@@ -50,6 +50,9 @@ pub mod uds;
 
 mod helpers;
 
+/// Version of compiled crate
+pub const CRATE_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 /// Diagnostic server result
 pub type DiagServerResult<T> = Result<T, DiagError>;
 
@@ -59,7 +62,12 @@ pub enum DiagError {
     /// The Diagnostic server does not support the request
     NotSupported,
     /// Diagnostic error code from the ECU itself
-    ECUError(u8),
+    ECUError{
+        /// Raw Negative response code from ECU
+        code: u8, 
+        /// Negative response code definition according to protocol
+        def: Option<String>
+    },
     /// Response empty
     EmptyResponse,
     /// ECU Responded but send a message that wasn't a reply for the sent message
@@ -84,7 +92,13 @@ impl std::fmt::Display for DiagError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             DiagError::NotSupported => write!(f, "request not supported"),
-            DiagError::ECUError(err) => write!(f, "ECU error 0x{:02X}", err),
+            DiagError::ECUError{code, def } => {
+                if let Some(d) = def {
+                    write!(f, "ECU error 0x{:02X} ({})", code, d)
+                } else {
+                    write!(f, "ECU error 0x{:02X}", code)
+                }
+            },
             DiagError::EmptyResponse => write!(f, "ECU provided an empty response"),
             DiagError::WrongMessage => write!(f, "ECU response message did not match request"),
             DiagError::ServerNotRunning => write!(f, "diagnostic server not running"),

@@ -776,6 +776,7 @@ impl From<&CanFrame> for PASSTHRU_MSG {
         if frame.is_extended() {
             f.tx_flags |= TxFlag::CAN_29BIT_ID.bits();
         }
+        f.protocol_id = Protocol::CAN as u32;
         f.data_size = (frame.get_data().len() + 4) as u32;
         f.data[0] = (frame.get_address() >> 24) as u8;
         f.data[1] = (frame.get_address() >> 16) as u8;
