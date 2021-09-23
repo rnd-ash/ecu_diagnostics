@@ -26,6 +26,6 @@ pub fn read_status_of_dtc(
 ) -> DiagServerResult<Vec<u8>> {
     server.execute_command_with_response(
         KWP2000Command::ReadStatusOfDiagnosticTroubleCodes,
-        &[(dtc << 8) as u8, dtc as u8],
+        &[(dtc >> 8) as u8, dtc as u8],
     )
 }
