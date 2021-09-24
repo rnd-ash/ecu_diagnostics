@@ -15,8 +15,6 @@ use std::{
 
 use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent, ServerEventHandler, channel::IsoTPChannel, channel::IsoTPSettings, dtc::DTCFormatType, helpers};
 
-use self::diagnostic_session_control::UDSSessionType;
-
 mod diagnostic_session_control;
 mod ecu_reset;
 mod read_dtc_information;
