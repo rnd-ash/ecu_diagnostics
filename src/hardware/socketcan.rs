@@ -230,7 +230,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             None,
             Some(link_opts)
         )?;
-        socket.set_nonblocking(false)?;
+        socket.set_nonblocking(true)?;
         device.canbus_active = true;
         self.channel = Some(socket);
         Ok(())
