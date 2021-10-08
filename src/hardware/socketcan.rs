@@ -1,12 +1,12 @@
 //! SocketCAN module
 
-use std::{borrow::BorrowMut, sync::{Arc, Mutex}, time::Instant};
+use std::{sync::{Arc, Mutex}, time::Instant};
 
-use socketcan_isotp::{FlowControlOptions, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions};
+use socketcan_isotp::{IsoTpBehaviour, IsoTpOptions, LinkLayerOptions};
 
 use crate::channel::{CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet, PacketChannel, PayloadChannel};
 
-use super::{Hardware, HardwareCapabilities, HardwareError, HardwareInfo, HardwareResult, HardwareScanner};
+use super::{Hardware, HardwareCapabilities, HardwareError, HardwareInfo, HardwareScanner};
 
 const SOCKET_CAN_CAPABILITIES: HardwareCapabilities = HardwareCapabilities {
     iso_tp: true,
@@ -210,7 +210,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             flags |= IsoTpBehaviour::CAN_ISOTP_EXTEND_ADDR
         }
         if self.cfg.pad_frame {
-            flags |= IsoTpBehaviour::CAN_ISOTP_TX_PADDING | IsoTpBehaviour::CAN_ISOTP_TX_PADDING
+            flags = flags | IsoTpBehaviour::CAN_ISOTP_TX_PADDING | IsoTpBehaviour::CAN_ISOTP_TX_PADDING
         }
 
         let mut ext_address: u8 = 0;
@@ -274,7 +274,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
     /// NOTE: There is currently a bug where [addr] is ignored! See [this issue][1]
     /// 
     /// [1] https://github.com/rnd-ash/ecu_diagnostics/issues/1
-    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+    fn write_bytes(&mut self, _addr: u32, buffer: &[u8], _timeout_ms: u32) -> ChannelResult<()> {
         self.safe_with_iface(|socket| {
             socket.write(buffer)?;
             Ok(())
@@ -316,6 +316,12 @@ pub struct SocketCanScanner{
     devices: Vec<HardwareInfo>
 }
 
+impl std::default::Default for SocketCanScanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 
 impl SocketCanScanner {
     /// Creates a new SocketCAN device scanner
@@ -327,12 +333,12 @@ impl SocketCanScanner {
                     .map(|x| x.map(|e| e.path()))
                     .filter_map(|x| x.ok())
                     .map(|f| f.to_str().unwrap().to_string())
-                    .map(|f| f.clone().split("/").map(|s| s.to_string()).collect::<Vec<String>>())
+                    .map(|f| f.split('/').map(|s| s.to_string()).collect::<Vec<String>>())
                     .filter(|f| f.last().unwrap().contains("can"))
                     .map(|path| HardwareInfo {
-                        name: path[path.len()-1].clone().into(),
+                        name: path[path.len()-1].clone(),
                         vendor: "N/A".into(),
-                        capabilities: SOCKET_CAN_CAPABILITIES.clone(),
+                        capabilities: SOCKET_CAN_CAPABILITIES,
                     })
                     .collect()   
                 }

@@ -52,7 +52,7 @@ pub mod dynamic_diag;
 mod helpers;
 
 /// Version of compiled crate
-pub const CRATE_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Diagnostic server result
 pub type DiagServerResult<T> = Result<T, DiagError>;

@@ -31,7 +31,7 @@ pub enum DTCRange {
 }
 
 impl DTCRange {
-    pub(crate) fn to_args(&self, pid: u8) -> [u8; 3] {
+    pub(crate) fn as_args(&self, pid: u8) -> [u8; 3] {
         match self {
             DTCRange::Powertrain => [pid, 0x00, 0x00],
             DTCRange::Chassis => [pid, 0x40, 0x00],
@@ -51,7 +51,7 @@ pub fn read_stored_dtcs_iso15031(
 ) -> DiagServerResult<Vec<DTC>> {
     let mut res = server.execute_command_with_response(
         KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
-        &range.to_args(0x00),
+        &range.as_args(0x00),
     )?;
     if res.len() < 5 {
         // No DTCs stored
@@ -84,12 +84,12 @@ pub fn read_supported_dtcs_iso15031(
     server: &mut Kwp2000DiagnosticServer,
     range: DTCRange,
 ) -> DiagServerResult<Vec<DTC>> {
-    let mut res: Vec<DTC> = Vec::new();
+    let res: Vec<DTC> = Vec::new();
 
     loop {
         let res_bytes = server.execute_command_with_response(
             KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
-            &range.to_args(0x01),
+            &range.as_args(0x01),
         )?;
         println!("RES: {:02X?}", res_bytes);
         match read_extended_supported_dtcs(server, range) {
@@ -113,7 +113,7 @@ pub fn read_stored_dtcs(
 ) -> DiagServerResult<Vec<DTC>> {
     let mut res = server.execute_command_with_response(
         KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
-        &range.to_args(0x02),
+        &range.as_args(0x02),
     )?;
     if res.len() < 5 {
         // No DTCs stored
@@ -153,7 +153,7 @@ pub fn read_supported_dtcs(
     loop {
         let mut res_bytes = server.execute_command_with_response(
             KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
-            &range.to_args(0x03),
+            &range.as_args(0x03),
         )?;
 
         if res_bytes.len() < 5 {
@@ -196,7 +196,7 @@ pub fn get_most_recent_dtc(
 ) -> DiagServerResult<Option<DTC>> {
     let req = server.execute_command_with_response(
         KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
-        &range.to_args(0x04),
+        &range.as_args(0x04),
     )?;
     todo!("ECU Response: {:02X?}", req)
 }
@@ -211,7 +211,7 @@ pub fn read_extended_supported_dtcs(
 ) -> DiagServerResult<u16> {
     match server.execute_command_with_response(
         KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
-        &range.to_args(0xE0),
+        &range.as_args(0xE0),
     ) {
         Ok(x) => {
             if x.len() == 3 {
@@ -229,7 +229,7 @@ pub fn read_extended_supported_dtcs(
                     Err(DiagError::ECUError{code, def})
                 }
             } else {
-                return Err(e);
+                Err(e)
             }
         }
     }

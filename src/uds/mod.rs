@@ -4,7 +4,6 @@
 //! UDS (Typically any ECU produced after 2006 supports this)
 
 use std::{
-    intrinsics::transmute,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,

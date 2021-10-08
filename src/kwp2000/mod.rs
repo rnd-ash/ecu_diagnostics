@@ -13,7 +13,6 @@
 //! based on KWP2000 v2.2 (05/08/02)
 
 use std::{
-    intrinsics::transmute,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
@@ -395,7 +394,7 @@ impl Kwp2000DiagnosticServer {
     /// * channel_cfg - The settings to use for the ISO-TP channel
     /// * event_handler - Handler for logging events happening within the server. If you don't want
     /// to create your own handler, use [Kwp2000VoidHandler]
-    pub fn new_over_iso_tp<'a, C, E>(
+    pub fn new_over_iso_tp<C, E>(
         settings: Kwp2000ServerOptions,
         mut server_channel: C,
         channel_cfg: IsoTPSettings,

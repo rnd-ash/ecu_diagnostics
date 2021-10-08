@@ -2,7 +2,7 @@ use j2534_rust::FilterType::FLOW_CONTROL_FILTER;
 use j2534_rust::*;
 use libloading::Library;
 use std::os::raw::c_char;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::{ffi::*, fmt};
 
 #[cfg(windows)]

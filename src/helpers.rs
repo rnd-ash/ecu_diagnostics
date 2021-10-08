@@ -38,7 +38,7 @@ pub(crate) fn perform_cmd<P: BaseServerPayload, T: BaseServerSettings, C: Payloa
     }
     let res = channel.read_write_bytes(
         addr,
-        &cmd.to_bytes(),
+        cmd.to_bytes(),
         settings.get_write_timeout_ms(),
         settings.get_read_timeout_ms(),
     )?;

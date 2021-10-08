@@ -19,13 +19,10 @@
 //! are supported
 
 use std::{
-    borrow::{Borrow, BorrowMut},
-    cell::RefCell,
-    convert::TryInto,
-    default,
     ffi::c_void,
-    sync::{Arc, LockResult, Mutex, PoisonError},
+    sync::{Arc, Mutex, PoisonError},
     time::Instant,
+    path::Path
 };
 
 #[cfg(windows)]
@@ -54,6 +51,12 @@ mod lib_funcs;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PassthruScanner {
     devices: Vec<PassthruInfo>,
+}
+
+impl std::default::Default for PassthruScanner {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PassthruScanner {
@@ -154,21 +157,13 @@ struct PassthruInfo {
 
 impl PassthruInfo {
     #[cfg(unix)]
-    pub fn new(path: &std::path::PathBuf) -> HardwareResult<Self> {
+    pub fn new(path: &Path) -> HardwareResult<Self> {
+
         return if let Ok(s) = std::fs::read_to_string(&path) {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(s.as_str()) {
-                let lib = match json["FUNCTION_LIB"].as_str() {
-                    Some(s) => shellexpand::tilde(s),
-                    None => "UNKNOWN PASSTHRU DEVICE FUNCTION LIB".into(),
-                };
-                let name = match json["NAME"].as_str() {
-                    Some(s) => s,
-                    None => "UNKNOWN PASSTHRU DEVICE".into(),
-                };
-                let vend = match json["VENDOR"].as_str() {
-                    Some(s) => s,
-                    None => "UNKNOWN PASSTHRU DEVICE VENDOR".into(),
-                };
+                let lib = json["FUNCTION_LIB"].as_str().unwrap_or("UNKNOWN PASSTHRU DEVICE FUNCTION LIB");
+                let name = json["NAME"].as_str().unwrap_or("UNKNOWN PASSTHRU DEVICE");
+                let vend = json["VENDOR"].as_str().unwrap_or("UNKNOWN PASSTHRU DEVICE VENDOR");
                 Ok(PassthruInfo {
                     function_lib: String::from(lib),
                     name: String::from(name),
@@ -244,18 +239,18 @@ impl PassthruInfo {
     }
 }
 
-impl Into<HardwareInfo> for &PassthruInfo {
-    fn into(self) -> HardwareInfo {
+impl From<&PassthruInfo> for HardwareInfo {
+    fn from(x: &PassthruInfo) -> Self {
         HardwareInfo {
-            name: self.name.clone(),
-            vendor: self.vendor.clone(),
+            name: x.name.clone(),
+            vendor: x.vendor.clone(),
             capabilities: HardwareCapabilities {
-                iso_tp: self.iso15765,
-                can: self.can,
-                kline: self.iso9141,
-                kline_kwp: self.iso14230,
-                sae_j1850: self.j1850pwm && self.j1850vpw,
-                sci: self.sci_a_engine && self.sci_a_trans && self.sci_b_engine && self.sci_b_trans,
+                iso_tp: x.iso15765,
+                can: x.can,
+                kline: x.iso9141,
+                kline_kwp: x.iso14230,
+                sae_j1850: x.j1850pwm && x.j1850vpw,
+                sci: x.sci_a_engine && x.sci_a_trans && x.sci_b_engine && x.sci_b_trans,
                 ip: false, // Passthru never supports this protocol
             },
         }
@@ -430,7 +425,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             .safe_passthru_op(|device_id, device| {
                 device.connect(device_id, Protocol::CAN, flags, self.baud)
             })
-            .map_err(|e| ChannelError::HardwareError(e))?;
+            .map_err(ChannelError::HardwareError)?;
         device.can_channel = true; // Acknowledge CAN is open now
         self.channel_id = Some(channel_id);
 
@@ -461,8 +456,10 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             Err(e) => {
                 // Oops! Teardown
                 std::mem::drop(device);
-                self.close();
-                return Err(e.into());
+                if let Err(e) = self.close() {
+                    eprintln!("TODO PT close failed! {}", e)
+                }
+                Err(e.into())
             }
         }
     }
@@ -475,7 +472,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         let id = self.get_channel_id().unwrap(); // Unwrap as we checked previously if none
         device
             .safe_passthru_op(|_, device| device.disconnect(id))
-            .map_err(|e| ChannelError::HardwareError(e))?;
+            .map_err(ChannelError::HardwareError)?;
         device.can_channel = false;
         self.channel_id = None;
         Ok(())
@@ -506,7 +503,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             .lock()?
             .safe_passthru_op(|_, device| device.read_messages(channel_id, max as u32, timeout_ms))
         {
-            Ok(res) => Ok(res.iter().map(|pt| CanFrame::from(pt)).collect()),
+            Ok(res) => Ok(res.iter().map(CanFrame::from).collect()),
             Err(e) => Err(e.into()),
         }
     }
@@ -589,7 +586,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
             .safe_passthru_op(|device_id, device| {
                 device.connect(device_id, Protocol::ISO15765, flags, self.cfg.can_speed)
             })
-            .map_err(|e| ChannelError::HardwareError(e))?;
+            .map_err(ChannelError::HardwareError)?;
         device.can_channel = true; // Acknowledge CAN is open now
         self.channel_id = Some(channel_id);
 
@@ -633,8 +630,10 @@ impl PayloadChannel for PassthruIsoTpChannel {
             Err(e) => {
                 // Oops! Teardown
                 std::mem::drop(device);
-                self.close();
-                return Err(e.into());
+                if let Err(e) = self.close() {
+                    eprintln!("TODO PT close failed! {}", e)
+                }
+                Err(e.into())
             }
         }
     }
@@ -649,7 +648,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
             let id = self.get_channel_id().unwrap(); // Unwrap as we checked previously if none
             device
                 .safe_passthru_op(|_, device| device.disconnect(id))
-                .map_err(|e| ChannelError::HardwareError(e))?;
+                .map_err(ChannelError::HardwareError)?;
             device.can_channel = false;
             self.channel_id = None;
         }
@@ -657,7 +656,8 @@ impl PayloadChannel for PassthruIsoTpChannel {
     }
 
     fn set_ids(&mut self, send: u32, recv: u32) -> ChannelResult<()> {
-        Ok(self.ids = (send, recv))
+        self.ids = (send, recv);
+        Ok(())
     }
 
     fn read_bytes(&mut self, timeout_ms: u32) -> ChannelResult<Vec<u8>> {
@@ -669,7 +669,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 .device
                 .lock()?
                 .safe_passthru_op(|_, device| device.read_messages(channel_id, 1, 0))
-                .map_err(|e| ChannelError::HardwareError(e))?;
+                .map_err(ChannelError::HardwareError)?;
             if let Some(msg) = read.get(0) {
                 // Ignore messages with length of 4 as these
                 // are Tx confirm or Rx confirm messages with Passthru API's ISO-TP
@@ -720,7 +720,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
             .safe_passthru_op(|_, device| {
                 device.write_messages(channel_id, &mut [write_msg], timeout_ms)
             })
-            .map_err(|e| ChannelError::HardwareError(e))
+            .map_err(ChannelError::HardwareError)
             .map(|_| ())
     }
 
@@ -758,7 +758,8 @@ impl PayloadChannel for PassthruIsoTpChannel {
 impl<'a> IsoTPChannel for PassthruIsoTpChannel {
     fn set_iso_tp_cfg(&mut self, cfg: crate::channel::IsoTPSettings) -> ChannelResult<()> {
         self.cfg_complete = true;
-        Ok(self.cfg = cfg)
+        self.cfg = cfg;
+        Ok(())
     }
 }
 
@@ -809,7 +810,7 @@ impl From<j2534_rust::PassthruError> for HardwareError {
 }
 
 impl<T> From<PoisonError<T>> for ChannelError {
-    fn from(x: PoisonError<T>) -> Self {
+    fn from(_x: PoisonError<T>) -> Self {
         ChannelError::HardwareError(HardwareError::APIError {
             code: 99,
             desc: "PoisonError".into(),
@@ -818,7 +819,7 @@ impl<T> From<PoisonError<T>> for ChannelError {
 }
 
 impl<T> From<PoisonError<T>> for HardwareError {
-    fn from(x: PoisonError<T>) -> Self {
+    fn from(_x: PoisonError<T>) -> Self {
         HardwareError::APIError {
             code: 99,
             desc: "PoisonError".into(),

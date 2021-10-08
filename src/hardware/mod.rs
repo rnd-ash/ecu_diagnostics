@@ -116,7 +116,7 @@ impl std::fmt::Display for HardwareError {
 impl std::error::Error for HardwareError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self {
-            &HardwareError::LibLoadError(l) => Some(l),
+            HardwareError::LibLoadError(l) => Some(l),
             _ => None,
         }
     }

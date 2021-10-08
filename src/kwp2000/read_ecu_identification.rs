@@ -33,7 +33,7 @@ impl DiagnosticInfo {
 
     /// Returns the entire diagnostic info ID as a u16
     pub fn get_info_id(&self) -> u16 {
-        return (self.0[0] as u16) << 8 | self.0[1] as u16;
+        (self.0[0] as u16) << 8 | self.0[1] as u16
     }
 }
 
@@ -228,9 +228,9 @@ fn decode_module_info(res: &mut Vec<u8>) -> DiagServerResult<ModuleInformation> 
     for i in (0..res.len()).step_by(8) {
         list_of_blocks.push(ModuleBlockInformation {
             tool_supplier_id: res[i],
-            programming_date_year: u8::from_str_radix(&bcd_decode(res[i + 1]), 10).unwrap(),
-            programming_date_month: u8::from_str_radix(&bcd_decode(res[i + 2]), 10).unwrap(),
-            programming_date_day: u8::from_str_radix(&bcd_decode(res[i + 3]), 10).unwrap(),
+            programming_date_year: bcd_decode(res[i+1]).parse::<u8>().unwrap_or(0),
+            programming_date_month: bcd_decode(res[i+2]).parse::<u8>().unwrap_or(0),
+            programming_date_day: bcd_decode(res[i+3]).parse::<u8>().unwrap_or(0),
             tester_serial_number: format!(
                 "{:02X}{:02X}{:02X}{:02X}",
                 res[i + 4],

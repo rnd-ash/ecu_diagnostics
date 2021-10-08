@@ -1,7 +1,7 @@
 //!  Provides methods to clear diagnostic trouble codes from the ECU
 
-use super::{UDSCommand, UdsDiagnosticServer, lookup_uds_nrc};
-use crate::{DiagError, DiagServerResult, DiagnosticServer};
+use super::{UDSCommand, UdsDiagnosticServer};
+use crate::{DiagServerResult, DiagnosticServer};
 
 /// Clears diagnostic information (DTCs) from the ECU.
 /// 

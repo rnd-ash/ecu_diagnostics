@@ -32,8 +32,8 @@ impl DynamicDiagSession {
     /// NOTE: In order to test if the ECU supports the protocol,
     /// the ECU will be put into extended diagnostic session briefly to test
     /// if it supports the tested diagnostic protocol.
-    #[allow(unused_must_use)]
-    pub fn new_over_iso_tp<'a, C>(
+    #[allow(unused_must_use, unused_assignments)]
+    pub fn new_over_iso_tp<C>(
         hw_device: Arc<Mutex<C>>,
         channel_cfg: IsoTPSettings,
         tx_id: u32,
@@ -43,7 +43,7 @@ impl DynamicDiagSession {
         C: Hardware + 'static 
     {
 
-        let mut last_err : Option<DiagError> = None; // Setting up last recorded error
+        let mut last_err : Option<DiagError>; // Setting up last recorded error
 
         // Create iso tp channel using provided HW interface. If this fails, we cannot setup KWP or UDS session!
         let mut iso_tp_channel = Hardware::create_iso_tp_channel(hw_device.clone())?;
@@ -59,19 +59,21 @@ impl DynamicDiagSession {
             tester_present_require_response: true 
         }, iso_tp_channel, channel_cfg, Kwp2000VoidHandler{}) {
             Ok(mut kwp) => {
-                if let Ok(_) = kwp2000::set_diagnostic_session_mode(&mut kwp, kwp2000::SessionType::ExtendedDiagnostics) {
+                if kwp2000::set_diagnostic_session_mode(&mut kwp, kwp2000::SessionType::ExtendedDiagnostics).is_ok() {
                     // KWP accepted! The ECU supports KWP2000!
                     // Return the ECU back to normal mode
                     kwp2000::set_diagnostic_session_mode(&mut kwp, kwp2000::SessionType::Normal);
                     return Ok(Self {
                         session: DynamicSessionType::Kwp(kwp)
                     })
+                } else {
+                    last_err = Some(DiagError::NotSupported)
                 }
             },
             Err(e) => { last_err = Some(e); }
         }
 
-        iso_tp_channel = Hardware::create_iso_tp_channel(hw_device.clone())?;
+        iso_tp_channel = Hardware::create_iso_tp_channel(hw_device)?;
         match UdsDiagnosticServer::new_over_iso_tp(UdsServerOptions { 
             send_id: tx_id, 
             recv_id: rx_id, 
@@ -82,22 +84,24 @@ impl DynamicDiagSession {
             tester_present_require_response: true 
         }, iso_tp_channel, channel_cfg, UdsVoidHandler{}) {
             Ok(mut uds) => {
-                if let Ok(_) = uds::set_extended_mode(&mut uds) {
+                if uds::set_extended_mode(&mut uds).is_ok() {
                     // KWP accepted! The ECU supports KWP2000!
                     // Return the ECU back to normal mode
                     uds::set_default_mode(&mut uds);
                     return Ok(Self {
                         session: DynamicSessionType::Uds(uds)
                     })
+                } else {
+                    last_err = Some(DiagError::NotSupported)
                 }
             },
             Err(e) => { last_err = Some(e); }
         }
-        return Err(last_err.unwrap())
+        Err(last_err.unwrap())
     }
 
     /// Returns a reference to KWP2000 session. None is returned if server type is not KWP2000
-    pub fn as_kwp_session<'a>(&'a mut self) -> Option<&'a mut Kwp2000DiagnosticServer> {
+    pub fn as_kwp_session(&'_ mut self) -> Option<&'_ mut Kwp2000DiagnosticServer> {
         if let DynamicSessionType::Kwp(kwp) = self.session.borrow_mut() {
             Some(kwp)
         } else {
@@ -106,7 +110,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns a reference to UDS session. None is returned if server type is not UDS
-    pub fn as_uds_session<'a>(&'a mut self) -> Option<&'a mut UdsDiagnosticServer> {
+    pub fn as_uds_session(&'_ mut self) -> Option<&'_ mut UdsDiagnosticServer> {
         if let DynamicSessionType::Uds(uds) = self.session.borrow_mut() {
             Some(uds)
         } else {
