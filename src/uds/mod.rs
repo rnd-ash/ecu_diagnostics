@@ -19,11 +19,13 @@ mod diagnostic_session_control;
 mod ecu_reset;
 mod read_dtc_information;
 mod security_access;
+mod clear_diagnostic_information;
 
 pub use diagnostic_session_control::*;
 pub use ecu_reset::*;
 pub use read_dtc_information::*;
 pub use security_access::*;
+pub use clear_diagnostic_information::*;
 
 /// UDS Command Service IDs
 #[allow(missing_docs)]

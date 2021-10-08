@@ -47,6 +47,7 @@ pub mod hardware;
 pub mod kwp2000;
 pub mod obd2;
 pub mod uds;
+pub mod dynamic_diag;
 
 mod helpers;
 
