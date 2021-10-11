@@ -109,6 +109,26 @@ impl DynamicDiagSession {
         }
     }
 
+    /// Performs operation with Kwp 2000 diagnostic server.
+    /// If the type of the server is not KWP2000, then nothing happens, and DiagError::NotSupported
+    pub fn with_kwp<T, F: Fn(&mut Kwp2000DiagnosticServer) -> DiagServerResult<T>>(&'_ mut self, f: F) ->  DiagServerResult<T> {
+        if let DynamicSessionType::Kwp(kwp) = self.session.borrow_mut() {
+            f(kwp)
+        } else {
+            Err(DiagError::NotSupported)
+        }
+    }
+
+    /// Performs operation with UDS diagnostic server.
+    /// If the type of the server is not UDS, then nothing happens, and DiagError::NotSupported
+    pub fn with_uds<T, F: Fn(&mut UdsDiagnosticServer) -> DiagServerResult<T>>(&'_ mut self, f: F) ->  DiagServerResult<T> {
+        if let DynamicSessionType::Uds(uds) = self.session.borrow_mut() {
+            f(uds)
+        } else {
+            Err(DiagError::NotSupported)
+        }
+    }
+
     /// Returns a reference to UDS session. None is returned if server type is not UDS
     pub fn as_uds_session(&'_ mut self) -> Option<&'_ mut UdsDiagnosticServer> {
         if let DynamicSessionType::Uds(uds) = self.session.borrow_mut() {
@@ -163,6 +183,22 @@ impl DynamicDiagSession {
             DynamicSessionType::Uds(u) => {
                 uds::clear_diagnostic_information(u, 0x00FFFFFF)
             },
+        }
+    }
+}
+
+impl From<super::kwp2000::Kwp2000DiagnosticServer> for DynamicDiagSession {
+    fn from(s: super::kwp2000::Kwp2000DiagnosticServer) -> Self {
+        Self {
+            session: DynamicSessionType::Kwp(s),
+        }
+    }
+}
+
+impl From<super::uds::UdsDiagnosticServer> for DynamicDiagSession {
+    fn from(s: super::uds::UdsDiagnosticServer) -> Self {
+        Self {
+            session: DynamicSessionType::Uds(s),
         }
     }
 }
