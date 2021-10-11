@@ -38,8 +38,8 @@
 //! to send and receive data to/from the ECU, regardless of the transport layer used.
 //!
 
-use channel::ChannelError;
-use hardware::HardwareError;
+pub use channel::ChannelError;
+pub use hardware::HardwareError;
 
 pub mod channel;
 pub mod dtc;
