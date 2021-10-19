@@ -33,6 +33,7 @@ mod read_memory_by_address;
 mod read_status_of_dtc;
 mod security_access;
 mod start_diagnostic_session;
+mod routine;
 
 
 pub use clear_diagnostic_information::*;
@@ -45,6 +46,7 @@ pub use read_memory_by_address::*;
 pub use read_status_of_dtc::*;
 pub use security_access::*;
 pub use start_diagnostic_session::*;
+pub use routine::*;
 
 /// KWP Command Service IDs.
 ///
