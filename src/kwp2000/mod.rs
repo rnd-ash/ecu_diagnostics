@@ -35,7 +35,7 @@ mod security_access;
 mod start_diagnostic_session;
 mod routine;
 mod message_transmission;
-
+mod ioctl_mgr;
 
 pub use clear_diagnostic_information::*;
 pub use ecu_reset::*;
@@ -49,6 +49,7 @@ pub use security_access::*;
 pub use start_diagnostic_session::*;
 pub use routine::*;
 pub use message_transmission::*;
+pub use ioctl_mgr::*;
 
 /// KWP Command Service IDs.
 ///
