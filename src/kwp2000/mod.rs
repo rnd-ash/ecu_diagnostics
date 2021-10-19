@@ -34,6 +34,7 @@ mod read_status_of_dtc;
 mod security_access;
 mod start_diagnostic_session;
 mod routine;
+mod message_transmission;
 
 
 pub use clear_diagnostic_information::*;
@@ -47,6 +48,7 @@ pub use read_status_of_dtc::*;
 pub use security_access::*;
 pub use start_diagnostic_session::*;
 pub use routine::*;
+pub use message_transmission::*;
 
 /// KWP Command Service IDs.
 ///
@@ -75,9 +77,9 @@ pub enum KWP2000Command {
     ReadMemoryByAddress,
     /// Security access functions. See [security_access]
     SecurityAccess,
-    ///
+    /// Disables normal CAN message transmission from an ECU. See [enable_normal_message_transmission]
     DisableNormalMessageTransmission,
-    ///
+    /// Enables normal CAN message transmission from an ECU. See [disable_normal_message_transmission]
     EnableNormalMessageTransmission,
     ///
     DynamicallyDefineLocalIdentifier,
@@ -85,11 +87,11 @@ pub enum KWP2000Command {
     WriteDataByIdentifier,
     ///
     InputOutputControlByLocalIdentifier,
-    ///
+    /// Starts a ECU routine given a local identifier. See [routine]
     StartRoutineByLocalIdentifier,
-    ///
+    /// Stops a ECU routine given a local identifier. See [routine]
     StopRoutineByLocalIdentifier,
-    ///
+    /// requests results of an executed routine given a local identifier. See [routine]
     RequestRoutineResultsByLocalIdentifier,
     ///
     RequestDownload,
@@ -103,7 +105,8 @@ pub enum KWP2000Command {
     WriteDataByLocalIdentifier,
     ///
     WriteMemoryByAddress,
-    ///
+    /// Tester present message. [Kwp2000DiagnosticServer] will automatically send this,
+    /// so no need to manually create a message with this SID
     TesterPresent,
     ///
     ControlDTCSettings,
