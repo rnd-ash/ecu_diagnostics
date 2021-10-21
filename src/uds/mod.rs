@@ -501,6 +501,7 @@ impl UdsDiagnosticServer {
                             0x21,
                             lookup_uds_nrc
                         );
+                        event_handler.on_event(ServerEvent::Response(&res));
                         //event_handler.on_event(&res);
                         if tx_res.send(res).is_err() {
                             // Terminate! Something has gone wrong and data can no longer be sent to client
