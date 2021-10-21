@@ -385,9 +385,9 @@ impl BaseServerPayload for UdsCmd {
 #[derive(Debug, Copy, Clone)]
 pub struct UdsVoidHandler;
 
-impl ServerEventHandler<UDSSessionType, UdsCmd> for UdsVoidHandler {
+impl ServerEventHandler<UDSSessionType> for UdsVoidHandler {
     #[inline(always)]
-    fn on_event(&mut self, _e: ServerEvent<UDSSessionType, UdsCmd>) {}
+    fn on_event(&mut self, _e: ServerEvent<UDSSessionType>) {}
 }
 
 #[derive(Debug)]
@@ -423,7 +423,7 @@ impl UdsDiagnosticServer {
     ) -> DiagServerResult<Self>
     where
         C: IsoTPChannel + 'static,
-        E: ServerEventHandler<UDSSessionType, UdsCmd> + 'static,
+        E: ServerEventHandler<UDSSessionType> + 'static,
     {
         server_channel.set_iso_tp_cfg(channel_cfg)?;
         server_channel.set_ids(settings.send_id, settings.recv_id)?;
@@ -447,7 +447,7 @@ impl UdsDiagnosticServer {
                 }
 
                 if let Ok(cmd) = rx_cmd.try_recv() {
-                    event_handler.on_event(ServerEvent::IncomingEvent(&cmd));
+                    event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
                     // We have an incoming command
                     if cmd.get_uds_sid() == UDSCommand::DiagnosticSessionControl {
                         // Session change! Handle this differently

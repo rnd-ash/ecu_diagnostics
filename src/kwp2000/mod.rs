@@ -339,9 +339,9 @@ impl BaseServerPayload for Kwp2000Cmd {
 #[derive(Debug, Copy, Clone)]
 pub struct Kwp2000VoidHandler;
 
-impl ServerEventHandler<SessionType, Kwp2000Cmd> for Kwp2000VoidHandler {
+impl ServerEventHandler<SessionType> for Kwp2000VoidHandler {
     #[inline(always)]
-    fn on_event(&mut self, _e: ServerEvent<SessionType, Kwp2000Cmd>) {}
+    fn on_event(&mut self, _e: ServerEvent<SessionType>) {}
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -408,7 +408,7 @@ impl Kwp2000DiagnosticServer {
     ) -> DiagServerResult<Self>
     where
         C: IsoTPChannel + 'static,
-        E: ServerEventHandler<SessionType, Kwp2000Cmd> + 'static,
+        E: ServerEventHandler<SessionType> + 'static,
     {
         server_channel.set_iso_tp_cfg(channel_cfg)?;
         server_channel.set_ids(settings.send_id, settings.recv_id)?;
@@ -432,7 +432,7 @@ impl Kwp2000DiagnosticServer {
                 }
 
                 if let Ok(cmd) = rx_cmd.try_recv() {
-                    event_handler.on_event(ServerEvent::IncomingEvent(&cmd));
+                    event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
                     // We have an incoming command
                     if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {
                         // Session change! Handle this differently
@@ -488,6 +488,7 @@ impl Kwp2000DiagnosticServer {
                             0x21,
                             lookup_kwp_nrc
                         );
+                        event_handler.on_event(ServerEvent::Response(&res));
                         //event_handler.on_event(&res);
                         if tx_res.send(res).is_err() {
                             // Terminate! Something has gone wrong and data can no longer be sent to client

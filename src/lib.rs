@@ -140,7 +140,7 @@ impl From<HardwareError> for DiagError {
 
 #[derive(Debug)]
 /// Diagnostic server event
-pub enum ServerEvent<'a, SessionState, RequestType> {
+pub enum ServerEvent<'a, SessionState> {
     /// The diagnostic server encountered an unrecoverable critical error
     CriticalError {
         /// Text description of the error
@@ -158,9 +158,9 @@ pub enum ServerEvent<'a, SessionState, RequestType> {
         new: SessionState,
     },
     /// Received a request to send a payload to the ECU
-    IncomingEvent(&'a RequestType),
+    Request(&'a[u8]),
     /// Response from the ECU
-    OutgoingEvent(&'a DiagServerResult<RequestType>),
+    Response(&'a DiagServerResult<Vec<u8>>),
     /// An error occurred whilst transmitting tester present message
     /// To the ECU. This might mean that the ECU has exited its session state,
     /// and a non-default session state should be re-initialized
@@ -170,13 +170,13 @@ pub enum ServerEvent<'a, SessionState, RequestType> {
     InterfaceCloseOnExitError(ChannelError),
 }
 
-unsafe impl<'a, SessionType, RequestType> Send for ServerEvent<'a, SessionType, RequestType> {}
-unsafe impl<'a, SessionType, RequestType> Sync for ServerEvent<'a, SessionType, RequestType> {}
+unsafe impl<'a, SessionType> Send for ServerEvent<'a, SessionType> {}
+unsafe impl<'a, SessionType> Sync for ServerEvent<'a, SessionType> {}
 
 /// Handler for when [ServerEvent] get broadcast by the diagnostic servers background thread
-pub trait ServerEventHandler<SessionState, RequestType>: Send + Sync {
+pub trait ServerEventHandler<SessionState>: Send + Sync {
     /// Handle incoming server events
-    fn on_event(&mut self, e: ServerEvent<SessionState, RequestType>);
+    fn on_event(&mut self, e: ServerEvent<SessionState>);
 }
 
 /// Base trait for diagnostic servers
