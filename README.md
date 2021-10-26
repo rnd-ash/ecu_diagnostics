@@ -9,6 +9,8 @@ A cross-platform crate with FFI bindings to allow for complex vehicle ECU diagno
 ## IMPORTANT
 This crate is a work in progress, and ECU compatibility may vary! This crate goes by the KWP2000 and UDS specification, but some ECUs choose to deviate slightly from the official specification!
 
+## Ensure you are running Rust 1.56.0 (2021 edition) or higher to use this crate!
+
 ## Features
 * Easy to use (Check the examples folder)
 * Implements UDS, KWP2000 and OBD2
