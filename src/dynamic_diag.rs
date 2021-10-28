@@ -3,7 +3,7 @@
 
 use std::{borrow::BorrowMut, sync::{Arc, Mutex}};
 
-use crate::{DiagError, DiagServerResult, channel::{IsoTPSettings}, dtc::DTC, hardware::Hardware, kwp2000::{self, Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler}, uds::{self, UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler}};
+use crate::{DiagError, DiagServerResult, channel::{IsoTPSettings}, dtc::DTC, hardware::Hardware, kwp2000::{self, Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler}, uds::{self, UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler}, DiagnosticServer};
 
 
 /// Dynamic diagnostic session
@@ -182,6 +182,30 @@ impl DynamicDiagSession {
             },
             DynamicSessionType::Uds(u) => {
                 uds::clear_diagnostic_information(u, 0x00FFFFFF)
+            },
+        }
+    }
+
+    /// Attempts to send a payload of bytes to the ECU, and return its full response
+    pub fn send_bytes_with_response(&mut self, payload: &[u8]) -> DiagServerResult<Vec<u8>> {
+        match self.session.borrow_mut() {
+            DynamicSessionType::Kwp(k) => {
+                k.send_byte_array_with_response(payload)
+            },
+            DynamicSessionType::Uds(u) => {
+                u.send_byte_array_with_response(payload)
+            },
+        }
+    }
+
+    /// Attempts to send a payload of bytes to the ECU, and don't poll for a response
+    pub fn send_bytes(&mut self, payload: &[u8]) -> DiagServerResult<()> {
+        match self.session.borrow_mut() {
+            DynamicSessionType::Kwp(k) => {
+                k.send_byte_array(payload)
+            },
+            DynamicSessionType::Uds(u) => {
+                u.send_byte_array(payload)
             },
         }
     }
