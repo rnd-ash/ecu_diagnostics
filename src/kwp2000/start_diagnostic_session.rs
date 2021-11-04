@@ -57,7 +57,7 @@ impl From<SessionType> for u8 {
 ///
 /// ## Parameters
 /// * server - The KWP2000 Diagnostic server
-/// * mode - The [Kwp2000SessionType] to put the ECU into
+/// * mode - The [SessionType] to put the ECU into
 pub fn set_diagnostic_session_mode(
     server: &mut Kwp2000DiagnosticServer,
     mode: SessionType,

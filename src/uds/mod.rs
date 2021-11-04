@@ -19,28 +19,35 @@ mod ecu_reset;
 mod read_dtc_information;
 mod security_access;
 mod clear_diagnostic_information;
+mod communication_control;
+mod access_timing_parameter;
+mod scaling_data;
 
 pub use diagnostic_session_control::*;
 pub use ecu_reset::*;
 pub use read_dtc_information::*;
 pub use security_access::*;
 pub use clear_diagnostic_information::*;
+pub use communication_control::*;
+pub use access_timing_parameter::*;
+pub use scaling_data::*;
 
 /// UDS Command Service IDs
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum UDSCommand {
-    /// Diagnostic session control. See [diagnostic_session_control]
+    /// Diagnostic session control.
     DiagnosticSessionControl,
-    /// ECU Reset. See [ecu_reset]
+    /// ECU Reset.
     ECUReset,
-    /// Security access. See [security_access]
+    /// Security access.
     SecurityAccess,
-    /// Controls communication functionality of the ECU
+    /// Controls communication functionality of the ECU.
     CommunicationControl,
-    /// Tester present command.
+    /// Tester present command. Used internally by UDS Server
     TesterPresent,
+    /// Accesses ECU timing parameters.
     AccessTimingParameters,
     SecuredDataTransmission,
     ControlDTCSettings,
@@ -54,8 +61,7 @@ pub enum UDSCommand {
     WriteDataByIdentifier,
     WriteMemoryByAddress,
     ClearDiagnosticInformation,
-    /// Reading and querying diagnostic trouble codes
-    /// stored on the ECU. See [read_dtc_information]
+    /// Reading and querying diagnostic trouble codes stored on the ECU.
     ReadDTCInformation,
     InputOutputControlByIdentifier,
     RoutineControl,

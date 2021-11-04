@@ -1,7 +1,7 @@
 //! Module for logical communication channels with an ECU
 //!
 //! Currently, the following channel types are defined:
-//! * [BaseChannel] - Basic channel, all channels inherit this trait
+//! * [PayloadChannel] - Basic channel, all channels inherit this trait
 //! * [IsoTPChannel] - IsoTP (ISO15765) channel
 
 use std::{
@@ -138,7 +138,7 @@ pub trait PayloadChannel: Send + Sync {
 
     /// Tells the channel to clear its Rx buffer.
     /// This means all pending messages to be read should be wiped from the devices queue,
-    /// such that [BaseChannel::read_bytes] does not read them
+    /// such that [PayloadChannel::read_bytes] does not read them
     fn clear_rx_buffer(&mut self) -> ChannelResult<()>;
 
     /// Tells the channel to clear its Tx buffer.
@@ -178,7 +178,7 @@ pub trait PacketChannel<T: Packet>: Send + Sync {
 
     /// Tells the channel to clear its Rx buffer.
     /// This means all pending messages to be read should be wiped from the devices queue,
-    /// such that [BaseChannel::read_bytes] does not read them
+    /// such that [PayloadChannel::read_bytes] does not read them
     fn clear_rx_buffer(&mut self) -> ChannelResult<()>;
 
     /// Tells the channel to clear its Tx buffer.
@@ -356,10 +356,10 @@ impl CanFrame {
     /// * data - The data of the CAN packet
     /// * is_ext - Indication if the CAN packet shall use extended addressing
     ///
-    /// NOTE: If [id] is greater than 0x7FF, extended addressing (29bit) will be enabled
-    /// regardless of [is_ext].
+    /// NOTE: If `id` is greater than 0x7FF, extended addressing (29bit) will be enabled
+    /// regardless of `is_ext`.
     ///
-    /// Also, [data] will be limited to 8 bytes.
+    /// Also, `data` will be limited to 8 bytes.
     pub fn new(id: u32, data: &[u8], is_ext: bool) -> Self {
         let max = std::cmp::min(8, data.len());
         let mut tmp = [0u8; 8];

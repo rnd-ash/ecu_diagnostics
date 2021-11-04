@@ -58,29 +58,29 @@ pub use ioctl_mgr::*;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum KWP2000Command {
-    /// Start or change ECU diagnostic session mode. See [start_diagnostic_session]
+    /// Start or change ECU diagnostic session mode.
     StartDiagnosticSession,
-    /// Reset the ECU. See [ecu_reset]
+    /// Reset the ECU.
     ECUReset,
-    /// Clears diagnostic information stored on the ECU. See [clear_diagnostic_information]
+    /// Clears diagnostic information stored on the ECU.
     ClearDiagnosticInformation,
-    /// Reads snapshot data of DTCs stored on the ECU. See [read_status_of_dtc]
+    /// Reads snapshot data of DTCs stored on the ECU.
     ReadStatusOfDiagnosticTroubleCodes,
-    /// Reads DTCs stored on the ECU. See [read_dtc_by_status]
+    /// Reads DTCs stored on the ECU.
     ReadDiagnosticTroubleCodesByStatus,
-    /// Reads ECU identification data. See [read_ecu_identification]
+    /// Reads ECU identification data.
     ReadECUIdentification,
-    /// Reads data from the ECU using a local identifier. See [read_data_by_local_id]
+    /// Reads data from the ECU using a local identifier.
     ReadDataByLocalIdentifier,
-    /// Reads data from the ECU using a unique identifier. See [read_data_by_identifier]
+    /// Reads data from the ECU using a unique identifier.
     ReadDataByIdentifier,
-    /// Reads memory from the ECU by address. See [read_memory_by_address]
+    /// Reads memory from the ECU by address.
     ReadMemoryByAddress,
-    /// Security access functions. See [security_access]
+    /// Security access functions.
     SecurityAccess,
-    /// Disables normal CAN message transmission from an ECU. See [enable_normal_message_transmission]
+    /// Disables normal CAN message transmission from an ECU.
     DisableNormalMessageTransmission,
-    /// Enables normal CAN message transmission from an ECU. See [disable_normal_message_transmission]
+    /// Enables normal CAN message transmission from an ECU.
     EnableNormalMessageTransmission,
     ///
     DynamicallyDefineLocalIdentifier,
@@ -88,11 +88,11 @@ pub enum KWP2000Command {
     WriteDataByIdentifier,
     ///
     InputOutputControlByLocalIdentifier,
-    /// Starts a ECU routine given a local identifier. See [routine]
+    /// Starts a ECU routine given a local identifier.
     StartRoutineByLocalIdentifier,
-    /// Stops a ECU routine given a local identifier. See [routine]
+    /// Stops a ECU routine given a local identifier.
     StopRoutineByLocalIdentifier,
-    /// requests results of an executed routine given a local identifier. See [routine]
+    /// requests results of an executed routine given a local identifier.
     RequestRoutineResultsByLocalIdentifier,
     ///
     RequestDownload,

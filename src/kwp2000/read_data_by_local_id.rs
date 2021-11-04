@@ -257,7 +257,7 @@ pub fn read_diag_protocol_info(
 /// * 0xF0-0xF9 - Dynamically defined local identifier
 ///
 /// ## Important notes:
-/// 1. Do NOT use Identifiers between 0x80-0x9F. These are for [crate::kwp2000::read_ecu_identification] only!
+/// 1. Do NOT use Identifiers between 0x80-0x9F. These are for `read_ecu_identification` only!
 /// 2. Identifiers between 0xE0 and 0xEB are handled by the other functions in this module, and return
 /// the data as parsed responses
 pub fn read_custom_local_identifier(

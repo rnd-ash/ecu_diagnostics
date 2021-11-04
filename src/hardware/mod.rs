@@ -57,7 +57,7 @@ pub trait HardwareScanner<T: Hardware> {
     /// to scan for devices, but these devices might not actually be
     /// plugged into the computer at the time of the request
     fn list_devices(&self) -> Vec<HardwareInfo>;
-    /// Tries to open a device by a specific index from the [list_devices] function.
+    /// Tries to open a device by a specific index from the [HardwareScanner::list_devices] function.
     fn open_device_by_index(&self, idx: usize) -> HardwareResult<Arc<Mutex<T>>>;
     /// Tries to open a device given the devices name
     fn open_device_by_name(&self, name: &str) -> HardwareResult<Arc<Mutex<T>>>;

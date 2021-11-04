@@ -8,7 +8,7 @@ use super::{KWP2000Command, Kwp2000DiagnosticServer};
 /// The maximum value for address is 0xFFFFFF, any larger values will be clamped.
 ///
 /// NOTE: This function is ONLY indented for ECU development. In production ECUs,
-/// use [super::read_data_by_local_id] instead
+/// use [super::read_data_by_local_id::read_custom_local_identifier] instead
 pub fn read_memory(
     server: &mut Kwp2000DiagnosticServer,
     address: u32,

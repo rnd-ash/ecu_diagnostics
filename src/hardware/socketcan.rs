@@ -271,10 +271,8 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 
     /// Writes bytes to socketcan socket.
     /// 
-    /// NOTE: There is currently a bug where [addr] is ignored! See [this issue][1]
-    /// 
-    /// [1] https://github.com/rnd-ash/ecu_diagnostics/issues/1
-    fn write_bytes(&mut self, _addr: u32, buffer: &[u8], _timeout_ms: u32) -> ChannelResult<()> {
+    /// NOTE: There is currently a bug where addr is ignored! See <https://github.com/rnd-ash/ecu_diagnostics/issues/1>
+    fn write_bytes(&mut self, addr: u32, buffer: &[u8], _timeout_ms: u32) -> ChannelResult<()> {
         self.safe_with_iface(|socket| {
             socket.write(buffer)?;
             Ok(())

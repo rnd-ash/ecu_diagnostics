@@ -12,12 +12,12 @@ use super::{KWP2000Command, Kwp2000DiagnosticServer};
 ///
 /// | DTCRange | Support by ECUs |
 /// |--|--|
-/// |[DTCRange::AllPowertrain]|Optional|
-/// |[DTCRange::AllChassis]|Optional|
-/// |[DTCRange::AllBody]|Optional|
-/// |[DTCRange::AllNetwork]|Optional|
-/// |[DTCRange::AllDTCs]|Mandatory|
-/// |[DTCRange::SingleDTC]|Optional|
+/// |[ClearDTCRange::AllPowertrain]|Optional|
+/// |[ClearDTCRange::AllChassis]|Optional|
+/// |[ClearDTCRange::AllBody]|Optional|
+/// |[ClearDTCRange::AllNetwork]|Optional|
+/// |[ClearDTCRange::AllDTCs]|Mandatory|
+/// |[ClearDTCRange::SingleDTC]|Optional|
 pub enum ClearDTCRange {
     /// All powertrain related DTCs
     AllPowertrain,
