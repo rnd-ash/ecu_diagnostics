@@ -273,6 +273,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
     /// 
     /// NOTE: There is currently a bug where addr is ignored! See <https://github.com/rnd-ash/ecu_diagnostics/issues/1>
     fn write_bytes(&mut self, addr: u32, buffer: &[u8], _timeout_ms: u32) -> ChannelResult<()> {
+        let _dummy = addr;
         self.safe_with_iface(|socket| {
             socket.write(buffer)?;
             Ok(())
