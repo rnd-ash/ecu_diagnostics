@@ -655,23 +655,6 @@ impl DiagnosticServer<UDSCommand> for UdsDiagnosticServer {
 
 /// Returns the [UDSError] from a matching input byte.
 /// The error byte provided MUST come from [DiagError::ECUError]
-///
-/// ## Example:
-/// ```
-/// extern crate ecu_diagnostics;
-/// use ecu_diagnostics::{DiagError, uds};
-///
-/// let result = DiagError::ECUError(0x10);
-///
-/// if let DiagError::ECUError(x) = result {
-///     let error_name = uds::get_description_of_ecu_error(x);
-///     println!("ECU Rejected request: {:?}", error_name);
-///     assert_eq!(error_name, uds::UDSError::GeneralReject);
-/// } else {
-///     println!("Non-ECU error performing request: {:?}", result);
-/// }
-///
-/// ```
 pub fn get_description_of_ecu_error(error: u8) -> UDSError {
     error.into()
 }
