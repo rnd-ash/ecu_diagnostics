@@ -454,6 +454,7 @@ impl From<u8> for ScalingByteExtension {
 
 
 /// Represents Scaling data structure returned from ECU
+#[derive(Debug, Clone)]
 pub struct ScalingData {
     x: f32,
     c0: f32,

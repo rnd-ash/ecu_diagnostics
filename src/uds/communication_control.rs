@@ -3,6 +3,7 @@
 use crate::DiagnosticServer;
 use crate::uds::{UDSCommand, UdsDiagnosticServer};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Communication level toggle
 pub enum CommunicationLevel {
     /// Enable both Rx and Tx communication
@@ -15,6 +16,7 @@ pub enum CommunicationLevel {
     DisableRxAndTx,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// ECU Communication types
 pub enum EcuCommunicationType {
     /// Application layer communication (inter-signal exchanges)
@@ -26,6 +28,7 @@ pub enum EcuCommunicationType {
     All
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// ECU communication subnet type
 pub enum Subnet {
     /// All subnets
@@ -56,7 +59,7 @@ pub fn control_communication(server: &mut UdsDiagnosticServer,  communication_ty
         Subnet::RxOnly => 0x0F
     }) << 4;
 
-    let mut level: u8 = match comm_level {
+    let level: u8 = match comm_level {
         CommunicationLevel::EnableRxAndTx => 0x00,
         CommunicationLevel::EnableRxDisableTx => 0x01,
         CommunicationLevel::DisableRxEnableTx => 0x02,
