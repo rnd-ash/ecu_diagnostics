@@ -61,7 +61,7 @@ pub fn clear_dtc(
     server
         .execute_command_with_response(
             KWP2000Command::ClearDiagnosticInformation,
-            &[(dtc_range_num << 8) as u8, dtc_range_num as u8],
+            &[(dtc_range_num >> 8) as u8, dtc_range_num as u8],
         )
         .map(|_| ())
 }
