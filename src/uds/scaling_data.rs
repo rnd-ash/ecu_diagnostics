@@ -1,5 +1,3 @@
-use crate::uds::ScalingByteHigh::UnsignedNumeric;
-
 ///! Functions and data for ReadScalingDataById UDS Service
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
@@ -92,7 +90,7 @@ pub enum ScalingByteExtension {
     /// Atmosphere - Measure of pressure. Postfix: `atm`
     Atmosphere,
     /// Pound force per square inch - Measure of pressure. Postfix: `psi`
-    PSI,
+    Psi,
     /// Becqerel - Measure of radioactivity. Postfix: `Bq`
     Becqerel,
     /// Lumen - Measure of light lux. Postfix: `lm`
@@ -300,7 +298,7 @@ impl ScalingByteExtension {
             ScalingByteExtension::Pascal => Some("Pa"),
             ScalingByteExtension::Bar => Some("bar"),
             ScalingByteExtension::Atmosphere => Some("atm"),
-            ScalingByteExtension::PSI => Some("psi"),
+            ScalingByteExtension::Psi => Some("psi"),
             ScalingByteExtension::Becqerel => Some("Bq"),
             ScalingByteExtension::Lumen => Some("lm"),
             ScalingByteExtension::Lux => Some("lx"),
