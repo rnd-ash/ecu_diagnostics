@@ -37,9 +37,9 @@ impl DiagnosticInfo {
     }
 }
 
-/// Identification structure read with [read_dcs_identification]
+/// Identification structure read with [read_daimler_identification]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DcsEcuIdent {
+pub struct DaimlerEcuIdent {
     /// 10 digital part number
     pub part_number: String,
     /// Week of the year the ECU hardware was produced
@@ -66,9 +66,9 @@ pub struct DcsEcuIdent {
     pub ecu_production_day: u8,
 }
 
-/// Identification structure read with [read_dcx_mmc_identification]
+/// Identification structure read with [read_daimler_mmc_identification]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DcxMmcEcuIdent {
+pub struct DaimlerMmcEcuIdent {
     /// Unknown
     pub ecu_origin: u8,
     /// Unique supplier ID (Who manufactured the ECU)
@@ -134,15 +134,15 @@ pub struct BlockIdentification {
 }
 
 /// Reads DCS ECU identification from ECU
-pub fn read_dcs_identification(
+pub fn read_daimler_identification(
     server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<DcsEcuIdent> {
+) -> DiagServerResult<DaimlerEcuIdent> {
     let res =
         server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x86])?;
     if res.len() != 18 {
         return Err(DiagError::InvalidResponseLength);
     }
-    Ok(DcsEcuIdent {
+    Ok(DaimlerEcuIdent {
         part_number: bcd_decode_slice(&res[2..7], None),
         ecu_hw_build_week: res[7],
         ecu_hw_build_year: res[8],
@@ -157,15 +157,15 @@ pub fn read_dcs_identification(
 }
 
 /// Reads DCX/MMC ECU identification from ECU
-pub fn read_dcx_mmc_identification(
+pub fn read_daimler_mmc_identification(
     server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<DcxMmcEcuIdent> {
+) -> DiagServerResult<DaimlerMmcEcuIdent> {
     let res =
         server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x87])?;
     if res.len() != 22 {
         return Err(DiagError::InvalidResponseLength);
     }
-    Ok(DcxMmcEcuIdent {
+    Ok(DaimlerMmcEcuIdent {
         ecu_origin: res[2],
         supplier: res[3],
         diag_info: DiagnosticInfo([res[4], res[5]]),

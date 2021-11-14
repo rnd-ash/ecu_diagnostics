@@ -5,8 +5,8 @@
 //! * Dodge
 //! * Chrysler
 //! * Jeep
-//! * Mitsubishi
-//! * Daimler (Mercedes-Benz and SMART)
+//! * Mitsubishi (Abbreviated as MMC)
+//! * Daimler (Mercedes-Benz, Maybach and SMART)
 //!
 //! Other manufacturer's ECUs might also work, however they are untested.
 //!
