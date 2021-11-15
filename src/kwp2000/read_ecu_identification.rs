@@ -19,8 +19,8 @@ impl DiagnosticInfo {
         self.0[0] & 0b10000000 == 0
     }
 
-    /// Returns the unique ECU ID allocated by DCX for the specific ECU
-    pub fn get_dcx_ecu_id(&self) -> u8 {
+    /// Returns the unique ECU ID allocated by Daimler / MMC for the specific ECU
+    pub fn get_daimler_mmc_ecu_id(&self) -> u8 {
         self.0[0] & 0b01111111
     }
 
@@ -133,7 +133,7 @@ pub struct BlockIdentification {
     pub part_number: String,
 }
 
-/// Reads DCS ECU identification from ECU
+/// Reads Daimler ECU identification from ECU
 pub fn read_daimler_identification(
     server: &mut Kwp2000DiagnosticServer,
 ) -> DiagServerResult<DaimlerEcuIdent> {
@@ -156,7 +156,7 @@ pub fn read_daimler_identification(
     })
 }
 
-/// Reads DCX/MMC ECU identification from ECU
+/// Reads Daimler and MMC ECU identification from ECU
 pub fn read_daimler_mmc_identification(
     server: &mut Kwp2000DiagnosticServer,
 ) -> DiagServerResult<DaimlerMmcEcuIdent> {
