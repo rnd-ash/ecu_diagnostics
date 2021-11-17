@@ -66,6 +66,23 @@ pub struct DaimlerEcuIdent {
     pub ecu_production_day: u8,
 }
 
+impl DaimlerEcuIdent {
+    /// Formats the ECU productions date as dd/mm/yy
+    pub fn get_production_date_pretty(&self) -> String {
+        format!("{}/{}/{}", bcd_decode(self.ecu_production_day),bcd_decode(self.ecu_production_month),bcd_decode(self.ecu_production_year))
+    }
+
+    /// Formats the ECU software build date as ww/yy
+    pub fn get_software_date_pretty(&self) -> String {
+        format!("{}/{}", bcd_decode(self.ecu_sw_build_week),bcd_decode(self.ecu_sw_build_year))
+    }
+
+    /// Formats the ECU hardware build date as ww/yy
+    pub fn get_hardware_date_pretty(&self) -> String {
+        format!("{}/{}", bcd_decode(self.ecu_hw_build_week),bcd_decode(self.ecu_hw_build_year))
+    }
+}
+
 /// Identification structure read with [read_daimler_mmc_identification]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DaimlerMmcEcuIdent {
@@ -143,7 +160,7 @@ pub fn read_daimler_identification(
         return Err(DiagError::InvalidResponseLength);
     }
     Ok(DaimlerEcuIdent {
-        part_number: bcd_decode_slice(&res[2..7], None),
+        part_number: bcd_decode_slice(&res[2..=6], None),
         ecu_hw_build_week: res[7],
         ecu_hw_build_year: res[8],
         ecu_sw_build_week: res[9],
