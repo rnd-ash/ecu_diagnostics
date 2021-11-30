@@ -132,7 +132,7 @@ pub fn read_stored_dtcs(
         let status = res[x + 2];
         ret.push(DTC {
             format: KWP_DTC_FMT,
-            raw: (res[x] as u32) << 8 | res[x + 1] as u32,
+            raw: (res[x] as u32 & 0b111111) << 8 | res[x + 1] as u32,
             status: DTCStatus::from_kwp_status(status),
             mil_on: status & 0b10000000 != 0,
             readiness_flag: status & 0b00010000 != 0,
