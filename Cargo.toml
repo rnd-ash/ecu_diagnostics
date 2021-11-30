@@ -1,13 +1,13 @@
 [package]
 name = "ecu_diagnostics"
-version = "0.7.8"
+version = "0.8.0"
 authors = ["Ashcon Mohseninia <ashconm@outlook.com>"]
 edition = "2021"
-description = "A rust crate for ECU diagnostic servers"
+description = "A rust crate for ECU diagnostic servers and communication APIs"
 license = "MIT"
 repository = "https://github.com/rnd-ash/ecu_diagnostics"
 readme = "README.md"
-keywords = ["ecu", "kwp2000", "uds", "obd2", "cars"]
+keywords = ["socketcan", "kwp2000", "uds", "j2534", "dpdu"]
 exclude = [
     "examples/*",
     "build.rs",
@@ -23,9 +23,7 @@ targets = ["x86_64-unknown-linux-gnu", "i686-pc-windows-msvc", "x86_64-apple-dar
 
 [workspace]
 members = [
-    "examples/passthru_isotp",
-    "examples/uds_over_socketcan",
-    "ffi"
+    "ffi",
 ]
 
 [dependencies]
