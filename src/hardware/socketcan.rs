@@ -21,7 +21,7 @@ const SOCKET_CAN_CAPABILITIES: HardwareCapabilities = HardwareCapabilities {
 /// SocketCAN device
 #[derive(Debug)]
 pub struct SocketCanDevice{
-    if_name: String,
+    info: HardwareInfo,
     canbus_active: bool,
     isotp_active: bool
 }
@@ -29,7 +29,15 @@ pub struct SocketCanDevice{
 impl SocketCanDevice {
     pub (crate) fn new(if_name: String) -> Self {
         Self {
-            if_name,
+            info: HardwareInfo {
+                name: if_name,
+                vendor: None,
+                capabilities: SOCKET_CAN_CAPABILITIES,
+                device_fw_version: None,
+                api_version: None,
+                library_version: None,
+                library_location: None,
+            },
             canbus_active: false,
             isotp_active: false
         }
@@ -66,8 +74,12 @@ impl Hardware for SocketCanDevice {
         None
     }
 
-    fn get_capabilities(&self) -> &HardwareCapabilities {
-        &SOCKET_CAN_CAPABILITIES
+    fn read_ignition_voltage(&mut self) -> Option<f32> {
+        None
+    }
+
+    fn get_info(&self) -> &HardwareInfo {
+        &self.info
     }
 }
 
@@ -96,7 +108,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
             return Ok(()); // Already open!
         }
         let mut device = self.device.lock()?;
-        let channel = socketcan::CANSocket::open(&device.if_name)?;
+        let channel = socketcan::CANSocket::open(&device.info.name)?;
         channel.filter_accept_all()?;
         self.channel = Some(channel);
         device.canbus_active = true;
@@ -223,7 +235,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
         let opts: IsoTpOptions = IsoTpOptions::new(flags, std::time::Duration::from_millis(0), ext_address, 0x00, 0x00, rx_ext_address).unwrap();
         let link_opts: LinkLayerOptions = LinkLayerOptions::default();
         let socket = socketcan_isotp::IsoTpSocket::open_with_opts(
-            &device.if_name, 
+            &device.info.name, 
             self.ids.1, 
             self.ids.0,
             Some(opts),
@@ -336,8 +348,12 @@ impl SocketCanScanner {
                     .filter(|f| f.last().unwrap().contains("can"))
                     .map(|path| HardwareInfo {
                         name: path[path.len()-1].clone(),
-                        vendor: "N/A".into(),
+                        vendor: None,
                         capabilities: SOCKET_CAN_CAPABILITIES,
+                        device_fw_version: None,
+                        api_version: None,
+                        library_version: None,
+                        library_location: None,
                     })
                     .collect()   
                 }

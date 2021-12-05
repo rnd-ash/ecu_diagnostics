@@ -243,7 +243,11 @@ impl From<&PassthruInfo> for HardwareInfo {
     fn from(x: &PassthruInfo) -> Self {
         HardwareInfo {
             name: x.name.clone(),
-            vendor: x.vendor.clone(),
+            vendor: Some(x.vendor.clone()),
+            device_fw_version: None,
+            api_version: None,
+            library_version: None,
+            library_location: Some(x.function_lib.clone()),
             capabilities: HardwareCapabilities {
                 iso_tp: x.iso15765,
                 can: x.can,
@@ -272,12 +276,19 @@ impl PassthruDevice {
         let lib = info.function_lib.clone();
         let mut drv = lib_funcs::PassthruDrv::load_lib(lib)?;
         let idx = drv.open()?;
-        Ok(Self {
+        let mut ret = Self {
             info: info.into(),
             drv,
             device_idx: Some(idx),
             can_channel: false,
-        })
+        };
+        if let Ok(version) = ret.drv.get_version(idx) {
+            // Set new version information from the device!
+            ret.info.api_version = Some(version.api_version.clone());
+            ret.info.device_fw_version = Some(version.fw_version.clone());
+            ret.info.library_version = Some(version.dll_version.clone());
+        }
+        Ok(ret)
     }
 
     pub(crate) fn safe_passthru_op<
@@ -377,8 +388,23 @@ impl super::Hardware for PassthruDevice {
         }
     }
 
-    fn get_capabilities(&self) -> &super::HardwareCapabilities {
-        &self.info.capabilities
+    fn read_ignition_voltage(&mut self) -> Option<f32> {
+        let mut output: u32 = 0;
+        match self.safe_passthru_op(|idx, drv: PassthruDrv| {
+            drv.ioctl(
+                idx,
+                IoctlID::READ_PROG_VOLTAGE,
+                std::ptr::null_mut(),
+                (&mut output) as *mut _ as *mut c_void,
+            )
+        }) {
+            Ok(_) => Some(output as f32 / 1000.0),
+            Err(_) => None,
+        }
+    }
+
+    fn get_info(&self) -> &HardwareInfo {
+        &self.info
     }
 }
 

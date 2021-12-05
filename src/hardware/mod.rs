@@ -3,6 +3,7 @@
 //! in order to communicate with vehicle ECUs
 
 pub mod passthru;
+pub mod dpdu;
 
 #[cfg(unix)]
 pub mod socketcan;
@@ -33,8 +34,14 @@ pub trait Hardware {
     /// Should the adapter not support this feature, [std::option::Option::None] is returned
     fn read_battery_voltage(&mut self) -> Option<f32>;
 
-    /// Returns a list of hardware capabilities
-    fn get_capabilities(&self) -> &HardwareCapabilities;
+    /// Tries to read battery voltage from the igntion pin on the OBD2 port. A reading
+    /// would indicate ignition is on in the vehicle.
+    /// This is mainly used by diagnostic adapters, and is purely optional
+    /// Should the adapter not support this feature, [std::option::Option::None] is returned
+    fn read_ignition_voltage(&mut self) -> Option<f32>;
+
+    /// Returns the information of the hardware
+    fn get_info(&self) -> &HardwareInfo;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -42,8 +49,16 @@ pub trait Hardware {
 pub struct HardwareInfo {
     /// Name of the hardware
     pub name: String,
-    /// Vendor of the hardware
-    pub vendor: String,
+    /// Optional vendor of the hardware
+    pub vendor: Option<String>,
+    /// Optional version of the firmware running on the adapter / device
+    pub device_fw_version: Option<String>,
+    /// Optional API standard the device conforms to
+    pub api_version: Option<String>,
+    /// Optional library (Dll/So/Dynlib) verison used
+    pub library_version: Option<String>,
+    /// Optional file location of the library used
+    pub library_location: Option<String>,
     /// Listed capabilities of the hardware
     pub capabilities: HardwareCapabilities,
 }
