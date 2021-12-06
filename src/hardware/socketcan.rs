@@ -110,6 +110,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         let mut device = self.device.lock()?;
         let channel = socketcan::CANSocket::open(&device.info.name)?;
         channel.filter_accept_all()?;
+        channel.set_nonblocking(true);
         self.channel = Some(channel);
         device.canbus_active = true;
         Ok(())
