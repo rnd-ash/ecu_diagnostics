@@ -81,6 +81,14 @@ impl Hardware for SocketCanDevice {
     fn get_info(&self) -> &HardwareInfo {
         &self.info
     }
+
+    fn is_iso_tp_channel_open(&self) -> bool {
+        self.isotp_active
+    }
+
+    fn is_can_channel_open(&self) -> bool {
+        self.canbus_active
+    }
 }
 
 

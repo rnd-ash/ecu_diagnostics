@@ -29,6 +29,12 @@ pub trait Hardware {
     /// the channel will automatically be closed, if it has been opened.
     fn create_can_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn CanChannel>>;
 
+    /// Returns true if the ISO-TP channel is current open and in use
+    fn is_iso_tp_channel_open(&self) -> bool;
+    
+    /// Returns true if the CAN channel is currently open and in use
+    fn is_can_channel_open(&self) -> bool;
+
     /// Tries to read battery voltage from Pin 16 of an OBD port (+12V).
     /// This is mainly used by diagnostic adapters, and is purely optional
     /// Should the adapter not support this feature, [std::option::Option::None] is returned

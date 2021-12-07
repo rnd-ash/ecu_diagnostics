@@ -268,6 +268,7 @@ pub struct PassthruDevice {
     drv: PassthruDrv,
     device_idx: Option<u32>,
     can_channel: bool,
+    isotp_channel: bool,
 }
 
 impl PassthruDevice {
@@ -281,6 +282,7 @@ impl PassthruDevice {
             drv,
             device_idx: Some(idx),
             can_channel: false,
+            isotp_channel: false,
         };
         if let Ok(version) = ret.drv.get_version(idx) {
             // Set new version information from the device!
@@ -405,6 +407,14 @@ impl super::Hardware for PassthruDevice {
 
     fn get_info(&self) -> &HardwareInfo {
         &self.info
+    }
+
+    fn is_iso_tp_channel_open(&self) -> bool {
+        self.can_channel
+    }
+
+    fn is_can_channel_open(&self) -> bool {
+        self.isotp_channel
     }
 }
 
@@ -613,7 +623,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 device.connect(device_id, Protocol::ISO15765, flags, self.cfg.can_speed)
             })
             .map_err(ChannelError::HardwareError)?;
-        device.can_channel = true; // Acknowledge CAN is open now
+        device.isotp_channel = true; // Acknowledge CAN is open now
         self.channel_id = Some(channel_id);
 
         // Now create open filter
@@ -675,7 +685,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
             device
                 .safe_passthru_op(|_, device| device.disconnect(id))
                 .map_err(ChannelError::HardwareError)?;
-            device.can_channel = false;
+            device.isotp_channel = false;
             self.channel_id = None;
         }
         Ok(())
