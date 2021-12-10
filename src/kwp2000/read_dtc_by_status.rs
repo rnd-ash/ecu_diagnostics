@@ -42,8 +42,6 @@ impl DTCRange {
     }
 }
 
-const KWP_DTC_FMT: DTCFormatType = crate::dtc::DTCFormatType::ISO15031_6;
-
 /// Returns a list of stored DTCs on the ECU in ISO15031-6 format
 pub fn read_stored_dtcs_iso15031(
     server: &mut Kwp2000DiagnosticServer,
@@ -57,8 +55,8 @@ pub fn read_stored_dtcs_iso15031(
         // No DTCs stored
         return Ok(Vec::new());
     }
-    let num_dtcs = res[2];
-    res.drain(0..3); // Remove everything up to the first DTC
+    let num_dtcs = res[1];
+    res.drain(0..2); // Remove everything up to the first DTC
     if res.len() % 3 != 0 {
         // Each DTC is 3 bytes, so this should divide by 0 if ECU response is valid
         return Err(DiagError::InvalidResponseLength);
@@ -69,7 +67,7 @@ pub fn read_stored_dtcs_iso15031(
     for x in (0..res.len()).step_by(3) {
         let status = res[x + 2];
         ret.push(DTC {
-            format: KWP_DTC_FMT,
+            format: DTCFormatType::ISO15031_6,
             raw: (res[x] as u32) << 8 | res[x + 1] as u32,
             status: DTCStatus::from_kwp_status(status),
             mil_on: status & 0b10000000 != 0,
@@ -131,8 +129,8 @@ pub fn read_stored_dtcs(
     for x in (0..res.len()).step_by(3) {
         let status = res[x + 2];
         ret.push(DTC {
-            format: KWP_DTC_FMT,
-            raw: (res[x] as u32 & 0b111111) << 8 | res[x + 1] as u32,
+            format: DTCFormatType::TWO_BYTE_HEX_KWP,
+            raw: (res[x] as u32) << 8 | res[x + 1] as u32,
             status: DTCStatus::from_kwp_status(status),
             mil_on: status & 0b10000000 != 0,
             readiness_flag: status & 0b00010000 != 0,
@@ -169,7 +167,7 @@ pub fn read_supported_dtcs(
         for x in (0..res_bytes.len()).step_by(3) {
             let status = res_bytes[x + 2];
             res.push(DTC {
-                format: KWP_DTC_FMT,
+                format: DTCFormatType::TWO_BYTE_HEX_KWP,
                 raw: (res_bytes[x] as u32) << 8 | res_bytes[x + 1] as u32,
                 status: DTCStatus::from_kwp_status(status),
                 mil_on: status & 0b10000000 != 0,

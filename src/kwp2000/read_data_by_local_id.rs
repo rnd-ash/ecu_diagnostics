@@ -132,7 +132,7 @@ pub fn read_ecu_development_data(
 /// Reads the ECU Serial number.
 ///
 /// This function returns the bytes of just the serial number of the ECU, which
-/// can be interpreted as either ASCII (DCA ECUs), or Model line specification (Varies from OEM to OEM)
+/// can be interpreted as either ASCII (Daimler ECUs), or Model line specification (Varies from OEM to OEM)
 pub fn read_ecu_serial_number(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<Vec<u8>> {
     let mut res =
         server.execute_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE1])?;

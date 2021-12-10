@@ -21,7 +21,7 @@ use std::{
     time::Instant,
 };
 
-use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent, ServerEventHandler, channel::{IsoTPChannel, IsoTPSettings}, dtc::DTCFormatType, helpers};
+use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent, ServerEventHandler, channel::{IsoTPChannel, IsoTPSettings, self, PacketChannel}, dtc::DTCFormatType, helpers};
 
 mod clear_diagnostic_information;
 mod ecu_reset;
@@ -425,15 +425,17 @@ impl Kwp2000DiagnosticServer {
             let mut last_tester_present_time: Instant = Instant::now();
 
             event_handler.on_event(ServerEvent::ServerStart);
-
+            log::debug!("KWP2000 server start");
             loop {
                 if !is_running_t.load(Ordering::Relaxed) {
+                    log::debug!("KWP2000 server exit");
                     break;
                 }
 
                 if let Ok(cmd) = rx_cmd.try_recv() {
                     event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
                     // We have an incoming command
+                    log::debug!("KWP2000 Incomming request from tester. Sending {:02X?} to ECU", cmd);
                     if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {
                         // Session change! Handle this differently
                         match helpers::perform_cmd(
@@ -445,7 +447,6 @@ impl Kwp2000DiagnosticServer {
                             0x21,
                             lookup_kwp_nrc
                         ) {
-                            // 0x78 - Response correctly received, response pending
                             Ok(res) => {
                                 // Set server session type
                                 if cmd.bytes[1] == u8::from(SessionType::Passive)
@@ -458,6 +459,38 @@ impl Kwp2000DiagnosticServer {
                                     send_tester_present = true;
                                     last_tester_present_time = Instant::now();
                                 }
+                                // Send response to client
+                                if tx_res.send(Ok(res)).is_err() {
+                                    // Terminate! Something has gone wrong and data can no longer be sent to client
+                                    is_running_t.store(false, Ordering::Relaxed);
+                                    event_handler.on_event(ServerEvent::CriticalError {
+                                        desc: "Channel Tx SendError occurred".into(),
+                                    })
+                                }
+                            }
+                            Err(e) => {
+                                if tx_res.send(Err(e)).is_err() {
+                                    // Terminate! Something has gone wrong and data can no longer be sent to client
+                                    is_running_t.store(false, Ordering::Relaxed);
+                                    event_handler.on_event(ServerEvent::CriticalError {
+                                        desc: "Channel Tx SendError occurred".into(),
+                                    })
+                                }
+                            }
+                        }
+                    } else if cmd.get_kwp_sid() == KWP2000Command::ECUReset {
+                        // After successful reset we have to go back to default diag mode! (NO Tester present)
+                        match helpers::perform_cmd(
+                            settings.send_id,
+                            &cmd,
+                            &settings,
+                            &mut server_channel,
+                            0x78,
+                            0x21,
+                            lookup_kwp_nrc
+                        ) {
+                            Ok(res) => {
+                                send_tester_present = false;
                                 // Send response to client
                                 if tx_res.send(Ok(res)).is_err() {
                                     // Terminate! Something has gone wrong and data can no longer be sent to client
@@ -534,6 +567,7 @@ impl Kwp2000DiagnosticServer {
             }
             // Goodbye server
             event_handler.on_event(ServerEvent::ServerExit);
+            // Close ISOTP channel
             if let Err(e) = server_channel.close() {
                 event_handler.on_event(ServerEvent::InterfaceCloseOnExitError(e))
             }
@@ -648,4 +682,10 @@ impl DiagnosticServer<KWP2000Command> for Kwp2000DiagnosticServer {
 /// Returns the KWP2000 error from a given error code
 pub fn get_description_of_ecu_error(error: u8) -> KWP2000Error {
     error.into()
+}
+
+impl Drop for Kwp2000DiagnosticServer {
+    fn drop(&mut self) {
+        self.server_running.store(false, Ordering::Relaxed); // Stop server
+    }
 }
