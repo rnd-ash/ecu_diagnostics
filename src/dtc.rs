@@ -13,6 +13,8 @@ pub enum DTCFormatType {
     ISO11992_4,
     /// Unknown DTC Format
     UNKNOWN(u8),
+    /// 2 byte hex (KWP2000)
+    TWO_BYTE_HEX_KWP,
 }
 
 pub(crate) fn dtc_format_from_uds(fmt: u8) -> DTCFormatType {
@@ -84,6 +86,16 @@ impl DTC {
                     _ => "N" // Should never happen
                 };
                 format!("{}{:04X}", component_prefix, self.raw & 0b11111100)
+            },
+            DTCFormatType::TWO_BYTE_HEX_KWP => {
+                let component_prefix = match (self.raw as u16 & 0b110000000000000) >> 14 {
+                    0b00 => "P",
+                    0b01 => "C",
+                    0b10 => "B",
+                    0b11 => "U",
+                    _ => "" // Should never happen
+                };
+                format!("{}{:04X}", component_prefix, self.raw & 0b11111111111111) // 14 bits
             },
             _ => format!("{}", self.raw)
         }

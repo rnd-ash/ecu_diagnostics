@@ -1,6 +1,6 @@
 [package]
 name = "ecu_diagnostics"
-version = "0.8.2"
+version = "0.9.0"
 authors = ["Ashcon Mohseninia <ashconm@outlook.com>"]
 edition = "2021"
 description = "A rust crate for ECU diagnostic servers and communication APIs"
@@ -30,6 +30,8 @@ members = [
 j2534_rust = "1.0"
 serde_json = "1.0"
 libloading = "0.7.0"
+env_logger="0.9.0"
+log="0.4.14"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.8"
