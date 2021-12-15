@@ -274,6 +274,7 @@ pub struct PassthruDevice {
 impl PassthruDevice {
     /// Opens the passthru device
     fn open_device(info: &PassthruInfo) -> HardwareResult<Self> {
+        log::debug!("Opening device");
         let lib = info.function_lib.clone();
         let mut drv = lib_funcs::PassthruDrv::load_lib(lib)?;
         let idx = drv.open()?;
@@ -704,7 +705,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
             let read = self
                 .device
                 .lock()?
-                .safe_passthru_op(|_, device| device.read_messages(channel_id, 1, 0))
+                .safe_passthru_op(|_, device| device.read_messages(channel_id, 1, timeout_ms))
                 .map_err(ChannelError::HardwareError)?;
             if let Some(msg) = read.get(0) {
                 // Ignore messages with length of 4 as these

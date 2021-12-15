@@ -249,6 +249,7 @@ impl PassthruDrv {
         max_msgs: u32,
         timeout: u32,
     ) -> PassthruResult<Vec<PASSTHRU_MSG>> {
+        log::debug!("PT_READ_MSGS called!");
         let mut msg_count: u32 = max_msgs;
         // Create a blank array of empty passthru messages according to the max we should read
         let mut write_array: Vec<PASSTHRU_MSG> = vec![
