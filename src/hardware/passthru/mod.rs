@@ -33,7 +33,7 @@ use winreg::{RegKey, RegValue};
 
 
 use j2534_rust::{
-    ConnectFlags, FilterType, IoctlID, Loggable, PassthruError, Protocol, TxFlag, PASSTHRU_MSG,
+    ConnectFlags, FilterType, IoctlID, Loggable, PassthruError, Protocol, TxFlag, PASSTHRU_MSG, RxFlag,
 };
 
 use crate::channel::{
@@ -708,9 +708,11 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 .safe_passthru_op(|_, device| device.read_messages(channel_id, 1, timeout_ms))
                 .map_err(ChannelError::HardwareError)?;
             if let Some(msg) = read.get(0) {
-                // Ignore messages with length of 4 as these
-                // are Tx confirm or Rx confirm messages with Passthru API's ISO-TP
-                if msg.data_size != 4 {
+                // Messages with these RxStatus bits sets are considered
+                // to be either echo messages or indication of more data to be received
+                // therefore, we ignore them
+                if (msg.rx_status & RxFlag::ISO15765_FIRST_FRAME.bits() == 0) // Not a first frame indication
+                    && (msg.rx_status & RxFlag::TX_MSG_TYPE.bits() == 0) { // Not an echo message
                     // Read complete!
                     // First 4 bytes are CAN ID, so ignore those
                     return Ok(msg.data[4..msg.data_size as usize].to_vec());
