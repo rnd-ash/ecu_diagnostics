@@ -711,8 +711,15 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 // Messages with these RxStatus bits sets are considered
                 // to be either echo messages or indication of more data to be received
                 // therefore, we ignore them
-                if (msg.rx_status & RxFlag::ISO15765_FIRST_FRAME.bits() == 0) // Not a first frame indication
-                    && (msg.rx_status & RxFlag::TX_MSG_TYPE.bits() == 0) { // Not an echo message
+                //
+                // This is a quirk fix specifically for some *cough* crappy *cough* VCI adapters
+                // Normally, ISO15765_FIRST_FRAME are ALWAYS 4 bytes in length, but some of these adapters
+                // don't do that, instead returning a message with an arbitrary number
+                // of bytes, all set to 0x00. This breaks the specification!
+                // but instead they use these 2 flags to denote echo messages!
+                if ((msg.rx_status & RxFlag::ISO15765_FIRST_FRAME.bits() == 0) // Not a first frame indication
+                    && (msg.rx_status & RxFlag::TX_MSG_TYPE.bits() == 0)) // Not an echo message
+                        || msg.data_size != 4 { // Normal way of checking for ISO15765_FIRST_FRAME indication
                     // Read complete!
                     // First 4 bytes are CAN ID, so ignore those
                     return Ok(msg.data[4..msg.data_size as usize].to_vec());

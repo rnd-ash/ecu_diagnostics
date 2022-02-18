@@ -118,7 +118,8 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         let mut device = self.device.lock()?;
         let channel = socketcan::CANSocket::open(&device.info.name)?;
         channel.filter_accept_all()?;
-        channel.set_read_timeout(std::time::Duration::from_millis(1))?;
+        channel.set_nonblocking(false);
+        //channel.set_read_timeout(std::time::Duration::from_millis(1))?;
         self.channel = Some(channel);
         device.canbus_active = true;
         Ok(())
@@ -241,7 +242,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             rx_ext_address = self.ids.1 as u8;
         }
 
-        let opts: IsoTpOptions = IsoTpOptions::new(flags, std::time::Duration::from_millis(0), ext_address, 0x00, 0x00, rx_ext_address).unwrap();
+        let opts: IsoTpOptions = IsoTpOptions::new(flags, std::time::Duration::from_millis(10), ext_address, 0x00, 0x00, rx_ext_address).unwrap();
         let link_opts: LinkLayerOptions = LinkLayerOptions::default();
         let socket = socketcan_isotp::IsoTpSocket::open_with_opts(
             &device.info.name, 

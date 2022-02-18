@@ -13,7 +13,6 @@
 //! OBD2 is designed to be safe and simple, and does not write data to the ECU.
 //!
 //!
-//!
 //! ### Keyword protocol 2000 (KWP2000)
 //! ISO14230 - KWP2000 is a advanced diagnostic protocol utilized by many vehicle manufacturers from 2000-2006 (Superseded by UDS).
 //! Unlike OBD2, KWP2000 allows for much more complex operations, which could potentially cause damage to a vehicle if used incorrectly.  
@@ -26,6 +25,7 @@
 //!
 //! The specification implemented in this crate is v2.2, dated 05-08-2002
 //!
+//! 
 //! ### Unified diagnostic services (UDS)
 //! ISO14429 - UDS is an advanced diagnostic protocol utilized by almost all vehicle manufacturers from 2006 onwards. Like KWP2000,
 //! this protocol allows for reading/writing directly to the ECU, and should therefore be used with caution.
@@ -49,7 +49,7 @@ pub mod obd2;
 pub mod uds;
 pub mod dynamic_diag;
 
-mod helpers;
+pub mod helpers;
 
 /// Version of compiled crate
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -63,7 +63,7 @@ pub enum DiagError {
     /// The Diagnostic server does not support the request
     NotSupported,
     /// Diagnostic error code from the ECU itself
-    ECUError{
+    ECUError {
         /// Raw Negative response code from ECU
         code: u8, 
         /// Negative response code definition according to protocol
