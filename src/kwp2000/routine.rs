@@ -107,7 +107,7 @@ impl<'a> KwpRoutineManager<'a> {
             return Err(DiagError::ParameterInvalid) // Unsupported by the spec, might have undefined behavior. Ignore!
         }
         // We have to be in extended mode for routine management to work!
-        super::set_diagnostic_session_mode(server, super::SessionType::ExtendedDiagnostics)?;
+        server.set_diagnostic_session_mode(super::SessionType::ExtendedDiagnostics)?;
         Ok(Self {
             server,
             r_id: rid,

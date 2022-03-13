@@ -28,7 +28,7 @@ impl<'a> IOCTLManager<'a> {
     /// * server - KWP2000 server reference
     pub fn new(identifier: u8, server: &'a mut super::Kwp2000DiagnosticServer) -> DiagServerResult<Self> {
         // We need to be in extended mode for this SID to work, so try now
-        super::set_diagnostic_session_mode(server, super::SessionType::ExtendedDiagnostics)?;
+        server.set_diagnostic_session_mode(super::SessionType::ExtendedDiagnostics)?;
         Ok(Self {
             identifier,
             server

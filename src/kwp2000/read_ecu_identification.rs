@@ -150,89 +150,7 @@ pub struct BlockIdentification {
     pub part_number: String,
 }
 
-/// Reads Daimler ECU identification from ECU
-pub fn read_daimler_identification(
-    server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<DaimlerEcuIdent> {
-    let res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x86])?;
-    if res.len() != 18 {
-        return Err(DiagError::InvalidResponseLength);
-    }
-    Ok(DaimlerEcuIdent {
-        part_number: bcd_decode_slice(&res[2..=6], None),
-        ecu_hw_build_week: res[7],
-        ecu_hw_build_year: res[8],
-        ecu_sw_build_week: res[9],
-        ecu_sw_build_year: res[10],
-        supplier: res[11],
-        diag_info: DiagnosticInfo([res[12], res[13]]),
-        ecu_production_year: res[15],
-        ecu_production_month: res[16],
-        ecu_production_day: res[17],
-    })
-}
-
-/// Reads Daimler and MMC ECU identification from ECU
-pub fn read_daimler_mmc_identification(
-    server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<DaimlerMmcEcuIdent> {
-    let res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x87])?;
-    if res.len() != 22 {
-        return Err(DiagError::InvalidResponseLength);
-    }
-    Ok(DaimlerMmcEcuIdent {
-        ecu_origin: res[2],
-        supplier: res[3],
-        diag_info: DiagnosticInfo([res[4], res[5]]),
-        hw_version: bcd_decode_slice(&res[7..=8], Some(".")),
-        sw_version: bcd_decode_slice(&res[9..=11], Some(".")),
-        part_number: String::from_utf8_lossy(&res[12..]).to_string(),
-    })
-}
-
-/// Reads the original VIN programmed onto the ECU from the manufacturer
-pub fn read_original_vin(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<String> {
-    let res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x88])?;
-    Ok(String::from_utf8_lossy(&res[2..]).to_string())
-}
-
-/// Reads the unique diagnostic variant code of the ECU
-pub fn read_diagnostic_variant_code(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<u32> {
-    let res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x89])?;
-    if res.len() != 6 {
-        return Err(DiagError::InvalidResponseLength);
-    }
-    Ok((res[2] as u32) << 24 | (res[3] as u32) << 16 | (res[4] as u32) << 8 | res[5] as u32)
-}
-
-/// Reads the current VIN stored on the ECU
-pub fn read_current_vin(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<String> {
-    let res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x90])?;
-    Ok(String::from_utf8_lossy(&res[2..]).to_string())
-}
-
-/// Reads the OBD Calibration ID from the ECU.
-pub fn read_calibration_id(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<String> {
-    let res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x96])?;
-    Ok(String::from_utf8_lossy(&res[2..]).to_string())
-}
-
-/// Reads the calibration verification number from the ECU
-pub fn read_cvn(server: &mut Kwp2000DiagnosticServer) -> DiagServerResult<[u8; 4]> {
-    let res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x97])?;
-    if res.len() != 6 {
-        return Err(DiagError::InvalidResponseLength);
-    }
-    Ok([res[2], res[3], res[4], res[5]])
-}
-
+/// Helper function for decoding ECU module info
 fn decode_module_info(res: &mut Vec<u8>) -> DiagServerResult<ModuleInformation> {
     let active_logical_blocks = res[3];
     res.drain(0..4);
@@ -264,24 +182,6 @@ fn decode_module_info(res: &mut Vec<u8>) -> DiagServerResult<ModuleInformation> 
     })
 }
 
-/// Reads module information from the ECU's code block
-pub fn read_ecu_code_fingerprint(
-    server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<ModuleInformation> {
-    let mut res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9A])?;
-    decode_module_info(&mut res)
-}
-
-/// Reads module information from the ECU's data block
-pub fn read_ecu_data_fingerprint(
-    server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<ModuleInformation> {
-    let mut res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9B])?;
-    decode_module_info(&mut res)
-}
-
 fn decode_block_ident(res: &mut Vec<u8>) -> DiagServerResult<SoftwareBlockIdentification> {
     let origin = res[3];
 
@@ -304,38 +204,142 @@ fn decode_block_ident(res: &mut Vec<u8>) -> DiagServerResult<SoftwareBlockIdenti
     Ok(SoftwareBlockIdentification { origin, blocks })
 }
 
-/// Reads code identification information from the ECU's code block
-pub fn read_ecu_code_software_id(
-    server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<SoftwareBlockIdentification> {
-    let mut res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9C])?;
-    decode_block_ident(&mut res)
-}
+impl super::Kwp2000DiagnosticServer {
 
-/// Reads code identification information from the ECU's data block
-pub fn read_ecu_data_software_id(
-    server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<SoftwareBlockIdentification> {
-    let mut res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9D])?;
-    decode_block_ident(&mut res)
-}
+    /// Reads Daimler ECU identification from ECU
+    pub fn read_daimler_identification(
+        server: &mut Kwp2000DiagnosticServer,
+    ) -> DiagServerResult<DaimlerEcuIdent> {
+        let res =
+            server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x86])?;
+        if res.len() != 18 {
+            return Err(DiagError::InvalidResponseLength);
+        }
+        Ok(DaimlerEcuIdent {
+            part_number: bcd_decode_slice(&res[2..=6], None),
+            ecu_hw_build_week: res[7],
+            ecu_hw_build_year: res[8],
+            ecu_sw_build_week: res[9],
+            ecu_sw_build_year: res[10],
+            supplier: res[11],
+            diag_info: DiagnosticInfo([res[12], res[13]]),
+            ecu_production_year: res[15],
+            ecu_production_month: res[16],
+            ecu_production_day: res[17],
+        })
+    }
 
-/// Reads code identification information from the ECU's boot block
-pub fn read_ecu_boot_software_id(
-    server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<SoftwareBlockIdentification> {
-    let mut res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9E])?;
-    decode_block_ident(&mut res)
-}
+    /// Reads Daimler and MMC ECU identification from ECU
+    pub fn read_daimler_mmc_identification(
+        server: &mut Kwp2000DiagnosticServer,
+    ) -> DiagServerResult<DaimlerMmcEcuIdent> {
+        let res =
+            server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x87])?;
+        if res.len() != 22 {
+            return Err(DiagError::InvalidResponseLength);
+        }
+        Ok(DaimlerMmcEcuIdent {
+            ecu_origin: res[2],
+            supplier: res[3],
+            diag_info: DiagnosticInfo([res[4], res[5]]),
+            hw_version: bcd_decode_slice(&res[7..=8], Some(".")),
+            sw_version: bcd_decode_slice(&res[9..=11], Some(".")),
+            part_number: String::from_utf8_lossy(&res[12..]).to_string(),
+        })
+    }
 
-/// Reads code identification information from the ECU's boot block
-pub fn read_ecu_boot_fingerprint(
-    server: &mut Kwp2000DiagnosticServer,
-) -> DiagServerResult<ModuleInformation> {
-    let mut res =
-        server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9F])?;
-    decode_module_info(&mut res)
+    /// Reads the original VIN programmed onto the ECU from the manufacturer
+    pub fn read_original_vin(&mut self) -> DiagServerResult<String> {
+        let res =
+            self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x88])?;
+        Ok(String::from_utf8_lossy(&res[2..]).to_string())
+    }
+
+    /// Reads the unique diagnostic variant code of the ECU
+    pub fn read_diagnostic_variant_code(&mut self) -> DiagServerResult<u32> {
+        let res =
+        self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x89])?;
+        if res.len() != 6 {
+            return Err(DiagError::InvalidResponseLength);
+        }
+        Ok((res[2] as u32) << 24 | (res[3] as u32) << 16 | (res[4] as u32) << 8 | res[5] as u32)
+    }
+
+    /// Reads the current VIN stored on the ECU
+    pub fn read_current_vin(&mut self) -> DiagServerResult<String> {
+        let res =
+        self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x90])?;
+        Ok(String::from_utf8_lossy(&res[2..]).to_string())
+    }
+
+    /// Reads the OBD Calibration ID from the ECU.
+    pub fn read_calibration_id(&mut self) -> DiagServerResult<String> {
+        let res =
+        self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x96])?;
+        Ok(String::from_utf8_lossy(&res[2..]).to_string())
+    }
+
+    /// Reads the calibration verification number from the ECU
+    pub fn read_cvn(&mut self) -> DiagServerResult<[u8; 4]> {
+        let res =
+        self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x97])?;
+        if res.len() != 6 {
+            return Err(DiagError::InvalidResponseLength);
+        }
+        Ok([res[2], res[3], res[4], res[5]])
+    }
+
+    /// Reads module information from the ECU's code block
+    pub fn read_ecu_code_fingerprint(
+        &mut self,
+    ) -> DiagServerResult<ModuleInformation> {
+        let mut res =
+            self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9A])?;
+        decode_module_info(&mut res)
+    }
+
+    /// Reads module information from the ECU's data block
+    pub fn read_ecu_data_fingerprint(
+        &mut self,
+    ) -> DiagServerResult<ModuleInformation> {
+        let mut res =
+        self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9B])?;
+        decode_module_info(&mut res)
+    }
+
+    /// Reads code identification information from the ECU's code block
+    pub fn read_ecu_code_software_id(
+        &mut self,
+    ) -> DiagServerResult<SoftwareBlockIdentification> {
+        let mut res =
+        self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9C])?;
+        decode_block_ident(&mut res)
+    }
+
+    /// Reads code identification information from the ECU's data block
+    pub fn read_ecu_data_software_id(
+        &mut self,
+    ) -> DiagServerResult<SoftwareBlockIdentification> {
+        let mut res =
+        self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9D])?;
+        decode_block_ident(&mut res)
+    }
+
+    /// Reads code identification information from the ECU's boot block
+    pub fn read_ecu_boot_software_id(
+        &mut self,
+    ) -> DiagServerResult<SoftwareBlockIdentification> {
+        let mut res =
+        self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9E])?;
+        decode_block_ident(&mut res)
+    }
+
+    /// Reads code identification information from the ECU's boot block
+    pub fn read_ecu_boot_fingerprint(
+        &mut self,
+    ) -> DiagServerResult<ModuleInformation> {
+        let mut res =
+        self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x9F])?;
+        decode_module_info(&mut res)
+    }
 }
