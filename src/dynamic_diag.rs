@@ -3,7 +3,7 @@
 
 use std::{borrow::BorrowMut, sync::{Arc, Mutex}};
 
-use crate::{DiagError, DiagServerResult, channel::{IsoTPSettings}, dtc::DTC, hardware::Hardware, kwp2000::{self, Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler}, uds::{self, UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler}, DiagnosticServer};
+use crate::{DiagError, DiagServerResult, channel::{IsoTPSettings}, dtc::DTC, hardware::Hardware, kwp2000::{self, Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler}, uds::{self, UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler, UDSSessionType}, DiagnosticServer};
 
 
 /// Dynamic diagnostic session
@@ -59,10 +59,10 @@ impl DynamicDiagSession {
             tester_present_require_response: true 
         }, iso_tp_channel, channel_cfg, Kwp2000VoidHandler{}) {
             Ok(mut kwp) => {
-                if kwp2000::set_diagnostic_session_mode(&mut kwp, kwp2000::SessionType::ExtendedDiagnostics).is_ok() {
+                if kwp.set_diagnostic_session_mode(kwp2000::SessionType::ExtendedDiagnostics).is_ok() {
                     // KWP accepted! The ECU supports KWP2000!
                     // Return the ECU back to normal mode
-                    kwp2000::set_diagnostic_session_mode(&mut kwp, kwp2000::SessionType::Normal);
+                    kwp.set_diagnostic_session_mode(kwp2000::SessionType::Normal);
                     return Ok(Self {
                         session: DynamicSessionType::Kwp(kwp)
                     })
@@ -84,10 +84,10 @@ impl DynamicDiagSession {
             tester_present_require_response: true 
         }, iso_tp_channel, channel_cfg, UdsVoidHandler{}) {
             Ok(mut uds) => {
-                if uds::set_extended_mode(&mut uds).is_ok() {
-                    // KWP accepted! The ECU supports KWP2000!
+                if  uds.set_session_mode(UDSSessionType::Extended).is_ok() {
+                    // UDS accepted! The ECU supports UDS!
                     // Return the ECU back to normal mode
-                    uds::set_default_mode(&mut uds);
+                    uds.set_session_mode(UDSSessionType::Default);
                     return Ok(Self {
                         session: DynamicSessionType::Uds(uds)
                     })
@@ -142,10 +142,10 @@ impl DynamicDiagSession {
     pub fn enter_extended_diagnostic_mode(&mut self) -> DiagServerResult<()> {
         match self.session.borrow_mut() {
             DynamicSessionType::Kwp(k) => {
-                kwp2000::set_diagnostic_session_mode(k, kwp2000::SessionType::ExtendedDiagnostics)
+                k.set_diagnostic_session_mode(kwp2000::SessionType::ExtendedDiagnostics)
             },
             DynamicSessionType::Uds(u) => {
-                uds::set_extended_mode(u)
+                u.set_session_mode(UDSSessionType::Extended)
             },
         }
     }
@@ -154,10 +154,10 @@ impl DynamicDiagSession {
     pub fn enter_default_diagnostic_mode(&mut self) -> DiagServerResult<()> {
         match self.session.borrow_mut() {
             DynamicSessionType::Kwp(k) => {
-                kwp2000::set_diagnostic_session_mode(k, kwp2000::SessionType::Normal)
+                k.set_diagnostic_session_mode(kwp2000::SessionType::Normal)
             },
             DynamicSessionType::Uds(u) => {
-                uds::set_default_mode(u)
+                u.set_session_mode(UDSSessionType::Default)
             },
         }
     }
@@ -166,10 +166,10 @@ impl DynamicDiagSession {
     pub fn read_all_dtcs(&mut self) -> DiagServerResult<Vec<DTC>> {
         match self.session.borrow_mut() {
             DynamicSessionType::Kwp(k) => {
-                kwp2000::read_stored_dtcs(k, kwp2000::DTCRange::All)
+                k.read_stored_dtcs(kwp2000::DTCRange::All)
             },
             DynamicSessionType::Uds(u) => {
-                uds::get_dtcs_by_status_mask(u, 0xFF)
+                u.get_dtcs_by_status_mask(0xFF)
             },
         }
     }
@@ -178,10 +178,10 @@ impl DynamicDiagSession {
     pub fn clear_all_dtcs(&mut self) -> DiagServerResult<()> {
         match self.session.borrow_mut() {
             DynamicSessionType::Kwp(k) => {
-                kwp2000::clear_dtc(k, kwp2000::ClearDTCRange::AllDTCs)
+                k.clear_dtc_range(kwp2000::ClearDTCRange::AllDTCs)
             },
             DynamicSessionType::Uds(u) => {
-                uds::clear_diagnostic_information(u, 0x00FFFFFF)
+                u.clear_diagnostic_information(0x00FFFFFF)
             },
         }
     }

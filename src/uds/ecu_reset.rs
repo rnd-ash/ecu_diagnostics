@@ -52,64 +52,67 @@ impl From<ResetType> for u8 {
     }
 }
 
-/// Asks the ECU to perform a hard reset. See [ResetType::HardReset] for more details
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-pub fn ecu_hard_reset(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-    server
-        .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::HardReset.into()])
-        .map(|_| ())
-}
-
-/// Asks the ECU to perform a key off/on reset. See [ResetType::KeyOffReset] for more details
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-pub fn ecu_key_off_on_reset(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-    server
-        .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::KeyOffReset.into()])
-        .map(|_| ())
-}
-
-/// Asks the ECU to perform a soft reset. See [ResetType::SoftReset] for more details
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-pub fn ecu_soft_reset(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-    server
-        .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::SoftReset.into()])
-        .map(|_| ())
-}
-
-/// Asks the ECU to enable rapid power shutdown mode. See [ResetType::EnableRapidPowerShutDown] for more details
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-///
-/// ## Returns
-/// If successful, this function will return the minimum time in seconds that the ECU will remain in the power-down sequence
-pub fn enable_rapid_power_shutdown(server: &mut UdsDiagnosticServer) -> DiagServerResult<u8> {
-    let res = server.execute_command_with_response(
-        UDSCommand::ECUReset,
-        &[ResetType::EnableRapidPowerShutDown.into()],
-    )?;
-    match res.get(2) {
-        Some(&time) if time == 0xFF => Err(DiagError::ECUError {code: 0x10, def: Some(lookup_uds_nrc(0x10))}), // General reject
-        Some(&time) => Ok(time),
-        None => Err(DiagError::InvalidResponseLength),
+impl super::UdsDiagnosticServer {
+    /// Asks the ECU to perform a hard reset. See [ResetType::HardReset] for more details
+    ///
+    /// ## Parameters
+    /// * server - The UDS Diagnostic server
+    pub fn ecu_hard_reset(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
+        server
+            .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::HardReset.into()])
+            .map(|_| ())
     }
-}
 
-/// Asks the ECU to disable rapid power shutdown mode
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-pub fn disable_rapid_power_shutdown(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-    server
-        .execute_command_with_response(
+    /// Asks the ECU to perform a key off/on reset. See [ResetType::KeyOffReset] for more details
+    ///
+    /// ## Parameters
+    /// * server - The UDS Diagnostic server
+    pub fn ecu_key_off_on_reset(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
+        server
+            .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::KeyOffReset.into()])
+            .map(|_| ())
+    }
+
+    /// Asks the ECU to perform a soft reset. See [ResetType::SoftReset] for more details
+    ///
+    /// ## Parameters
+    /// * server - The UDS Diagnostic server
+    pub fn ecu_soft_reset(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
+        server
+            .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::SoftReset.into()])
+            .map(|_| ())
+    }
+
+    /// Asks the ECU to enable rapid power shutdown mode. See [ResetType::EnableRapidPowerShutDown] for more details
+    ///
+    /// ## Parameters
+    /// * server - The UDS Diagnostic server
+    ///
+    /// ## Returns
+    /// If successful, this function will return the minimum time in seconds that the ECU will remain in the power-down sequence
+    pub fn enable_rapid_power_shutdown(server: &mut UdsDiagnosticServer) -> DiagServerResult<u8> {
+        let res = server.execute_command_with_response(
             UDSCommand::ECUReset,
-            &[ResetType::DisableRapidPowerShutDown.into()],
-        )
-        .map(|_| ())
+            &[ResetType::EnableRapidPowerShutDown.into()],
+        )?;
+        match res.get(2) {
+            Some(&time) if time == 0xFF => Err(DiagError::ECUError {code: 0x10, def: Some(lookup_uds_nrc(0x10))}), // General reject
+            Some(&time) => Ok(time),
+            None => Err(DiagError::InvalidResponseLength),
+        }
+    }
+
+    /// Asks the ECU to disable rapid power shutdown mode
+    ///
+    /// ## Parameters
+    /// * server - The UDS Diagnostic server
+    pub fn disable_rapid_power_shutdown(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
+        server
+            .execute_command_with_response(
+                UDSCommand::ECUReset,
+                &[ResetType::DisableRapidPowerShutDown.into()],
+            )
+            .map(|_| ())
+    }
+
 }
