@@ -168,7 +168,10 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
     }
 
     fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
-        Ok(())
+        self.safe_with_iface(|iface| {
+            while iface.read_frame().is_ok(){} // Keep reading until we drain the buffer
+            Ok(())
+        })
     }
 
     fn clear_tx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
@@ -303,7 +306,10 @@ impl PayloadChannel for SocketCanIsoTPChannel {
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
-        Ok(())
+        self.safe_with_iface(|socket| {
+            while socket.read().is_ok(){}
+            Ok(())
+        })
     }
 
     fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
