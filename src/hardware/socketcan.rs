@@ -47,9 +47,6 @@ impl SocketCanDevice {
 impl Hardware for SocketCanDevice {
     fn create_iso_tp_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::IsoTPChannel>> {
         let device = this.lock()?;
-        if device.canbus_active {
-            return Err(HardwareError::ConflictingChannel)
-        }
         Ok(Box::new(SocketCanIsoTPChannel {
             device: this.clone(),
             channel: None,
@@ -61,9 +58,6 @@ impl Hardware for SocketCanDevice {
 
     fn create_can_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::CanChannel>> {
         let device = this.lock()?;
-        if device.isotp_active {
-            return Err(HardwareError::ConflictingChannel)
-        }
         Ok(Box::new(SocketCanCanChannel {
             device: this.clone(),
             channel: None,
