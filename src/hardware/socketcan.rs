@@ -46,7 +46,6 @@ impl SocketCanDevice {
 
 impl Hardware for SocketCanDevice {
     fn create_iso_tp_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::IsoTPChannel>> {
-        let device = this.lock()?;
         Ok(Box::new(SocketCanIsoTPChannel {
             device: this.clone(),
             channel: None,
@@ -57,7 +56,6 @@ impl Hardware for SocketCanDevice {
     }
 
     fn create_can_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::CanChannel>> {
-        let device = this.lock()?;
         Ok(Box::new(SocketCanCanChannel {
             device: this.clone(),
             channel: None,
@@ -112,8 +110,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         let mut device = self.device.lock()?;
         let channel = socketcan::CANSocket::open(&device.info.name)?;
         channel.filter_accept_all()?;
-        channel.set_nonblocking(false);
-        //channel.set_read_timeout(std::time::Duration::from_millis(1))?;
+        channel.set_nonblocking(false)?;
         self.channel = Some(channel);
         device.canbus_active = true;
         Ok(())
@@ -193,6 +190,7 @@ impl Drop for SocketCanCanChannel {
 pub struct SocketCanIsoTPChannel {
     device: Arc<Mutex<SocketCanDevice>>,
     channel: Option<socketcan_isotp::IsoTpSocket>,
+    /// Tx ID, Rx ID
     ids: (u32, u32),
     cfg: IsoTPSettings,
     cfg_complete: bool,
@@ -306,9 +304,50 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 
     /// Writes bytes to socketcan socket.
     /// 
-    /// NOTE: There is currently a bug where addr is ignored! See <https://github.com/rnd-ash/ecu_diagnostics/issues/1>
-    fn write_bytes(&mut self, addr: u32, buffer: &[u8], _timeout_ms: u32) -> ChannelResult<()> {
-        let _dummy = addr;
+    /// NOTE: Due to how ISO-TP channeling on SocketCAN works, there is a limitation when sending on a different address
+    /// to what was defined in [Self::set_iso_tp_cfg]. It should work for most alternate address messages (EG: Global tester present),
+    /// but longer messages will fail.
+    /// 
+    /// If `buffer` is less than 7 bytes (With Standard ISO-TP addressing), or less than 6 bytes (With Extended ISO-TP addressing),
+    /// this function will attempt to open a parallel socketCAN channel in order to send an ISO-TP single frame request on the alternate requested
+    /// address.
+    ///
+    /// If `buffer` is more than 7 bytes and you request on an alternate address, then this function will fail with [ChannelError::UnsupportedRequest]
+    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+        // Work around for issue #1
+        // If the buffer is less than 7/6 bytes, we can send it as 1 frame (Usually for global tester present msg)
+        // If this is the case, we can simply open a socketCAN channel to send that frame in parallel to the ISO-TP channel already open!
+        if addr != self.ids.0 {
+            if (buffer.len() <= 7 && !self.cfg.extended_addressing) || (buffer.len() <= 6 && self.cfg.extended_addressing) {
+                let mut can_id = 0x00;
+                let mut data = Vec::new();
+                if self.cfg.extended_addressing { // Std ISO-TP addr
+                    data.push((addr & 0xFF) as u8);
+                    data.push(buffer.len() as u8);
+                    can_id = (addr >> 8) & 0xFFFF;
+                } else { // Ext ISO-TP addr
+                    data.push(buffer.len() as u8);
+                    can_id = addr;
+                }
+                data.extend_from_slice(buffer); // Push Tx Data
+
+                if self.cfg.pad_frame {
+                    // Pad to 8 bytes
+                    data.resize(8, 0x00);
+                }
+
+                let can_frame = CanFrame::new(can_id, &data, self.cfg.can_use_ext_addr);
+
+                let mut channel = Hardware::create_can_channel(self.device.clone())?;
+                channel.open()?;
+                channel.write_packets(vec![can_frame], timeout_ms)?;
+                std::mem::drop(channel);
+                return Ok(())
+            } else {
+                return Err(ChannelError::UnsupportedRequest)
+            }
+        }
+
         self.safe_with_iface(|socket| {
             socket.write(buffer)?;
             Ok(())
@@ -330,6 +369,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 impl IsoTPChannel for SocketCanIsoTPChannel {
     fn set_iso_tp_cfg(&mut self, cfg: crate::channel::IsoTPSettings) -> ChannelResult<()> {
         self.cfg = cfg;
+        // Try to set the baudrate
         self.cfg_complete = true;
         Ok(())
     }
