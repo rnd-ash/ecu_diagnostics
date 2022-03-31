@@ -28,15 +28,15 @@ members = [
 
 [dependencies]
 j2534_rust = "1.0"
-serde_json = "1.0"
-libloading = "0.7.0"
+serde_json = "1.0.79"
+libloading = "0.7.3"
 env_logger="0.9.0"
-log="0.4.14"
+log="0.4.16"
 
 [target.'cfg(windows)'.dependencies]
-winreg = "0.8"
+winreg = "0.10.1"
 
 [target.'cfg(unix)'.dependencies]
-shellexpand = "2.0.0"
-socketcan-isotp = "0.1.1"
+shellexpand = "2.1.0"
+socketcan-isotp = "1.0.0"
 socketcan = "1.7.0"
