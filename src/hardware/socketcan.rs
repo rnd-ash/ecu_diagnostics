@@ -2,7 +2,7 @@
 
 use std::{sync::{Arc, Mutex}, time::Instant};
 
-use socketcan_isotp::{IsoTpBehaviour, IsoTpOptions, LinkLayerOptions};
+use socketcan_isotp::{IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, Id, StandardId, ExtendedId};
 
 use crate::channel::{CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet, PacketChannel, PayloadChannel};
 
@@ -241,10 +241,26 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 
         let opts: IsoTpOptions = IsoTpOptions::new(flags, std::time::Duration::from_millis(10), ext_address, 0x00, 0x00, rx_ext_address).unwrap();
         let link_opts: LinkLayerOptions = LinkLayerOptions::default();
+
+        let (tx_id, rx_id) = match self.cfg.extended_addressing {
+            true => {
+                (
+                    Id::Extended(unsafe { ExtendedId::new_unchecked(self.ids.0) }),
+                    Id::Extended(unsafe { ExtendedId::new_unchecked(self.ids.1) })
+                )
+            },
+            false => {
+                (
+                    Id::Standard(unsafe { StandardId::new_unchecked(self.ids.0 as u16) }),
+                    Id::Standard(unsafe { StandardId::new_unchecked(self.ids.1 as u16) })
+                )
+            }
+        };
+
         let socket = socketcan_isotp::IsoTpSocket::open_with_opts(
             &device.info.name, 
-            self.ids.1, 
-            self.ids.0,
+            tx_id, 
+            rx_id,
             Some(opts),
             None,
             Some(link_opts)
