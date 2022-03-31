@@ -5,7 +5,7 @@ use crate::{DiagServerResult, DiagnosticServer};
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
     /// Tells the ECU to switch off its normal communication paths with other ECUs.
     /// Normally message transmission will be resumed if the ECU looses power, or if
     /// [enable_normal_message_transmission] is called.

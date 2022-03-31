@@ -2,8 +2,6 @@
 // Since presentations are used for both Service01 and Service02,
 // They will be kept in this file
 
-use j2534_rust::DataBits;
-
 use crate::{DiagServerResult, DiagError};
 
 pub enum ObdValueType {

@@ -33,7 +33,7 @@ impl From<ResetMode> for u8 {
     }
 }
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
     /// Performs an ECU Reset operation
     ///
     /// ## Params

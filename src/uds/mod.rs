@@ -8,7 +8,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
     },
-    thread::JoinHandle,
     time::Instant,
 };
 
@@ -403,7 +402,6 @@ pub struct UdsDiagnosticServer {
     settings: UdsServerOptions,
     tx: mpsc::Sender<UdsCmd>,
     rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
-    join_handler: JoinHandle<()>,
     repeat_count: u32,
     repeat_interval: std::time::Duration,
     dtc_format: Option<DTCFormatType>, // Used as a cache
@@ -441,7 +439,7 @@ impl UdsDiagnosticServer {
         let (tx_cmd, rx_cmd) = mpsc::channel::<UdsCmd>();
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
-        let handle = std::thread::spawn(move || {
+        std::thread::spawn(move || {
             let mut send_tester_present = false;
             let mut last_tester_present_time: Instant = Instant::now();
 
@@ -553,7 +551,6 @@ impl UdsDiagnosticServer {
             tx: tx_cmd,
             rx: rx_res,
             settings,
-            join_handler: handle,
             repeat_count: 3,
             repeat_interval: std::time::Duration::from_millis(1000),
             dtc_format: None,

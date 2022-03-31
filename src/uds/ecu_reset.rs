@@ -52,7 +52,7 @@ impl From<ResetType> for u8 {
     }
 }
 
-impl super::UdsDiagnosticServer {
+impl UdsDiagnosticServer {
     /// Asks the ECU to perform a hard reset. See [ResetType::HardReset] for more details
     ///
     /// ## Parameters

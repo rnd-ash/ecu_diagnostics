@@ -53,7 +53,7 @@ impl From<SessionType> for u8 {
     }
 }
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
     /// Sets the ECU into a diagnostic mode
     ///
     /// ## Parameters

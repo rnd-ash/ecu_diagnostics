@@ -20,6 +20,3 @@
 //! Additionally, the protocol also supports the following IP based protocols:
 //! * ISO14229-5 on ISO 13400-2 (DoIP)
 //!
-
-mod lib_funcs;
-mod c_types;

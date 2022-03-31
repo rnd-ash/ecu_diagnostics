@@ -53,7 +53,7 @@ pub struct PassthruScanner {
     devices: Vec<PassthruInfo>,
 }
 
-impl std::default::Default for PassthruScanner {
+impl Default for PassthruScanner {
     fn default() -> Self {
         Self::new()
     }
@@ -116,21 +116,21 @@ impl PassthruScanner {
 }
 
 impl super::HardwareScanner<PassthruDevice> for PassthruScanner {
-    fn list_devices(&self) -> Vec<super::HardwareInfo> {
+    fn list_devices(&self) -> Vec<HardwareInfo> {
         self.devices.iter().map(|x| x.into()).collect()
     }
 
     fn open_device_by_index(
         &self,
         idx: usize,
-    ) -> super::HardwareResult<Arc<Mutex<PassthruDevice>>> {
+    ) -> HardwareResult<Arc<Mutex<PassthruDevice>>> {
         match self.devices.get(idx) {
             Some(info) => Ok(Arc::new(Mutex::new(PassthruDevice::open_device(info)?))),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
 
-    fn open_device_by_name(&self, name: &str) -> super::HardwareResult<Arc<Mutex<PassthruDevice>>> {
+    fn open_device_by_name(&self, name: &str) -> HardwareResult<Arc<Mutex<PassthruDevice>>> {
         match self.devices.iter().find(|s| s.name == name) {
             Some(info) => Ok(Arc::new(Mutex::new(PassthruDevice::open_device(info)?))),
             None => Err(HardwareError::DeviceNotFound),
@@ -376,6 +376,7 @@ impl super::Hardware for PassthruDevice {
         Ok(Box::new(can_channel))
     }
 
+    #[allow(trivial_casts)]
     fn read_battery_voltage(&mut self) -> Option<f32> {
         let mut output: u32 = 0;
         match self.safe_passthru_op(|idx, drv: PassthruDrv| {
@@ -391,6 +392,7 @@ impl super::Hardware for PassthruDevice {
         }
     }
 
+    #[allow(trivial_casts)]
     fn read_ignition_voltage(&mut self) -> Option<f32> {
         let mut output: u32 = 0;
         match self.safe_passthru_op(|idx, drv: PassthruDrv| {
@@ -438,7 +440,7 @@ impl PassthruCanChannel {
 }
 
 impl CanChannel for PassthruCanChannel {
-    fn set_can_cfg(&mut self, baud: u32, use_extended: bool) -> crate::channel::ChannelResult<()> {
+    fn set_can_cfg(&mut self, baud: u32, use_extended: bool) -> ChannelResult<()> {
         self.baud = baud;
         self.use_ext = use_extended;
         Ok(())
@@ -446,7 +448,7 @@ impl CanChannel for PassthruCanChannel {
 }
 
 impl PacketChannel<CanFrame> for PassthruCanChannel {
-    fn open(&mut self) -> crate::channel::ChannelResult<()> {
+    fn open(&mut self) -> ChannelResult<()> {
         let mut device = self.device.lock()?;
         // Already open, ignore request
         if self.channel_id.is_some() {
@@ -492,7 +494,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             Ok(_) => Ok(()), // Channel setup complete
             Err(e) => {
                 // Oops! Teardown
-                std::mem::drop(device);
+                drop(device);
                 if let Err(e) = self.close() {
                     eprintln!("TODO PT close failed! {}", e)
                 }
@@ -500,7 +502,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             }
         }
     }
-    fn close(&mut self) -> crate::channel::ChannelResult<()> {
+    fn close(&mut self) -> ChannelResult<()> {
         let mut device = self.device.lock()?;
         // Channel already closed, ignore request
         if self.channel_id.is_none() {
@@ -519,7 +521,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         &mut self,
         packets: Vec<CanFrame>,
         timeout_ms: u32,
-    ) -> crate::channel::ChannelResult<()> {
+    ) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         let mut msgs: Vec<PASSTHRU_MSG> = packets.iter().map(|f| f.into()).collect();
         self.device
@@ -533,7 +535,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         &mut self,
         max: usize,
         timeout_ms: u32,
-    ) -> crate::channel::ChannelResult<Vec<CanFrame>> {
+    ) -> ChannelResult<Vec<CanFrame>> {
         let channel_id = self.get_channel_id()?;
         match self
             .device
@@ -545,7 +547,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         }
     }
 
-    fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         self.device
             .lock()?
@@ -560,7 +562,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             .map_err(|e| e.into())
     }
 
-    fn clear_tx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         self.device
             .lock()?
@@ -666,7 +668,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
             Ok(_) => Ok(()), // Channel setup complete
             Err(e) => {
                 // Oops! Teardown
-                std::mem::drop(device);
+                drop(device);
                 if let Err(e) = self.close() {
                     eprintln!("TODO PT close failed! {}", e)
                 }
@@ -802,7 +804,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
 }
 
 impl<'a> IsoTPChannel for PassthruIsoTpChannel {
-    fn set_iso_tp_cfg(&mut self, cfg: crate::channel::IsoTPSettings) -> ChannelResult<()> {
+    fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()> {
         self.cfg_complete = true;
         self.cfg = cfg;
         Ok(())
@@ -846,8 +848,8 @@ impl From<&PASSTHRU_MSG> for CanFrame {
     }
 }
 
-impl From<j2534_rust::PassthruError> for HardwareError {
-    fn from(err: j2534_rust::PassthruError) -> Self {
+impl From<PassthruError> for HardwareError {
+    fn from(err: PassthruError) -> Self {
         HardwareError::APIError {
             code: err as u32,
             desc: err.to_string().into(),

@@ -1,5 +1,8 @@
-#![deny(missing_docs, missing_debug_implementations)]
-#![allow(dead_code)]
+#![deny(missing_docs,
+    missing_debug_implementations, missing_copy_implementations,
+    trivial_casts, trivial_numeric_casts,
+    unstable_features, unused_imports,
+    unused_import_braces, unused_qualifications)]
 
 //! A crate which provides the most common ECU diagnostic protocols used by modern ECUs in vehicles.
 //!
@@ -87,6 +90,8 @@ pub enum DiagError {
     NotImplemented(String),
     /// Device hardware error
     HardwareError(HardwareError),
+    /// ECU Param ID did not match the request, but the Service ID was correct
+    MismatchedResponse(String)
 }
 
 impl std::fmt::Display for DiagError {
@@ -111,7 +116,8 @@ impl std::fmt::Display for DiagError {
             DiagError::NotImplemented(s) => {
                 write!(f, "server encountered an unimplemented function: {}", s)
             }
-            &DiagError::HardwareError(e) => write!(f, "Hardware error: {}", e),
+            DiagError::HardwareError(e) => write!(f, "Hardware error: {}", e),
+            DiagError::MismatchedResponse(e) => write!(f, "Param mismatched response: {}", e),
         }
     }
 }

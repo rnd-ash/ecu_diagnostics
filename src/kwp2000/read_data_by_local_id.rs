@@ -2,6 +2,8 @@
 
 use crate::{kwp2000::KWP2000Command, DiagError, DiagServerResult, DiagnosticServer};
 
+use super::Kwp2000DiagnosticServer;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Development data of the ECU. Used by [super::Kwp2000DiagnosticServer::read_ecu_development_data]
 pub struct DevelopmentData {
@@ -24,7 +26,7 @@ pub struct DevelopmentData {
     pub flexer_version: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// ECU DBCom data. Used by [super::Kwp2000DiagnosticServer::read_ecu_dbcom_data]
 pub struct DBComData {
     /// Memory address (Flash)
@@ -43,7 +45,7 @@ pub struct DBComData {
     pub uncompressed_memory_size_eeprom: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Vehicle identification. Used by [super::Kwp2000DiagnosticServer::read_ecu_vehicle_info]
 pub struct VehicleInfo {
     /// Vehicle model year
@@ -92,7 +94,7 @@ pub struct DiagGlobalParamData {
     pub process_data: Vec<GlobalProcessData>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Global process data
 pub struct GlobalProcessData {
     /// Unique data ID for the global process data
@@ -103,7 +105,7 @@ pub struct GlobalProcessData {
     pub size: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Diagnostic protocol information. Used by [read_diag_protocol_info]
 pub struct DiagProtocolInfo {
     /// Implemented version of KWP2000 specification
@@ -114,7 +116,7 @@ pub struct DiagProtocolInfo {
     pub diagnostic_level_support: u8,
 }
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
     /// Reads development data from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
     pub fn read_ecu_development_data(
         &mut self,

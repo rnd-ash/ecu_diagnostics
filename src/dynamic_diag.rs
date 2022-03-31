@@ -3,7 +3,7 @@
 
 use std::{borrow::BorrowMut, sync::{Arc, Mutex}};
 
-use crate::{DiagError, DiagServerResult, channel::{IsoTPSettings}, dtc::DTC, hardware::Hardware, kwp2000::{self, Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler}, uds::{self, UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler, UDSSessionType}, DiagnosticServer};
+use crate::{DiagError, DiagServerResult, channel::IsoTPSettings, dtc::DTC, hardware::Hardware, kwp2000::{self, Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler}, uds::{UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler, UDSSessionType}, DiagnosticServer};
 
 
 /// Dynamic diagnostic session
@@ -211,16 +211,16 @@ impl DynamicDiagSession {
     }
 }
 
-impl From<super::kwp2000::Kwp2000DiagnosticServer> for DynamicDiagSession {
-    fn from(s: super::kwp2000::Kwp2000DiagnosticServer) -> Self {
+impl From<Kwp2000DiagnosticServer> for DynamicDiagSession {
+    fn from(s: Kwp2000DiagnosticServer) -> Self {
         Self {
             session: DynamicSessionType::Kwp(s),
         }
     }
 }
 
-impl From<super::uds::UdsDiagnosticServer> for DynamicDiagSession {
-    fn from(s: super::uds::UdsDiagnosticServer) -> Self {
+impl From<UdsDiagnosticServer> for DynamicDiagSession {
+    fn from(s: UdsDiagnosticServer) -> Self {
         Self {
             session: DynamicSessionType::Uds(s),
         }

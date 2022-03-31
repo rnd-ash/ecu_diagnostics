@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use crate::channel::{CanChannel, IsoTPChannel};
 
 /// Hardware API result
-pub type HardwareResult<T> = std::result::Result<T, HardwareError>;
+pub type HardwareResult<T> = Result<T, HardwareError>;
 
 /// The hardware trait defines functions supported by all adapter types,
 /// as well as functions that can create abstracted communication channels

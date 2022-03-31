@@ -3,7 +3,7 @@
 use super::{UDSCommand, UdsDiagnosticServer};
 use crate::{DiagServerResult, DiagnosticServer};
 
-impl super::UdsDiagnosticServer {
+impl UdsDiagnosticServer {
 
     /// Clears diagnostic information (DTCs) from the ECU.
     /// 

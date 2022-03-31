@@ -1,6 +1,6 @@
 //! Module for OBD (ISO-9141)
 
-use std::{sync::{mpsc, atomic::{AtomicBool, Ordering}, Arc}, thread::JoinHandle, time::Instant};
+use std::{sync::{mpsc, atomic::{AtomicBool, Ordering}, Arc}, time::Instant};
 
 use crate::{BaseServerPayload, ServerEventHandler, ServerEvent, BaseServerSettings, DiagServerResult, channel::{IsoTPSettings, IsoTPChannel}, helpers, DiagError, DiagnosticServer};
 
@@ -91,7 +91,7 @@ impl From<u8> for OBD2Error {
 pub struct OBD2Cmd(Vec<u8>);
 
 impl OBD2Cmd {
-    /// Creates a new KWP2000 Payload
+    /// Creates a new OBD2 Payload
     pub fn new(sid: OBD2Command, args: &[u8]) -> Self {
         let mut b: Vec<u8> = Vec::with_capacity(args.len() + 1);
         b.push(u8::from(sid));
@@ -172,7 +172,6 @@ pub struct OBD2DiagnosticServer {
     settings: Obd2ServerOptions,
     tx: mpsc::Sender<OBD2Cmd>,
     rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
-    join_handler: JoinHandle<()>,
     repeat_count: u32,
     repeat_interval: std::time::Duration,
 }
@@ -207,7 +206,7 @@ impl OBD2DiagnosticServer {
         let (tx_cmd, rx_cmd) = mpsc::channel::<OBD2Cmd>();
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
-        let handle = std::thread::spawn(move || {
+        std::thread::spawn(move || {
             log::debug!("OBD2 server start");
             loop {
                 if !is_running_t.load(Ordering::Relaxed) {
@@ -242,7 +241,6 @@ impl OBD2DiagnosticServer {
             tx: tx_cmd,
             rx: rx_res,
             settings,
-            join_handler: handle,
             repeat_count: 3,
             repeat_interval: std::time::Duration::from_millis(1000),
         })

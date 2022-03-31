@@ -17,11 +17,10 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
     },
-    thread::JoinHandle,
     time::Instant,
 };
 
-use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent, ServerEventHandler, channel::{IsoTPChannel, IsoTPSettings, self, PacketChannel}, dtc::DTCFormatType, helpers};
+use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent, ServerEventHandler, channel::{IsoTPChannel, IsoTPSettings}, helpers};
 
 mod clear_diagnostic_information;
 mod ecu_reset;
@@ -382,10 +381,8 @@ pub struct Kwp2000DiagnosticServer {
     settings: Kwp2000ServerOptions,
     tx: mpsc::Sender<Kwp2000Cmd>,
     rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
-    join_handler: JoinHandle<()>,
     repeat_count: u32,
     repeat_interval: std::time::Duration,
-    dtc_format: Option<DTCFormatType>, // Used as a cache
 }
 
 impl Kwp2000DiagnosticServer {
@@ -420,7 +417,7 @@ impl Kwp2000DiagnosticServer {
         let (tx_cmd, rx_cmd) = mpsc::channel::<Kwp2000Cmd>();
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
-        let handle = std::thread::spawn(move || {
+        std::thread::spawn(move || {
             let mut send_tester_present = false;
             let mut last_tester_present_time: Instant = Instant::now();
 
@@ -578,10 +575,8 @@ impl Kwp2000DiagnosticServer {
             tx: tx_cmd,
             rx: rx_res,
             settings,
-            join_handler: handle,
             repeat_count: 3,
             repeat_interval: std::time::Duration::from_millis(1000),
-            dtc_format: None,
         })
     }
 

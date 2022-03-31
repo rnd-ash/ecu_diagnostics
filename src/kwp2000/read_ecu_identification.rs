@@ -204,7 +204,7 @@ fn decode_block_ident(res: &mut Vec<u8>) -> DiagServerResult<SoftwareBlockIdenti
     Ok(SoftwareBlockIdentification { origin, blocks })
 }
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
 
     /// Reads Daimler ECU identification from ECU
     pub fn read_daimler_identification(

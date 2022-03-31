@@ -5,7 +5,7 @@ use crate::{DiagServerResult, DiagnosticServer};
 
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
 
     /// Reads the status of a given DTC.
     ///

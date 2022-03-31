@@ -101,7 +101,7 @@ impl<'a> KwpRoutineManager<'a> {
     /// If an error of [DiagError::ParameterInvalid] is returned, then it means that the value of `rid` is invalid
     /// and violates the KWP2000 specification. Other [DiagError]'s will come from the attempt to set the ECU
     /// into extended diagnostic session mode. 
-    pub fn new(rid: RoutineID, server: &'a mut super::Kwp2000DiagnosticServer) -> super::DiagServerResult<Self> {
+    pub fn new(rid: RoutineID, server: &'a mut super::Kwp2000DiagnosticServer) -> DiagServerResult<Self> {
         let x: u8 = rid.as_start_byte();
         if x == 0x00 || x == 0xE2 || x == 0xFF || (0xEA..=0xF9).contains(&x) {
             return Err(DiagError::ParameterInvalid) // Unsupported by the spec, might have undefined behavior. Ignore!

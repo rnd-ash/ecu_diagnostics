@@ -24,7 +24,7 @@ impl From<SecurityOperation> for u8 {
     }
 }
 
-impl super::UdsDiagnosticServer {
+impl UdsDiagnosticServer {
 
     /// Requests a seed from the ECU for security access.
     ///

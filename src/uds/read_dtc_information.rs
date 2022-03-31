@@ -58,7 +58,7 @@ pub enum DtcSubFunction {
     ReportDTCWithPermanentStatus = 0x15,
 }
 
-impl super::UdsDiagnosticServer {
+impl UdsDiagnosticServer {
 
     /// Returns the number of DTCs stored on the ECU
     /// matching the provided status_mask
@@ -117,7 +117,7 @@ impl super::UdsDiagnosticServer {
             Some(s) => s,
             None => self.get_number_of_dtcs_by_status_mask(status_mask)
                 .map(|r| r.1)
-                .unwrap_or(DTCFormatType::UNKNOWN(0)),
+                .unwrap_or(DTCFormatType::Unknown(0)),
         };
         let mut result: Vec<DTC> = Vec::new();
 
@@ -128,7 +128,7 @@ impl super::UdsDiagnosticServer {
             result.push(DTC {
                 format: fmt,
                 raw: dtc_code,
-                status: DTCStatus::UNKNOWN(status), // TODO
+                status: DTCStatus::Unknown(status), // TODO
                 mil_on: status & 0b10000000 != 0,
                 readiness_flag: false,
             })
@@ -165,7 +165,7 @@ impl super::UdsDiagnosticServer {
             Some(s) => s,
             None => self.get_number_of_dtcs_by_status_mask(status_mask)
                 .map(|r| r.1)
-                .unwrap_or(DTCFormatType::UNKNOWN(0)),
+                .unwrap_or(DTCFormatType::Unknown(0)),
         };
         let mut result: Vec<DTC> = Vec::new();
 
@@ -176,7 +176,7 @@ impl super::UdsDiagnosticServer {
             result.push(DTC {
                 format: fmt,
                 raw: dtc_code,
-                status: DTCStatus::UNKNOWN(status), // TODO
+                status: DTCStatus::Unknown(status), // TODO
                 mil_on: status & 0b10000000 != 0,
                 readiness_flag: false,
             })
@@ -274,7 +274,7 @@ impl super::UdsDiagnosticServer {
             Some(s) => s,
             None => self.get_number_of_dtcs_by_status_mask(status_mask)
                 .map(|r| r.1)
-                .unwrap_or(DTCFormatType::UNKNOWN(0)),
+                .unwrap_or(DTCFormatType::Unknown(0)),
         };
         let mut result: Vec<DTC> = Vec::new();
 
@@ -285,7 +285,7 @@ impl super::UdsDiagnosticServer {
             result.push(DTC {
                 format: fmt,
                 raw: dtc_code,
-                status: DTCStatus::UNKNOWN(status), // TODO
+                status: DTCStatus::Unknown(status), // TODO
                 mil_on: status & 0b10000000 != 0,
                 readiness_flag: false,
             })
@@ -470,7 +470,7 @@ impl super::UdsDiagnosticServer {
             Some(s) => s,
             None => self.get_number_of_dtcs_by_status_mask(0xFF)
                 .map(|r| r.1)
-                .unwrap_or(DTCFormatType::UNKNOWN(0)),
+                .unwrap_or(DTCFormatType::Unknown(0)),
         };
         let mut result: Vec<DTC> = Vec::new();
 
@@ -481,7 +481,7 @@ impl super::UdsDiagnosticServer {
             result.push(DTC {
                 format: fmt,
                 raw: dtc_code,
-                status: DTCStatus::UNKNOWN(status), // TODO
+                status: DTCStatus::Unknown(status), // TODO
                 mil_on: status & 0b10000000 != 0,
                 readiness_flag: false,
             })

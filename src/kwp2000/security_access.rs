@@ -3,7 +3,7 @@
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 use crate::{DiagError, DiagServerResult, DiagnosticServer};
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
 
     /// Requests a seed from the ECU
     ///

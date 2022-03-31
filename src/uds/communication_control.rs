@@ -39,7 +39,7 @@ pub enum Subnet {
     RxOnly
 }
 
-impl super::UdsDiagnosticServer {
+impl UdsDiagnosticServer {
 
     /// Modifies ECU communication settings. These settings persist until the ECU is power cycled
     ///

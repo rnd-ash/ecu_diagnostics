@@ -45,7 +45,7 @@ impl SocketCanDevice {
 }
 
 impl Hardware for SocketCanDevice {
-    fn create_iso_tp_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::IsoTPChannel>> {
+    fn create_iso_tp_channel(this: Arc<Mutex<Self>>) -> super::HardwareResult<Box<dyn IsoTPChannel>> {
         Ok(Box::new(SocketCanIsoTPChannel {
             device: this.clone(),
             channel: None,
@@ -55,7 +55,7 @@ impl Hardware for SocketCanDevice {
         }))
     }
 
-    fn create_can_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::CanChannel>> {
+    fn create_can_channel(this: Arc<Mutex<Self>>) -> super::HardwareResult<Box<dyn CanChannel>> {
         Ok(Box::new(SocketCanCanChannel {
             device: this.clone(),
             channel: None,
@@ -103,7 +103,7 @@ impl SocketCanCanChannel {
 }
 
 impl PacketChannel<CanFrame> for SocketCanCanChannel {
-    fn open(&mut self) -> crate::channel::ChannelResult<()> {
+    fn open(&mut self) -> ChannelResult<()> {
         if self.channel.is_some() {
             return Ok(()); // Already open!
         }
@@ -116,7 +116,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         Ok(())
     }
 
-    fn close(&mut self) -> crate::channel::ChannelResult<()> {
+    fn close(&mut self) -> ChannelResult<()> {
         if self.channel.is_none() {
             return Ok(())
         }
@@ -126,7 +126,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         Ok(())
     }
 
-    fn write_packets(&mut self, packets: Vec<CanFrame>, timeout_ms: u32) -> crate::channel::ChannelResult<()> {
+    fn write_packets(&mut self, packets: Vec<CanFrame>, timeout_ms: u32) -> ChannelResult<()> {
         self.safe_with_iface(|iface| {
             iface.set_write_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
             let mut cf: socketcan::CANFrame;
@@ -138,7 +138,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         })
     }
 
-    fn read_packets(&mut self, max: usize, timeout_ms: u32) -> crate::channel::ChannelResult<Vec<CanFrame>> {
+    fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<CanFrame>> {
         let timeout = std::cmp::max(1, timeout_ms) as u128;
         let mut result: Vec<CanFrame> = Vec::with_capacity(max);
         self.safe_with_iface(|iface| {
@@ -158,14 +158,14 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         Ok(result)
     }
 
-    fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
         self.safe_with_iface(|iface| {
             while iface.read_frame().is_ok(){} // Keep reading until we drain the buffer
             Ok(())
         })
     }
 
-    fn clear_tx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
         Ok(())
     }
 }
@@ -173,7 +173,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
 impl CanChannel for SocketCanCanChannel {
     /// SocketCAN ignores this function as the channel is pre-configured
     /// by the OS' kernel.
-    fn set_can_cfg(&mut self, _baud: u32, _use_extended: bool) -> crate::channel::ChannelResult<()> {
+    fn set_can_cfg(&mut self, _baud: u32, _use_extended: bool) -> ChannelResult<()> {
         Ok(())
     }
 }
@@ -319,7 +319,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
         // If this is the case, we can simply open a socketCAN channel to send that frame in parallel to the ISO-TP channel already open!
         if addr != self.ids.0 {
             if (buffer.len() <= 7 && !self.cfg.extended_addressing) || (buffer.len() <= 6 && self.cfg.extended_addressing) {
-                let mut can_id = 0x00;
+                let can_id: u32;
                 let mut data = Vec::new();
                 if self.cfg.extended_addressing { // Std ISO-TP addr
                     data.push((addr & 0xFF) as u8);
@@ -341,7 +341,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
                 let mut channel = Hardware::create_can_channel(self.device.clone())?;
                 channel.open()?;
                 channel.write_packets(vec![can_frame], timeout_ms)?;
-                std::mem::drop(channel);
+                drop(channel);
                 return Ok(())
             } else {
                 return Err(ChannelError::UnsupportedRequest)
@@ -367,7 +367,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 }
 
 impl IsoTPChannel for SocketCanIsoTPChannel {
-    fn set_iso_tp_cfg(&mut self, cfg: crate::channel::IsoTPSettings) -> ChannelResult<()> {
+    fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()> {
         self.cfg = cfg;
         // Try to set the baudrate
         self.cfg_complete = true;
@@ -393,7 +393,7 @@ pub struct SocketCanScanner{
     devices: Vec<HardwareInfo>
 }
 
-impl std::default::Default for SocketCanScanner {
+impl Default for SocketCanScanner {
     fn default() -> Self {
         Self::new()
     }
@@ -436,14 +436,14 @@ impl HardwareScanner<SocketCanDevice> for SocketCanScanner {
         self.devices.clone()
     }
 
-    fn open_device_by_index(&self, idx: usize) -> super::HardwareResult<std::sync::Arc<std::sync::Mutex<SocketCanDevice>>> {
+    fn open_device_by_index(&self, idx: usize) -> super::HardwareResult<Arc<Mutex<SocketCanDevice>>> {
         match self.devices.get(idx) {
             Some(hw) => Ok(Arc::new(Mutex::new(SocketCanDevice::new(hw.name.clone())))),
             None => Err(HardwareError::DeviceNotFound)
         }
     }
 
-    fn open_device_by_name(&self, name: &str) -> super::HardwareResult<std::sync::Arc<std::sync::Mutex<SocketCanDevice>>> {
+    fn open_device_by_name(&self, name: &str) -> super::HardwareResult<Arc<Mutex<SocketCanDevice>>> {
         match self.devices.iter().find(|x| x.name == name) {
             Some(hw) => Ok(Arc::new(Mutex::new(SocketCanDevice::new(hw.name.clone())))),
             None => Err(HardwareError::DeviceNotFound)

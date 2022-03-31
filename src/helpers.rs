@@ -2,7 +2,7 @@
 //! Some functions in here can be useful with data transformation
 
 use std::time::{Duration, Instant};
-use log::{debug, error, log_enabled, info, Level, warn};
+use log::{debug, error, warn};
 
 use crate::{
     channel::PayloadChannel, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult,

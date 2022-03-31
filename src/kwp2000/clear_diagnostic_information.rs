@@ -52,7 +52,7 @@ impl From<ClearDTCRange> for u16 {
     }
 }
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
     /// Executes a DTC clear command on the ECU, given a range of DTCs to clear
     pub fn clear_dtc_range(
         &mut self,

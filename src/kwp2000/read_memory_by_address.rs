@@ -4,7 +4,7 @@ use crate::{DiagServerResult, DiagnosticServer};
 
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
     /// Reads the contents of RAM memory on the ECU given a 3 byte address, and 1 byte size.
     /// The maximum value for address is 0xFFFFFF, any larger values will be clamped.
     ///

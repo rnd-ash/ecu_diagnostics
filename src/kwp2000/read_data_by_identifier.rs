@@ -2,9 +2,9 @@
 
 use crate::{DiagServerResult, DiagnosticServer, DiagError};
 
-use super::{KWP2000Command};
+use super::{KWP2000Command, Kwp2000DiagnosticServer};
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
     /// Reads ECU data using a given identifier
     /// 
     /// # Parameters
@@ -26,7 +26,7 @@ impl super::Kwp2000DiagnosticServer {
         if res.len() < 3 { // Require Positive SID, IDENT << 8, IDENT & 0xFF
             return Err(DiagError::InvalidResponseLength)
         }
-        let ident_response = ((res[1] << 8) as u16) | (res[2] as u16);
+        let ident_response = ((res[1] as u16) << 8) | (res[2] as u16);
         if  ident_response != identifier {
             return Err(DiagError::MismatchedResponse(format!("Expected identifier 0x{:04X}, got identifier 0x{:04X}", identifier, ident_response)))
         }

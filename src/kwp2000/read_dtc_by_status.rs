@@ -42,7 +42,7 @@ impl DTCRange {
     }
 }
 
-impl super::Kwp2000DiagnosticServer {
+impl Kwp2000DiagnosticServer {
     /// Returns a list of stored DTCs on the ECU in ISO15031-6 format
     pub fn read_stored_dtcs_iso15031(
         &mut self,
@@ -68,7 +68,7 @@ impl super::Kwp2000DiagnosticServer {
         for x in (0..res.len()).step_by(3) {
             let status = res[x + 2];
             ret.push(DTC {
-                format: DTCFormatType::ISO15031_6,
+                format: DTCFormatType::Iso15031_6,
                 raw: (res[x] as u32) << 8 | res[x + 1] as u32,
                 status: DTCStatus::from_kwp_status(status),
                 mil_on: status & 0b10000000 != 0,
@@ -130,7 +130,7 @@ impl super::Kwp2000DiagnosticServer {
         for x in (0..res.len()).step_by(3) {
             let status = res[x + 2];
             ret.push(DTC {
-                format: DTCFormatType::TWO_BYTE_HEX_KWP,
+                format: DTCFormatType::TwoByteHexKwp,
                 raw: (res[x] as u32) << 8 | res[x + 1] as u32,
                 status: DTCStatus::from_kwp_status(status),
                 mil_on: status & 0b10000000 != 0,
@@ -168,7 +168,7 @@ impl super::Kwp2000DiagnosticServer {
             for x in (0..res_bytes.len()).step_by(3) {
                 let status = res_bytes[x + 2];
                 res.push(DTC {
-                    format: DTCFormatType::TWO_BYTE_HEX_KWP,
+                    format: DTCFormatType::TwoByteHexKwp,
                     raw: (res_bytes[x] as u32) << 8 | res_bytes[x + 1] as u32,
                     status: DTCStatus::from_kwp_status(status),
                     mil_on: status & 0b10000000 != 0,
