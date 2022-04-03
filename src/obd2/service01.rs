@@ -53,6 +53,7 @@ impl<'a> Service01<'a> {
         r
     }
 
+    /// Query's a data PID from Service 01
     pub fn query_pid(&mut self, pid: DataPid) -> DiagServerResult<Vec<ObdValue>> {
         pid.get_value(self.server, None)
     }
