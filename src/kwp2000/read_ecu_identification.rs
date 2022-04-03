@@ -220,10 +220,10 @@ fn decode_block_ident(res: &mut Vec<u8>) -> DiagServerResult<SoftwareBlockIdenti
 impl Kwp2000DiagnosticServer {
     /// Reads Daimler ECU identification from ECU
     pub fn read_daimler_identification(
-        server: &mut Kwp2000DiagnosticServer,
+        &mut self,
     ) -> DiagServerResult<DaimlerEcuIdent> {
         let res =
-            server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x86])?;
+            self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x86])?;
         if res.len() != 18 {
             return Err(DiagError::InvalidResponseLength);
         }
@@ -243,10 +243,10 @@ impl Kwp2000DiagnosticServer {
 
     /// Reads Daimler and MMC ECU identification from ECU
     pub fn read_daimler_mmc_identification(
-        server: &mut Kwp2000DiagnosticServer,
+        &mut self,
     ) -> DiagServerResult<DaimlerMmcEcuIdent> {
         let res =
-            server.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x87])?;
+            self.execute_command_with_response(KWP2000Command::ReadECUIdentification, &[0x87])?;
         if res.len() != 22 {
             return Err(DiagError::InvalidResponseLength);
         }

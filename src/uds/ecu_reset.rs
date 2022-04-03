@@ -57,8 +57,8 @@ impl UdsDiagnosticServer {
     ///
     /// ## Parameters
     /// * server - The UDS Diagnostic server
-    pub fn ecu_hard_reset(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-        server
+    pub fn ecu_hard_reset(&mut self) -> DiagServerResult<()> {
+        self
             .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::HardReset.into()])
             .map(|_| ())
     }
@@ -67,8 +67,8 @@ impl UdsDiagnosticServer {
     ///
     /// ## Parameters
     /// * server - The UDS Diagnostic server
-    pub fn ecu_key_off_on_reset(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-        server
+    pub fn ecu_key_off_on_reset(&mut self) -> DiagServerResult<()> {
+        self
             .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::KeyOffReset.into()])
             .map(|_| ())
     }
@@ -77,8 +77,8 @@ impl UdsDiagnosticServer {
     ///
     /// ## Parameters
     /// * server - The UDS Diagnostic server
-    pub fn ecu_soft_reset(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-        server
+    pub fn ecu_soft_reset(&mut self) -> DiagServerResult<()> {
+        self
             .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::SoftReset.into()])
             .map(|_| ())
     }
@@ -90,8 +90,8 @@ impl UdsDiagnosticServer {
     ///
     /// ## Returns
     /// If successful, this function will return the minimum time in seconds that the ECU will remain in the power-down sequence
-    pub fn enable_rapid_power_shutdown(server: &mut UdsDiagnosticServer) -> DiagServerResult<u8> {
-        let res = server.execute_command_with_response(
+    pub fn enable_rapid_power_shutdown(&mut self) -> DiagServerResult<u8> {
+        let res = self.execute_command_with_response(
             UDSCommand::ECUReset,
             &[ResetType::EnableRapidPowerShutDown.into()],
         )?;
@@ -109,8 +109,8 @@ impl UdsDiagnosticServer {
     ///
     /// ## Parameters
     /// * server - The UDS Diagnostic server
-    pub fn disable_rapid_power_shutdown(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-        server
+    pub fn disable_rapid_power_shutdown(&mut self) -> DiagServerResult<()> {
+        self
             .execute_command_with_response(
                 UDSCommand::ECUReset,
                 &[ResetType::DisableRapidPowerShutDown.into()],
