@@ -1,6 +1,9 @@
 //! Functions for reading DTCs from ECU
 
-use crate::{{DiagServerResult, DiagnosticServer}, DiagError, dtc::{DTCFormatType, DTCStatus, DTC}};
+use crate::{
+    dtc::{DTCFormatType, DTCStatus, DTC},
+    DiagError, {DiagServerResult, DiagnosticServer},
+};
 
 use super::{KWP2000Command, KWP2000Error, Kwp2000DiagnosticServer};
 
@@ -44,10 +47,7 @@ impl DTCRange {
 
 impl Kwp2000DiagnosticServer {
     /// Returns a list of stored DTCs on the ECU in ISO15031-6 format
-    pub fn read_stored_dtcs_iso15031(
-        &mut self,
-        range: DTCRange,
-    ) -> DiagServerResult<Vec<DTC>> {
+    pub fn read_stored_dtcs_iso15031(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let mut res = self.execute_command_with_response(
             KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0x00),
@@ -79,10 +79,7 @@ impl Kwp2000DiagnosticServer {
     }
 
     /// Returns a list of all supported DTCs on the ECU regardless of their status in ISO15031-6 format
-    pub fn read_supported_dtcs_iso15031(
-        &mut self,
-        range: DTCRange,
-    ) -> DiagServerResult<Vec<DTC>> {
+    pub fn read_supported_dtcs_iso15031(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let res: Vec<DTC> = Vec::new();
 
         loop {
@@ -106,10 +103,7 @@ impl Kwp2000DiagnosticServer {
     }
 
     /// Returns a list of stored DTCs on the ECU in KWP2000 format
-    pub fn read_stored_dtcs(
-        &mut self,
-        range: DTCRange,
-    ) -> DiagServerResult<Vec<DTC>> {
+    pub fn read_stored_dtcs(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let mut res = self.execute_command_with_response(
             KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0x02),
@@ -142,12 +136,9 @@ impl Kwp2000DiagnosticServer {
 
     /// Returns a list of all supported DTCs on the ECU regardless of their status, in KWP2000 format.
     ///
-    /// NOTE: Internally, this function will call [read_extended_supported_dtcs] in a loop in order
+    /// NOTE: Internally, this function will call [Kwp2000DiagnosticServer::read_extended_supported_dtcs] in a loop in order
     /// to read all DTCs regardless of transport layer limitations
-    pub fn read_supported_dtcs(
-        &mut self,
-        range: DTCRange,
-    ) -> DiagServerResult<Vec<DTC>> {
+    pub fn read_supported_dtcs(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let mut res: Vec<DTC> = Vec::new();
         loop {
             let mut res_bytes = self.execute_command_with_response(
@@ -189,10 +180,7 @@ impl Kwp2000DiagnosticServer {
 
     /// Asks the ECU to report its most recent DTCs that has been stored.
     /// Only one DTC is returned if stored, otherwise no DTC is returned.
-    pub fn get_most_recent_dtc(
-        &mut self,
-        range: DTCRange,
-    ) -> DiagServerResult<Option<DTC>> {
+    pub fn get_most_recent_dtc(&mut self, range: DTCRange) -> DiagServerResult<Option<DTC>> {
         let req = self.execute_command_with_response(
             KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0x04),
@@ -200,14 +188,11 @@ impl Kwp2000DiagnosticServer {
         todo!("ECU Response: {:02X?}", req)
     }
 
-    /// Upon execution of [read_supported_dtcs] or [read_supported_dtcs_iso15031],
+    /// Upon execution of [Kwp2000DiagnosticServer::read_supported_dtcs] or [Kwp2000DiagnosticServer::read_supported_dtcs_iso15031],
     /// if the transport layer restricts the number of DTCs that can be read, or the number of DTCs exceeds 255,
-    /// then this function will return the number of remaining supported of DTCs to read. [read_supported_dtcs] or [read_supported_dtcs_iso15031]
+    /// then this function will return the number of remaining supported of DTCs to read. [Kwp2000DiagnosticServer::read_supported_dtcs] or [Kwp2000DiagnosticServer::read_supported_dtcs_iso15031]
     /// should be executed to read the rest of the DTCs again within the ECUs P3-MAX time window
-    pub fn read_extended_supported_dtcs(
-        &mut self,
-        range: DTCRange,
-    ) -> DiagServerResult<u16> {
+    pub fn read_extended_supported_dtcs(&mut self, range: DTCRange) -> DiagServerResult<u16> {
         match self.execute_command_with_response(
             KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0xE0),
@@ -220,12 +205,14 @@ impl Kwp2000DiagnosticServer {
                 }
             }
             Err(e) => {
-                if let DiagError::ECUError{code, def } = e {
+                if let DiagError::ECUError { code, def } = e {
                     // ECU error, check if sub function not supported, in which case just return 0!
-                    if KWP2000Error::from(code) == KWP2000Error::SubFunctionNotSupportedInvalidFormat {
+                    if KWP2000Error::from(code)
+                        == KWP2000Error::SubFunctionNotSupportedInvalidFormat
+                    {
                         Ok(0)
                     } else {
-                        Err(DiagError::ECUError{code, def})
+                        Err(DiagError::ECUError { code, def })
                     }
                 } else {
                     Err(e)

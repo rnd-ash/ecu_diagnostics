@@ -5,12 +5,6 @@ use std::os::raw::c_char;
 use std::sync::Arc;
 use std::{ffi::*, fmt};
 
-#[cfg(windows)]
-use winreg::enums::*;
-
-#[cfg(windows)]
-use winreg::{RegKey, RegValue};
-
 /// Result which contains a PASSTHRU_ERROR in it's Err() variant
 pub type PassthruResult<T> = Result<T, PassthruError>;
 
@@ -202,8 +196,7 @@ impl PassthruDrv {
     //type PassThruOpenFn = unsafe extern "stdcall" fn(name: *const libc::c_void, device_id: *mut u32) -> i32;
     pub fn open(&mut self) -> PassthruResult<u32> {
         let mut id: u32 = 0;
-        let res =
-            unsafe { (&self.open_fn)(std::ptr::null(), &mut id) };
+        let res = unsafe { (&self.open_fn)(std::ptr::null(), &mut id) };
         if res == 0x00 {
             self.is_connected = true;
         }
@@ -352,15 +345,8 @@ impl PassthruDrv {
         baud: u32,
     ) -> PassthruResult<u32> {
         let mut channel_id: u32 = 0;
-        let res = unsafe {
-            (&self.connect_fn)(
-                dev_id,
-                protocol as u32,
-                flags,
-                baud,
-                &mut channel_id,
-            )
-        };
+        let res =
+            unsafe { (&self.connect_fn)(dev_id, protocol as u32, flags, baud, &mut channel_id) };
         ret_res(res, channel_id)
     }
 
@@ -379,14 +365,7 @@ impl PassthruDrv {
         time_interval: u32,
     ) -> PassthruResult<u32> {
         let mut msg_id: u32 = 0;
-        let res = unsafe {
-            (&self.start_periodic_fn)(
-                channel_id,
-                msg,
-                &mut msg_id,
-                time_interval,
-            )
-        };
+        let res = unsafe { (&self.start_periodic_fn)(channel_id, msg, &mut msg_id, time_interval) };
         ret_res(res, msg_id)
     }
 
@@ -424,14 +403,7 @@ impl PassthruDrv {
                 )
             },
             Some(fc) => unsafe {
-                (&self.start_filter_fn)(
-                    channel_id,
-                    tmp,
-                    mask,
-                    pattern,
-                    fc,
-                    &mut filter_id,
-                )
+                (&self.start_filter_fn)(channel_id, tmp, mask, pattern, fc, &mut filter_id)
             },
         };
         ret_res(res, filter_id)

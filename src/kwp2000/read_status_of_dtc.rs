@@ -6,7 +6,6 @@ use crate::{DiagServerResult, DiagnosticServer};
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 
 impl Kwp2000DiagnosticServer {
-
     /// Reads the status of a given DTC.
     ///
     /// This function returns bytes rather than a processed result as the environmental data
@@ -22,14 +21,10 @@ impl Kwp2000DiagnosticServer {
     /// 2. DTC High byte
     /// 3. DTC Low byte
     /// 4. Status of DTC
-    pub fn read_status_of_dtc(
-        &mut self,
-        dtc: u16,
-    ) -> DiagServerResult<Vec<u8>> {
+    pub fn read_status_of_dtc(&mut self, dtc: u16) -> DiagServerResult<Vec<u8>> {
         self.execute_command_with_response(
             KWP2000Command::ReadStatusOfDiagnosticTroubleCodes,
             &[(dtc >> 8) as u8, dtc as u8],
         )
     }
-
 }

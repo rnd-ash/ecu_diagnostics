@@ -1,7 +1,7 @@
 //! Provides methods to control normal ECU communication
 
-use crate::DiagnosticServer;
 use crate::uds::{UDSCommand, UdsDiagnosticServer};
+use crate::DiagnosticServer;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Communication level toggle
@@ -25,7 +25,7 @@ pub enum EcuCommunicationType {
     /// Network management related communication
     NetworkManagement,
     /// Both application layer communication and network management communication
-    All
+    All,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -36,11 +36,10 @@ pub enum Subnet {
     /// Custom Subnet ID. Values range from 0x01-0x0E
     Custom(u8),
     /// Only received subnets
-    RxOnly
+    RxOnly,
 }
 
 impl UdsDiagnosticServer {
-
     /// Modifies ECU communication settings. These settings persist until the ECU is power cycled
     ///
     /// ## Parameters
@@ -48,7 +47,12 @@ impl UdsDiagnosticServer {
     /// * communication_type - Communication layer to modify
     /// * Subnet - The subnet the ECU communicates with to modify
     /// * comm_level - Communication level
-    pub fn control_communication(&mut self,  communication_type: EcuCommunicationType, subnet: Subnet, comm_level: CommunicationLevel) -> super::DiagServerResult<()> {
+    pub fn control_communication(
+        &mut self,
+        communication_type: EcuCommunicationType,
+        subnet: Subnet,
+        comm_level: CommunicationLevel,
+    ) -> super::DiagServerResult<()> {
         // Encode communication_Type
         let mut communication_type: u8 = match communication_type {
             EcuCommunicationType::NormalCommunication => 0x01,
@@ -58,18 +62,20 @@ impl UdsDiagnosticServer {
         communication_type |= (match subnet {
             Subnet::All => 0x00,
             Subnet::Custom(x) => x << 4,
-            Subnet::RxOnly => 0x0F
+            Subnet::RxOnly => 0x0F,
         }) << 4;
 
         let level: u8 = match comm_level {
             CommunicationLevel::EnableRxAndTx => 0x00,
             CommunicationLevel::EnableRxDisableTx => 0x01,
             CommunicationLevel::DisableRxEnableTx => 0x02,
-            CommunicationLevel::DisableRxAndTx => 0x03
+            CommunicationLevel::DisableRxAndTx => 0x03,
         };
 
-        self.execute_command_with_response(UDSCommand::CommunicationControl, &[level, communication_type])
-            .map(|_| ())
+        self.execute_command_with_response(
+            UDSCommand::CommunicationControl,
+            &[level, communication_type],
+        )
+        .map(|_| ())
     }
-
 }

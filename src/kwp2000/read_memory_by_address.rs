@@ -9,12 +9,8 @@ impl Kwp2000DiagnosticServer {
     /// The maximum value for address is 0xFFFFFF, any larger values will be clamped.
     ///
     /// NOTE: This function is ONLY indented for ECU development. In production ECUs,
-    /// use [super::read_data_by_local_id::read_custom_local_identifier] instead
-    pub fn read_memory(
-        &mut self,
-        address: u32,
-        size: u8,
-    ) -> DiagServerResult<Vec<u8>> {
+    /// use [Kwp2000DiagnosticServer::read_custom_local_identifier] instead
+    pub fn read_memory(&mut self, address: u32, size: u8) -> DiagServerResult<Vec<u8>> {
         self.execute_command_with_response(
             KWP2000Command::ReadMemoryByAddress,
             &[

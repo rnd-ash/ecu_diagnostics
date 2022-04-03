@@ -41,8 +41,7 @@ impl From<UDSSessionType> for u8 {
 impl UdsDiagnosticServer {
     /// Requests the ECU to go into a specific diagnostic session mode
     pub fn set_session_mode(&mut self, session_mode: UDSSessionType) -> DiagServerResult<()> {
-        self
-        .execute_command_with_response(
+        self.execute_command_with_response(
             UDSCommand::DiagnosticSessionControl,
             &[session_mode.into()],
         )

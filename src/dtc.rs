@@ -7,7 +7,7 @@ pub enum DTCFormatType {
     Iso15031_6,
     /// ISO14229-1 DTC Format
     Iso14229_1,
-    /// SAEJ1939-73 DTC Format
+    /// SAE J1939-73 DTC Format
     SaeJ1939_73,
     /// ISO11992-4 DTC Format
     Iso11992_4,
@@ -39,6 +39,8 @@ pub enum DTCStatus {
     Stored,
     /// DTC is present and stored in non volatile memory
     Active,
+    /// Permanent (Can NOT be cleared from the ECU!)
+    Permanent,
     /// Unknown DTC Status
     Unknown(u8),
 }
@@ -77,27 +79,38 @@ impl DTC {
     /// Returns the error in a string format. EG: raw of 8276 = error P
     pub fn get_name_as_string(&self) -> String {
         match self.format {
-            DTCFormatType::Iso15031_6 => { // 2 bytes
-                let component_prefix = match self.raw & 0b00000011 {
-                    0b00 => "P",
-                    0b01 => "C",
-                    0b10 => "B",
-                    0b11 => "U",
-                    _ => "N" // Should never happen
+            DTCFormatType::Iso15031_6 => {
+                // 2 bytes
+                let b0 = (self.raw >> 8) as u8;
+                let b1 = self.raw as u8;
+                let component_prefix = match b0 >> 6 {
+                    0 => "P",
+                    1 => "C",
+                    2 => "B",
+                    3 => "U",
+                    _ => "N", // Should never happen
                 };
-                format!("{}{:04X}", component_prefix, self.raw & 0b11111100)
-            },
+                format!(
+                    "{}{:01X}{:01X}{:01X}{:01X}",
+                    component_prefix,
+                    ((b0 & 0x30) >> 4),
+                    b0 & 0x0F,
+                    b1 >> 4,
+                    b1 & 0x0F
+                )
+            }
             DTCFormatType::TwoByteHexKwp => {
                 let component_prefix = match (self.raw as u16 & 0b110000000000000) >> 14 {
                     0b00 => "P",
                     0b01 => "C",
                     0b10 => "B",
                     0b11 => "U",
-                    _ => "" // Should never happen
+                    _ => "", // Should never happen
                 };
-                format!("{}{:04X}", component_prefix, self.raw & 0b11111111111111) // 14 bits
-            },
-            _ => format!("{}", self.raw)
+                format!("{}{:04X}", component_prefix, self.raw & 0b11111111111111)
+                // 14 bits
+            }
+            _ => format!("{}", self.raw),
         }
     }
 }

@@ -38,12 +38,8 @@ impl Kwp2000DiagnosticServer {
     ///
     /// ## Params
     /// * mode - [ResetMode] to send to the ECU
-    pub fn reset_ecu(
-        &mut self,
-        mode: ResetMode,
-    ) -> DiagServerResult<()> {
-        self
-            .execute_command_with_response(KWP2000Command::ECUReset, &[mode.into()])
+    pub fn reset_ecu(&mut self, mode: ResetMode) -> DiagServerResult<()> {
+        self.execute_command_with_response(KWP2000Command::ECUReset, &[mode.into()])
             .map(|_| ())
     }
 }

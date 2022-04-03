@@ -25,10 +25,9 @@ impl From<SecurityOperation> for u8 {
 }
 
 impl UdsDiagnosticServer {
-
     /// Requests a seed from the ECU for security access.
     ///
-    /// Once the key is calculated from the response seed, run [send_key] to send the computed key to the ECU
+    /// Once the key is calculated from the response seed, run [UdsDiagnosticServer::send_key] to send the computed key to the ECU
     ///
     /// ## Parameters
     /// * server - The UDS Diagnostic server
@@ -55,9 +54,7 @@ impl UdsDiagnosticServer {
         let mut payload = Vec::with_capacity(key.len() + 1);
         payload.push(SecurityOperation::SendKey.into());
         payload.extend_from_slice(key);
-        self
-            .execute_command_with_response(UDSCommand::SecurityAccess, &payload)
+        self.execute_command_with_response(UDSCommand::SecurityAccess, &payload)
             .map(|_| ())
     }
-
 }

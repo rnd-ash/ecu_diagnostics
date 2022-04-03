@@ -59,12 +59,8 @@ impl Kwp2000DiagnosticServer {
     /// ## Parameters
     /// * server - The KWP2000 Diagnostic server
     /// * mode - The [SessionType] to put the ECU into
-    pub fn set_diagnostic_session_mode(
-        &mut self,
-        mode: SessionType,
-    ) -> DiagServerResult<()> {
-        self
-            .execute_command_with_response(KWP2000Command::StartDiagnosticSession, &[mode.into()])
+    pub fn set_diagnostic_session_mode(&mut self, mode: SessionType) -> DiagServerResult<()> {
+        self.execute_command_with_response(KWP2000Command::StartDiagnosticSession, &[mode.into()])
             .map(|_| ())
     }
 }

@@ -1,6 +1,9 @@
 //!  Provides methods to read and query DTCs on the ECU, as well as grabbing Env data about each DTC
 
-use crate::{DiagError, DiagServerResult, DiagnosticServer, dtc::{self, DTCFormatType, DTCStatus, DTC}};
+use crate::{
+    dtc::{self, DTCFormatType, DTCStatus, DTC},
+    DiagError, DiagServerResult, DiagnosticServer,
+};
 
 use super::{UDSCommand, UdsDiagnosticServer};
 
@@ -59,7 +62,6 @@ pub enum DtcSubFunction {
 }
 
 impl UdsDiagnosticServer {
-
     /// Returns the number of DTCs stored on the ECU
     /// matching the provided status_mask
     ///
@@ -94,10 +96,7 @@ impl UdsDiagnosticServer {
 
     /// Returns a list of DTCs stored on the ECU
     /// matching the provided status_mask
-    pub fn get_dtcs_by_status_mask(
-        &mut self,
-        status_mask: u8,
-    ) -> DiagServerResult<Vec<DTC>> {
+    pub fn get_dtcs_by_status_mask(&mut self, status_mask: u8) -> DiagServerResult<Vec<DTC>> {
         let mut resp = self.execute_command_with_response(
             UDSCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportDTCByStatusMask as u8, status_mask],
@@ -115,14 +114,16 @@ impl UdsDiagnosticServer {
         // Note the ECU might not support this command, in which case return 0 as format specifier
         let fmt = match self.dtc_format {
             Some(s) => s,
-            None => self.get_number_of_dtcs_by_status_mask(status_mask)
+            None => self
+                .get_number_of_dtcs_by_status_mask(status_mask)
                 .map(|r| r.1)
                 .unwrap_or(DTCFormatType::Unknown(0)),
         };
         let mut result: Vec<DTC> = Vec::new();
 
         for x in (0..resp.len()).step_by(4) {
-            let dtc_code: u32 = (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
+            let dtc_code: u32 =
+                (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
             let status = resp[x + 3];
 
             result.push(DTC {
@@ -137,7 +138,7 @@ impl UdsDiagnosticServer {
         Ok(result)
     }
 
-    /// Returns a list of DTCs out of the DTC mirror memory whos status_mask matches
+    /// Returns a list of DTCs out of the DTC mirror memory who's status_mask matches
     /// the provided mask
     pub fn get_mirror_memory_dtcs_by_status_mask(
         &mut self,
@@ -163,14 +164,16 @@ impl UdsDiagnosticServer {
         // Note the ECU might not support this command, in which case return 0 as format specifier
         let fmt = match self.dtc_format {
             Some(s) => s,
-            None => self.get_number_of_dtcs_by_status_mask(status_mask)
+            None => self
+                .get_number_of_dtcs_by_status_mask(status_mask)
                 .map(|r| r.1)
                 .unwrap_or(DTCFormatType::Unknown(0)),
         };
         let mut result: Vec<DTC> = Vec::new();
 
         for x in (0..resp.len()).step_by(4) {
-            let dtc_code: u32 = (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
+            let dtc_code: u32 =
+                (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
             let status = resp[x + 3];
 
             result.push(DTC {
@@ -272,14 +275,16 @@ impl UdsDiagnosticServer {
         // Note the ECU might not support this command, in which case return 0 as format specifier
         let fmt = match self.dtc_format {
             Some(s) => s,
-            None => self.get_number_of_dtcs_by_status_mask(status_mask)
+            None => self
+                .get_number_of_dtcs_by_status_mask(status_mask)
                 .map(|r| r.1)
                 .unwrap_or(DTCFormatType::Unknown(0)),
         };
         let mut result: Vec<DTC> = Vec::new();
 
         for x in (0..resp.len()).step_by(4) {
-            let dtc_code: u32 = (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
+            let dtc_code: u32 =
+                (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
             let status = resp[x + 3];
 
             result.push(DTC {
@@ -345,7 +350,7 @@ impl UdsDiagnosticServer {
         )))
     }
 
-    /// Returns the DTCExtendedData record(s) asssociated with the provided DTC mask and record number.
+    /// Returns the DTCExtendedData record(s) associated with the provided DTC mask and record number.
     /// For the record_number, 0xFE implies all OBD records. and 0xFF implies all records.
     ///
     /// ## Returns
@@ -430,10 +435,7 @@ impl UdsDiagnosticServer {
     }
 
     /// Returns the severity status of a provided DTC
-    pub fn get_severity_information_of_dtc(
-        &mut self,
-        dtc: u32,
-    ) -> DiagServerResult<u32> {
+    pub fn get_severity_information_of_dtc(&mut self, dtc: u32) -> DiagServerResult<u32> {
         let resp = self.execute_command_with_response(
             UDSCommand::ReadDTCInformation,
             &[
@@ -468,14 +470,16 @@ impl UdsDiagnosticServer {
         // Note the ECU might not support this command, in which case return 0 as format specifier
         let fmt = match self.dtc_format {
             Some(s) => s,
-            None => self.get_number_of_dtcs_by_status_mask(0xFF)
+            None => self
+                .get_number_of_dtcs_by_status_mask(0xFF)
                 .map(|r| r.1)
                 .unwrap_or(DTCFormatType::Unknown(0)),
         };
         let mut result: Vec<DTC> = Vec::new();
 
         for x in (0..resp.len()).step_by(4) {
-            let dtc_code: u32 = (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
+            let dtc_code: u32 =
+                (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
             let status = resp[x + 3];
 
             result.push(DTC {
@@ -490,9 +494,7 @@ impl UdsDiagnosticServer {
     }
 
     /// Returns the first failed DTC to be detected since the last DTC clear operation
-    pub fn get_first_test_failed_dtc(
-        &mut self,
-    ) -> DiagServerResult<Option<DTC>> {
+    pub fn get_first_test_failed_dtc(&mut self) -> DiagServerResult<Option<DTC>> {
         let resp = self.execute_command_with_response(
             UDSCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportFirstTestFailedDTC as u8],
@@ -516,9 +518,7 @@ impl UdsDiagnosticServer {
     }
 
     /// Returns the most recent DTC to be detected since the last DTC clear operation
-    pub fn get_most_recent_test_failed_dtc(
-        &mut self,
-    ) -> DiagServerResult<Option<DTC>> {
+    pub fn get_most_recent_test_failed_dtc(&mut self) -> DiagServerResult<Option<DTC>> {
         let resp = self.execute_command_with_response(
             UDSCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportMostRecentTestFailedDTC as u8],
@@ -530,9 +530,7 @@ impl UdsDiagnosticServer {
     }
 
     /// Returns the most recent DTC to be detected since the last DTC clear operation
-    pub fn get_most_recent_confirmed_dtc(
-        &mut self,
-    ) -> DiagServerResult<Option<DTC>> {
+    pub fn get_most_recent_confirmed_dtc(&mut self) -> DiagServerResult<Option<DTC>> {
         let resp = self.execute_command_with_response(
             UDSCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportMostRecentConfirmedDTC as u8],
@@ -543,16 +541,14 @@ impl UdsDiagnosticServer {
         )))
     }
 
-    /// Returns the current number of 'prefailed' DTCs on the ECU, which have not yet been confirmed
+    /// Returns the current number of 'pre-failed' DTCs on the ECU, which have not yet been confirmed
     /// as being either 'pending' or 'confirmed'
     ///
     /// ## Returns
     /// This function will return a vector of information, where each element is a tuple containing the following values:
     /// 1. (u32) - DTC Code
     /// 2. (u8) - Fault detection counter
-    pub fn get_dtc_fault_detection_counter(
-        &mut self,
-    ) -> DiagServerResult<Vec<(u32, u8)>> {
+    pub fn get_dtc_fault_detection_counter(&mut self) -> DiagServerResult<Vec<(u32, u8)>> {
         let mut resp = self.execute_command_with_response(
             UDSCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportDTCFaultDetectionCounter as u8],
@@ -569,16 +565,15 @@ impl UdsDiagnosticServer {
         let mut result: Vec<(u32, u8)> = Vec::new();
 
         for x in (0..resp.len()).step_by(4) {
-            let dtc_code: u32 = (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
+            let dtc_code: u32 =
+                (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
             result.push((dtc_code, resp[x + 3]))
         }
         Ok(result)
     }
 
     /// Returns a list of DTCs that have a permanent status
-    pub fn get_dtc_with_permanent_status(
-        &mut self,
-    ) -> DiagServerResult<Vec<DTC>> {
+    pub fn get_dtc_with_permanent_status(&mut self) -> DiagServerResult<Vec<DTC>> {
         let resp = self.execute_command_with_response(
             UDSCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportDTCWithPermanentStatus as u8],
@@ -588,5 +583,4 @@ impl UdsDiagnosticServer {
             resp
         )))
     }
-
 }
