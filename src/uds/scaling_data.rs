@@ -65,7 +65,7 @@ pub enum ScalingByteExtension {
     Candela,
     /// Radians - Measure of plane angle. Postfix: `Rad`
     Radian,
-    /// Degress - Measure of plane angle. Postfix: `°`
+    /// Degrees - Measure of plane angle. Postfix: `°`
     Degree,
     /// Hertz - Measure of frequency. Postfix: `Hz`
     Hertz,
@@ -73,7 +73,7 @@ pub enum ScalingByteExtension {
     Joule,
     /// Newton - Measure of force. Postfix: `N`
     Newton,
-    /// Kilopond - Measure of force. Postfix: `kp`
+    /// Kilo-pond - Measure of force. Postfix: `kp`
     Kilopond,
     /// Pound force - Measure of force. Postfix: `lbf`
     PoundForce,
@@ -91,8 +91,8 @@ pub enum ScalingByteExtension {
     Atmosphere,
     /// Pound force per square inch - Measure of pressure. Postfix: `psi`
     Psi,
-    /// Becqerel - Measure of radioactivity. Postfix: `Bq`
-    Becqerel,
+    /// Becquerel - Measure of radioactivity. Postfix: `Bq`
+    Becquerel,
     /// Lumen - Measure of light lux. Postfix: `lm`
     Lumen,
     /// Lux - Measure of illuminance. Postfix: `lx`
@@ -197,12 +197,12 @@ pub enum ScalingByteHigh {
     /// Unsigned numeric integer
     UnsignedNumeric {
         /// Number of bytes making the integer, usually 1-4
-        num_bytes: u8
+        num_bytes: u8,
     },
     /// Signed numeric integer
     SignedNumeric {
         /// Number of bytes making the integer, usually 1-4
-        num_bytes: u8
+        num_bytes: u8,
     },
     /// Bit mapping encoding to set statuses, without mask
     BitMappingWithoutMask,
@@ -215,7 +215,7 @@ pub enum ScalingByteHigh {
     /// ASCII Text
     ASCII {
         /// Number of bytes stored as ASCII Text
-        num_bytes: u8
+        num_bytes: u8,
     },
     /// ANSI 754 signed floating point
     SignedFloatingPoint,
@@ -228,25 +228,31 @@ pub enum ScalingByteHigh {
     /// Input / Output state encoding
     StateAndConnectionType,
     /// Reserved or Vehicle manufacturer specific (Unknown)
-    Reserved
+    Reserved,
 }
 
 impl From<u8> for ScalingByteHigh {
     fn from(x: u8) -> Self {
         match x & 0xF0 {
-            0x00 => Self::UnsignedNumeric { num_bytes: x & 0x0F },
-            0x01 => Self::SignedNumeric { num_bytes: x & 0x0F },
+            0x00 => Self::UnsignedNumeric {
+                num_bytes: x & 0x0F,
+            },
+            0x01 => Self::SignedNumeric {
+                num_bytes: x & 0x0F,
+            },
             0x02 => Self::BitMappingWithoutMask,
             0x03 => Self::BitMappingWithMask,
             0x04 => Self::BCD,
             0x05 => Self::StateEncodedVariable,
-            0x06 => Self::ASCII { num_bytes: x & 0x0F },
+            0x06 => Self::ASCII {
+                num_bytes: x & 0x0F,
+            },
             0x07 => Self::SignedFloatingPoint,
             0x08 => Self::Packet,
             0x09 => Self::Formula,
             0x0A => Self::UnitOrFormat,
             0x0B => Self::StateAndConnectionType,
-            _ => Self::Reserved
+            _ => Self::Reserved,
         }
     }
 }
@@ -299,7 +305,7 @@ impl ScalingByteExtension {
             ScalingByteExtension::Bar => Some("bar"),
             ScalingByteExtension::Atmosphere => Some("atm"),
             ScalingByteExtension::Psi => Some("psi"),
-            ScalingByteExtension::Becqerel => Some("Bq"),
+            ScalingByteExtension::Becquerel => Some("Bq"),
             ScalingByteExtension::Lumen => Some("lm"),
             ScalingByteExtension::Lux => Some("lx"),
             ScalingByteExtension::Liter => Some("l"),
@@ -319,7 +325,7 @@ impl ScalingByteExtension {
             ScalingByteExtension::RadiansPerSecond => Some("rad/s"),
             ScalingByteExtension::RadiansPerSquareSecond => Some("rad/s2"),
             ScalingByteExtension::KilogramsPerSquareMeter => Some("kg/m2"),
-            _ => None
+            _ => None,
         }
     }
 
@@ -342,7 +348,7 @@ impl ScalingByteExtension {
             ScalingByteExtension::Pico => Some("p"),
             ScalingByteExtension::Femto => Some("f"),
             ScalingByteExtension::Atto => Some("a"),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -391,7 +397,7 @@ impl From<u8> for ScalingByteExtension {
             0x25 => Self::Bar,
             0x26 => Self::Atmosphere,
             0x27 => Self::PoundForce,
-            0x28 => Self::Becqerel,
+            0x28 => Self::Becquerel,
             0x29 => Self::Lumen,
             0x2A => Self::Lux,
             0x2B => Self::Liter,
@@ -445,11 +451,10 @@ impl From<u8> for ScalingByteExtension {
             0x58 => Self::DateAndTime3,
             0x59 => Self::DateAndTime4,
 
-            _ => Self::NoUnit
+            _ => Self::NoUnit,
         }
     }
 }
-
 
 /// Represents Scaling data structure returned from ECU
 #[derive(Debug, Clone)]
@@ -459,30 +464,37 @@ pub struct ScalingData {
     c1: f32,
     c2: f32,
     mapping_byte: u8,
-    byte_ext: Vec<ScalingByteExtension>
+    byte_ext: Vec<ScalingByteExtension>,
 }
 
 impl ScalingData {
     /// Creates a new scaling data structure
-    pub (crate) fn new(x: i32, c0: i32, c1: i32, c2: i32, mapping_byte: u8, byte_ext: &[ScalingByteExtension]) -> Self {
+    pub(crate) fn new(
+        x: i32,
+        c0: i32,
+        c1: i32,
+        c2: i32,
+        mapping_byte: u8,
+        byte_ext: &[ScalingByteExtension],
+    ) -> Self {
         Self {
             x: x as f32,
             c0: c0 as f32,
             c1: c1 as f32,
             c2: c2 as f32,
             mapping_byte,
-            byte_ext: byte_ext.to_vec()
+            byte_ext: byte_ext.to_vec(),
         }
     }
 
     /// Returns the list of scaling data presentation of the scaling data.
-    /// Note that there can be more than one! (EG: Having a prefix and postifx scaling byte)
+    /// Note that there can be more than one! (EG: Having a prefix and postfix scaling byte)
     pub fn get_scaling_byte(&self) -> &[ScalingByteExtension] {
         &self.byte_ext
     }
 
     /// Returns a converted value from raw.
-    /// If the conversion forumula falls under VMS (Vehicle manufacture specific), then None is returned.
+    /// If the conversion formula falls under VMS (Vehicle manufacture specific), then None is returned.
     pub fn get_mapping_from_raw(&self) -> Option<f32> {
         let c0 = self.c0;
         let c1 = self.c1;
@@ -499,7 +511,7 @@ impl ScalingData {
             0x07 => Some(x / c0),
             0x08 => Some(x + c0),
             0x09 => Some(x * c0 / c1),
-            _ => None // VMS or reserved
+            _ => None, // VMS or reserved
         }
     }
 }

@@ -1,9 +1,9 @@
-//! The hardware module contains simplified API's
+//! The hardware module contains simplified API's and abstraction layers
 //! for interacting with common hardware that can be used for either Bench setups or OBD2 adapters
 //! in order to communicate with vehicle ECUs
 
-pub mod passthru;
-pub mod dpdu;
+mod dpdu;
+pub mod passthru; // Not finished at all yet, hide from the crate
 
 #[cfg(unix)]
 pub mod socketcan;
@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use crate::channel::{CanChannel, IsoTPChannel};
 
 /// Hardware API result
-pub type HardwareResult<T> = std::result::Result<T, HardwareError>;
+pub type HardwareResult<T> = Result<T, HardwareError>;
 
 /// The hardware trait defines functions supported by all adapter types,
 /// as well as functions that can create abstracted communication channels
@@ -22,8 +22,8 @@ pub trait Hardware {
     /// Creates an ISO-TP channel on the devices.
     /// This channel will live for as long as the hardware trait. Upon being dropped,
     /// the channel will automatically be closed, if it has been opened.
-
     fn create_iso_tp_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn IsoTPChannel>>;
+
     /// Creates a CAN Channel on the devices.
     /// This channel will live for as long as the hardware trait. Upon being dropped,
     /// the channel will automatically be closed, if it has been opened.
@@ -31,7 +31,7 @@ pub trait Hardware {
 
     /// Returns true if the ISO-TP channel is current open and in use
     fn is_iso_tp_channel_open(&self) -> bool;
-    
+
     /// Returns true if the CAN channel is currently open and in use
     fn is_can_channel_open(&self) -> bool;
 
@@ -61,7 +61,7 @@ pub struct HardwareInfo {
     pub device_fw_version: Option<String>,
     /// Optional API standard the device conforms to
     pub api_version: Option<String>,
-    /// Optional library (Dll/So/Dynlib) verison used
+    /// Optional library (Dll/So/Dynlib) version used
     pub library_version: Option<String>,
     /// Optional file location of the library used
     pub library_location: Option<String>,
@@ -74,9 +74,7 @@ pub struct HardwareInfo {
 pub trait HardwareScanner<T: Hardware> {
     /// Lists all scanned devices. This does not necessarily
     /// mean that the hardware can be used, just that the system
-    /// known it exists. For instance, Passthru API uses the registry
-    /// to scan for devices, but these devices might not actually be
-    /// plugged into the computer at the time of the request
+    /// known it exists.
     fn list_devices(&self) -> Vec<HardwareInfo>;
     /// Tries to open a device by a specific index from the [HardwareScanner::list_devices] function.
     fn open_device_by_index(&self, idx: usize) -> HardwareResult<Arc<Mutex<T>>>;
@@ -94,15 +92,14 @@ pub enum HardwareError {
         /// API Error description
         desc: String,
     },
-    /// Indicates a conflict of channel, An example would be having an ISOTP channel open and
-    /// then also trying to open a CAN Channel at the same time. This cannot happen
-    /// as both channels use the same physical data layer and thus hardware and filters
+    /// Indicates that a conflicting channel type was opened on a device which does not
+    /// support multiple channels of the same underlying network to be open at once.
     ConflictingChannel,
     /// Indicates a channel type is not supported by the API
     ChannelNotSupported,
     /// Hardware not found
     DeviceNotFound,
-    /// Function called on device that has not been opened
+    /// Function called on device that has not yet been opened
     DeviceNotOpen,
     /// Lib loading error
     LibLoadError(libloading::Error),
@@ -159,6 +156,6 @@ pub struct HardwareCapabilities {
     pub sae_j1850: bool,
     /// Supports Chryslers serial communication interface
     pub sci: bool,
-    /// Supports IP protocols (DOIP)
+    /// Supports IP protocols (Diagnostic Over IP)
     pub ip: bool,
 }

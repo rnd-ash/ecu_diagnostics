@@ -1,16 +1,48 @@
 //! Module for OBD (ISO-9141)
 
-use std::{sync::{mpsc, atomic::{AtomicBool, Ordering}, Arc}, thread::JoinHandle, time::Instant};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc,
+    },
+    time::Instant,
+};
 
-use crate::{BaseServerPayload, ServerEventHandler, ServerEvent, BaseServerSettings, DiagServerResult, channel::{IsoTPSettings, IsoTPChannel}, helpers, DiagError, DiagnosticServer};
+use crate::{
+    channel::{IsoTPChannel, IsoTPSettings},
+    helpers, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer,
+    ServerEvent, ServerEventHandler,
+};
 
-mod presentation;
-pub mod service01;
+mod data_pids;
+mod enumerations;
+mod service01;
+mod service09;
+mod units;
+
+// Exports
+use crate::dtc::{DTCFormatType, DTCStatus, DTC};
+pub use enumerations::*;
+pub use service01::*;
+pub use service09::*;
+pub use units::*;
 
 // OBD2 does not have a 'session type' like KWP or UDS,
 // so create a dummy marker just to satisfy the <VoidHandler> trait
 struct VoidSessionType;
 
+/// Function to decode PID support response from ECU
+pub(crate) fn decode_pid_response(x: &[u8]) -> Vec<bool> {
+    let mut resp: Vec<bool> = Vec::new();
+    for b in x {
+        let mut mask: u8 = 0b10000000;
+        for _ in 0..8 {
+            resp.push(b & mask != 0x00);
+            mask >>= 1;
+        }
+    }
+    resp
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
@@ -34,8 +66,10 @@ pub enum OBD2Command {
     Service08,
     /// Service 09 - Request vehicle information
     Service09,
+    /// Service 0A - Read permanent DTCs
+    Service0A,
     /// Custom OBD service. Not 0x10+ is either KWP or UDS!
-    Custom(u8)
+    Custom(u8),
 }
 
 impl From<u8> for OBD2Command {
@@ -50,7 +84,8 @@ impl From<u8> for OBD2Command {
             0x07 => Self::Service07,
             0x08 => Self::Service08,
             0x09 => Self::Service09,
-            _ => Self::Custom(sid)
+            0x0A => Self::Service0A,
+            _ => Self::Custom(sid),
         }
     }
 }
@@ -67,6 +102,7 @@ impl From<OBD2Command> for u8 {
             OBD2Command::Service07 => 0x07,
             OBD2Command::Service08 => 0x08,
             OBD2Command::Service09 => 0x09,
+            OBD2Command::Service0A => 0x0A,
             OBD2Command::Custom(x) => x,
         }
     }
@@ -76,13 +112,50 @@ impl From<OBD2Command> for u8 {
 #[repr(C)]
 /// Wrapper round OBD2 protocol NRC codes
 pub enum OBD2Error {
+    /// ECU general reject
+    GeneralReject,
+    /// Service is not supported in active session.
+    /// This is a weird error for OBD as OBD only has
+    /// one session mode
+    ServiceNotSupportedInActiveSession,
+    /// Request message format was incorrect
+    FormatIncorrect,
+    /// Requested data was out of range
+    OutOfRange,
+    /// ECU is busy, repeat the request
+    BusyRepeatRequest,
+    /// ECU is busy, but will respond to the original request shortly
+    BusyResponsePending,
+    /// Conditions are not correct to execute the request
+    ConditionsNotCorrect,
+    /// Out of order request in a sequence of request
+    RequestSequenceError,
+    /// Security access is denied
+    SecurityAccessDenied,
+    /// Invalid security key
+    InvalidKey,
+    /// Exceeded the maximum number of attempts at authentication
+    ExceedAttempts,
     /// OBD NRC. This can mean different things per OEM
-    Custom(u8)
+    Custom(u8),
 }
 
 impl From<u8> for OBD2Error {
     fn from(p: u8) -> Self {
-        Self::Custom(p)
+        match p {
+            0x10 => Self::GeneralReject,
+            0x11 | 0x12 | 0x7E | 0x7F => Self::ServiceNotSupportedInActiveSession,
+            0x13 => Self::FormatIncorrect,
+            0x31 => Self::OutOfRange,
+            0x21 => Self::BusyRepeatRequest,
+            0x78 => Self::BusyResponsePending,
+            0x22 => Self::ConditionsNotCorrect,
+            0x24 => Self::RequestSequenceError,
+            0x33 => Self::SecurityAccessDenied,
+            0x35 => Self::InvalidKey,
+            0x36 => Self::ExceedAttempts,
+            x => Self::Custom(x),
+        }
     }
 }
 
@@ -91,7 +164,7 @@ impl From<u8> for OBD2Error {
 pub struct OBD2Cmd(Vec<u8>);
 
 impl OBD2Cmd {
-    /// Creates a new KWP2000 Payload
+    /// Creates a new OBD2 Payload
     pub fn new(sid: OBD2Command, args: &[u8]) -> Self {
         let mut b: Vec<u8> = Vec::with_capacity(args.len() + 1);
         b.push(u8::from(sid));
@@ -99,7 +172,7 @@ impl OBD2Cmd {
         Self(b)
     }
 
-    pub (crate) fn from_raw(s: &[u8]) -> Self {
+    pub(crate) fn from_raw(s: &[u8]) -> Self {
         Self(s.to_vec())
     }
 
@@ -136,7 +209,6 @@ impl ServerEventHandler<VoidSessionType> for OBD2VoidHandler {
     fn on_event(&mut self, _e: ServerEvent<VoidSessionType>) {}
 }
 
-
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 /// OBD2 server options
@@ -172,7 +244,6 @@ pub struct OBD2DiagnosticServer {
     settings: Obd2ServerOptions,
     tx: mpsc::Sender<OBD2Cmd>,
     rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
-    join_handler: JoinHandle<()>,
     repeat_count: u32,
     repeat_interval: std::time::Duration,
 }
@@ -187,8 +258,6 @@ impl OBD2DiagnosticServer {
     /// * settings - OBD2 Server settings
     /// * channel - ISO-TP communication channel with the ECU
     /// * channel_cfg - The settings to use for the ISO-TP channel
-    /// * event_handler - Handler for logging events happening within the server. If you don't want
-    /// to create your own handler, use [Kwp2000VoidHandler]
     pub fn new_over_iso_tp<C>(
         settings: Obd2ServerOptions,
         mut server_channel: C,
@@ -207,7 +276,7 @@ impl OBD2DiagnosticServer {
         let (tx_cmd, rx_cmd) = mpsc::channel::<OBD2Cmd>();
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
-        let handle = std::thread::spawn(move || {
+        std::thread::spawn(move || {
             log::debug!("OBD2 server start");
             loop {
                 if !is_running_t.load(Ordering::Relaxed) {
@@ -217,15 +286,17 @@ impl OBD2DiagnosticServer {
 
                 if let Ok(cmd) = rx_cmd.try_recv() {
                     // We have an incoming command
-                    log::debug!("OBD2 Incomming request from tester. Sending {:02X?} to ECU", cmd);
+                    log::debug!(
+                        "OBD2 Incoming request from tester. Sending {:02X?} to ECU",
+                        cmd
+                    );
                     let res = helpers::perform_cmd(
                         settings.send_id,
                         &cmd,
                         &settings,
                         &mut server_channel,
-                        0x78,
                         0x21,
-                        lookup_obd_nrc
+                        lookup_obd_nrc,
                     );
                     //event_handler.on_event(&res);
                     if tx_res.send(res).is_err() {
@@ -242,7 +313,6 @@ impl OBD2DiagnosticServer {
             tx: tx_cmd,
             rx: rx_res,
             settings,
-            join_handler: handle,
             repeat_count: 3,
             repeat_interval: std::time::Duration::from_millis(1000),
         })
@@ -260,10 +330,86 @@ impl OBD2DiagnosticServer {
             Err(_) => Err(DiagError::ServerNotRunning), // Server must have crashed!
         }
     }
+
+    /// Attempts to clear stored DTCs on the ECU using Service 04
+    pub fn clear_dtcs(&mut self) -> DiagServerResult<()> {
+        self.exec_command(OBD2Cmd::new(OBD2Command::Service04, &[]))
+            .map(|_| ())
+    }
+
+    /// Attempts to read all stored DTCs on the ECU, using a combination of
+    /// Services 03, 07 and 0A (Stored, Pending and Permanent)
+    pub fn read_dtcs(&mut self) -> DiagServerResult<Vec<DTC>> {
+        let mut res: Vec<DTC> = Vec::new();
+
+        if let Ok(mut resp) = self.exec_command(OBD2Cmd::new(OBD2Command::Service03, &[])) {
+            resp.drain(0..2);
+            if resp.len() % 2 != 0 {
+                return Err(DiagError::InvalidResponseLength);
+            }
+            for dtc_bytes in resp.chunks(2) {
+                res.push(DTC {
+                    format: DTCFormatType::Iso15031_6,
+                    raw: ((dtc_bytes[0] as u32) << 8) | dtc_bytes[1] as u32,
+                    status: DTCStatus::Pending,
+                    mil_on: false,
+                    readiness_flag: false,
+                })
+            }
+        }
+
+        if let Ok(mut resp) = self.exec_command(OBD2Cmd::new(OBD2Command::Service07, &[])) {
+            resp.drain(0..2);
+            if resp.len() % 2 != 0 {
+                return Err(DiagError::InvalidResponseLength);
+            }
+            for dtc_bytes in resp.chunks(2) {
+                if let Some(existing_dtc) = res
+                    .iter_mut()
+                    .find(|x| x.raw == ((dtc_bytes[0] as u32) << 8) | dtc_bytes[1] as u32)
+                {
+                    existing_dtc.status = DTCStatus::Stored;
+                    existing_dtc.mil_on = true;
+                } else {
+                    res.push(DTC {
+                        format: DTCFormatType::Iso15031_6,
+                        raw: ((dtc_bytes[0] as u32) << 8) | dtc_bytes[1] as u32,
+                        status: DTCStatus::Stored,
+                        mil_on: true,
+                        readiness_flag: false,
+                    })
+                }
+            }
+        }
+
+        if let Ok(mut resp) = self.exec_command(OBD2Cmd::new(OBD2Command::Service0A, &[])) {
+            resp.drain(0..2);
+            if resp.len() % 2 != 0 {
+                return Err(DiagError::InvalidResponseLength);
+            }
+            for dtc_bytes in resp.chunks(2) {
+                if let Some(existing_dtc) = res
+                    .iter_mut()
+                    .find(|x| x.raw == ((dtc_bytes[0] as u32) << 8) | dtc_bytes[1] as u32)
+                {
+                    existing_dtc.status = DTCStatus::Permanent;
+                    existing_dtc.mil_on = true;
+                } else {
+                    res.push(DTC {
+                        format: DTCFormatType::Iso15031_6,
+                        raw: ((dtc_bytes[0] as u32) << 8) | dtc_bytes[1] as u32,
+                        status: DTCStatus::Permanent,
+                        mil_on: true,
+                        readiness_flag: false,
+                    })
+                }
+            }
+        }
+        Ok(res)
+    }
 }
 
 impl DiagnosticServer<OBD2Command> for OBD2DiagnosticServer {
-
     /// Send a command to the ECU, and receive its response
     ///
     /// ## Parameters
@@ -289,8 +435,8 @@ impl DiagnosticServer<OBD2Command> for OBD2DiagnosticServer {
                 match self.exec_command(cmd.clone()) {
                     Ok(resp) => return Ok(resp),
                     Err(e) => {
-                        if let DiagError::ECUError {code, def} = e {
-                            return Err(DiagError::ECUError {code, def}); // ECU Error. Sending again won't help.
+                        if let DiagError::ECUError { code, def } = e {
+                            return Err(DiagError::ECUError { code, def }); // ECU Error. Sending again won't help.
                         }
                         last_err = Some(e); // Other error. Sleep and then try again
                         if let Some(sleep_time) = self.repeat_interval.checked_sub(start.elapsed())
@@ -318,7 +464,7 @@ impl DiagnosticServer<OBD2Command> for OBD2DiagnosticServer {
     /// NOTE: On OBD2, this function will block as we HAVE to poll for the ECU
     /// response on OBD2!
     fn send_byte_array(&mut self, arr: &[u8]) -> DiagServerResult<()> {
-        self.send_byte_array_with_response(arr).map(|_|())
+        self.send_byte_array_with_response(arr).map(|_| ())
     }
 
     /// Sends an arbitrary byte array to the ECU, and polls for the ECU's response
@@ -351,5 +497,27 @@ pub fn get_description_of_ecu_error(error: u8) -> OBD2Error {
 impl Drop for OBD2DiagnosticServer {
     fn drop(&mut self) {
         self.server_running.store(false, Ordering::Relaxed); // Stop server
+    }
+}
+
+#[cfg(test)]
+pub mod obd_test {
+    use crate::obd2::decode_pid_response;
+
+    #[test]
+    pub fn test_pid_support_decoding() {
+        let input = vec![0xBE, 0x1F, 0xA8, 0x13];
+        let output = vec![
+            true, // B
+            false, true, true, true, // E
+            true, true, false, false, // 1
+            false, false, true, true, // F
+            true, true, true, true, // A
+            false, true, false, true, // 8
+            false, false, false, false, // 1
+            false, false, true, false, // 3
+            false, true, true,
+        ];
+        assert_eq!(decode_pid_response(&input), output);
     }
 }

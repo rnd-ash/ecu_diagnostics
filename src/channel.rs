@@ -158,7 +158,7 @@ pub trait IsoTPChannel: PayloadChannel {
 /// A PacketChannel is a way for a device to send and receive individual network packets
 /// across an ECU network. Unlike [PayloadChannel], this channel type
 /// is unfiltered, so all network traffic may be visible, and filtering should be done
-/// in software. Most of the protocols that implement [PayloadChannel] are actually higher-level 
+/// in software. Most of the protocols that implement [PayloadChannel] are actually higher-level
 /// PacketChannels which use multiple packets to send larger payloads. Such is the case with ISO-TP over CAN.
 pub trait PacketChannel<T: Packet>: Send + Sync {
     /// Opens the channel, from this point forward,

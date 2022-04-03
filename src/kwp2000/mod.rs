@@ -17,39 +17,42 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
     },
-    thread::JoinHandle,
     time::Instant,
 };
 
-use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent, ServerEventHandler, channel::{IsoTPChannel, IsoTPSettings, self, PacketChannel}, dtc::DTCFormatType, helpers};
+use crate::{
+    channel::{IsoTPChannel, IsoTPSettings},
+    helpers, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer,
+    ServerEvent, ServerEventHandler,
+};
 
 mod clear_diagnostic_information;
 mod ecu_reset;
+mod ioctl_mgr;
+mod message_transmission;
 mod read_data_by_identifier;
 mod read_data_by_local_id;
 mod read_dtc_by_status;
 mod read_ecu_identification;
 mod read_memory_by_address;
 mod read_status_of_dtc;
+mod routine;
 mod security_access;
 mod start_diagnostic_session;
-mod routine;
-mod message_transmission;
-mod ioctl_mgr;
 
 pub use clear_diagnostic_information::*;
 pub use ecu_reset::*;
+pub use ioctl_mgr::*;
+pub use message_transmission::*;
 pub use read_data_by_identifier::*;
 pub use read_data_by_local_id::*;
 pub use read_dtc_by_status::*;
 pub use read_ecu_identification::*;
 pub use read_memory_by_address::*;
 pub use read_status_of_dtc::*;
+pub use routine::*;
 pub use security_access::*;
 pub use start_diagnostic_session::*;
-pub use routine::*;
-pub use message_transmission::*;
-pub use ioctl_mgr::*;
 
 /// KWP Command Service IDs.
 ///
@@ -114,7 +117,7 @@ pub enum KWP2000Command {
     ///
     ResponseOnEvent,
     /// Custom KWP2000 SID not part of the official specification
-    CustomSid(u8)
+    CustomSid(u8),
 }
 
 impl From<u8> for KWP2000Command {
@@ -263,13 +266,13 @@ impl From<u8> for KWP2000Error {
             0x71 => Self::TransferSuspended,
             0x78 => Self::RequestCorrectlyReceivedResponsePending,
             0x80 => Self::ServiceNotSupportedInActiveSession,
-            (0x90..=0x99) => Self::ReservedDCX,
+            0x90..=0x99 => Self::ReservedDCX,
             0x9A => Self::DataDecompressionFailed,
             0x9B => Self::DataDecryptionFailed,
-            (0x9C..=0x9F) => Self::ReservedDCX,
+            0x9C..=0x9F => Self::ReservedDCX,
             0xA0 => Self::EcuNotResponding,
             0xA1 => Self::EcuAddressUnknown,
-            (0xA2..=0xF9) => Self::ReservedDCX,
+            0xA2..=0xF9 => Self::ReservedDCX,
             _ => Self::ReservedISO,
         }
     }
@@ -304,10 +307,10 @@ impl Kwp2000Cmd {
         }
     }
 
-    pub (crate) fn from_raw(s: &[u8], response_required: bool) -> Self {
+    pub(crate) fn from_raw(s: &[u8], response_required: bool) -> Self {
         Self {
             bytes: s.to_vec(),
-            response_required
+            response_required,
         }
     }
 
@@ -382,10 +385,8 @@ pub struct Kwp2000DiagnosticServer {
     settings: Kwp2000ServerOptions,
     tx: mpsc::Sender<Kwp2000Cmd>,
     rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
-    join_handler: JoinHandle<()>,
     repeat_count: u32,
     repeat_interval: std::time::Duration,
-    dtc_format: Option<DTCFormatType>, // Used as a cache
 }
 
 impl Kwp2000DiagnosticServer {
@@ -420,7 +421,7 @@ impl Kwp2000DiagnosticServer {
         let (tx_cmd, rx_cmd) = mpsc::channel::<Kwp2000Cmd>();
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
-        let handle = std::thread::spawn(move || {
+        std::thread::spawn(move || {
             let mut send_tester_present = false;
             let mut last_tester_present_time: Instant = Instant::now();
 
@@ -435,7 +436,10 @@ impl Kwp2000DiagnosticServer {
                 if let Ok(cmd) = rx_cmd.try_recv() {
                     event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
                     // We have an incoming command
-                    log::debug!("KWP2000 Incomming request from tester. Sending {:02X?} to ECU", cmd);
+                    log::debug!(
+                        "KWP2000 Incoming request from tester. Sending {:02X?} to ECU",
+                        cmd
+                    );
                     if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {
                         // Session change! Handle this differently
                         match helpers::perform_cmd(
@@ -443,9 +447,8 @@ impl Kwp2000DiagnosticServer {
                             &cmd,
                             &settings,
                             &mut server_channel,
-                            0x78,
                             0x21,
-                            lookup_kwp_nrc
+                            lookup_kwp_nrc,
                         ) {
                             Ok(res) => {
                                 // Set server session type
@@ -485,9 +488,8 @@ impl Kwp2000DiagnosticServer {
                             &cmd,
                             &settings,
                             &mut server_channel,
-                            0x78,
                             0x21,
-                            lookup_kwp_nrc
+                            lookup_kwp_nrc,
                         ) {
                             Ok(res) => {
                                 send_tester_present = false;
@@ -517,9 +519,8 @@ impl Kwp2000DiagnosticServer {
                             &cmd,
                             &settings,
                             &mut server_channel,
-                            0x78,
                             0x21,
-                            lookup_kwp_nrc
+                            lookup_kwp_nrc,
                         );
                         event_handler.on_event(ServerEvent::Response(&res));
                         //event_handler.on_event(&res);
@@ -555,9 +556,14 @@ impl Kwp2000DiagnosticServer {
                         x => x,
                     };
 
-                    if let Err(e) =
-                        helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78, 0x21, lookup_kwp_nrc)
-                    {
+                    if let Err(e) = helpers::perform_cmd(
+                        addr,
+                        &cmd,
+                        &settings,
+                        &mut server_channel,
+                        0x21,
+                        lookup_kwp_nrc,
+                    ) {
                         event_handler.on_event(ServerEvent::TesterPresentError(e))
                     }
                     last_tester_present_time = Instant::now();
@@ -578,10 +584,8 @@ impl Kwp2000DiagnosticServer {
             tx: tx_cmd,
             rx: rx_res,
             settings,
-            join_handler: handle,
             repeat_count: 3,
             repeat_interval: std::time::Duration::from_millis(1000),
-            dtc_format: None,
         })
     }
 
@@ -600,7 +604,6 @@ impl Kwp2000DiagnosticServer {
 }
 
 impl DiagnosticServer<KWP2000Command> for Kwp2000DiagnosticServer {
-
     /// Send a command to the ECU, and receive its response
     ///
     /// ## Parameters
@@ -626,8 +629,8 @@ impl DiagnosticServer<KWP2000Command> for Kwp2000DiagnosticServer {
                 match self.exec_command(cmd.clone()) {
                     Ok(resp) => return Ok(resp),
                     Err(e) => {
-                        if let DiagError::ECUError {code, def} = e {
-                            return Err(DiagError::ECUError {code, def}); // ECU Error. Sending again won't help.
+                        if let DiagError::ECUError { code, def } = e {
+                            return Err(DiagError::ECUError { code, def }); // ECU Error. Sending again won't help.
                         }
                         last_err = Some(e); // Other error. Sleep and then try again
                         if let Some(sleep_time) = self.repeat_interval.checked_sub(start.elapsed())

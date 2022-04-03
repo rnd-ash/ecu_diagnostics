@@ -5,14 +5,8 @@ use std::os::raw::c_char;
 use std::sync::Arc;
 use std::{ffi::*, fmt};
 
-#[cfg(windows)]
-use winreg::enums::*;
-
-#[cfg(windows)]
-use winreg::{RegKey, RegValue};
-
 /// Result which contains a PASSTHRU_ERROR in it's Err() variant
-pub type PassthruResult<T> = std::result::Result<T, j2534_rust::PassthruError>;
+pub type PassthruResult<T> = Result<T, PassthruError>;
 
 type PassThruOpenFn = unsafe extern "stdcall" fn(name: *const c_void, device_id: *mut u32) -> i32;
 type PassThruCloseFn = unsafe extern "stdcall" fn(device_id: u32) -> i32;
@@ -81,7 +75,7 @@ pub struct DrvVersion {
 #[derive(Clone)]
 pub struct PassthruDrv {
     /// Loaded library to interface with the device
-    lib: Arc<libloading::Library>,
+    lib: Arc<Library>,
     /// Is the device currently connected?
     is_connected: bool,
     /// Open device connection
@@ -133,7 +127,7 @@ fn ret_res<T>(res: i32, ret: T) -> PassthruResult<T> {
 }
 
 impl PassthruDrv {
-    pub fn load_lib(path: String) -> std::result::Result<PassthruDrv, libloading::Error> {
+    pub fn load_lib(path: String) -> Result<PassthruDrv, libloading::Error> {
         let lib = unsafe { Library::new(path)? };
         unsafe {
             let open_fn = *lib.get::<PassThruOpenFn>(b"PassThruOpen\0")?.into_raw();
@@ -202,8 +196,7 @@ impl PassthruDrv {
     //type PassThruOpenFn = unsafe extern "stdcall" fn(name: *const libc::c_void, device_id: *mut u32) -> i32;
     pub fn open(&mut self) -> PassthruResult<u32> {
         let mut id: u32 = 0;
-        let res =
-            unsafe { (&self.open_fn)(std::ptr::null() as *const c_void, &mut id as *mut u32) };
+        let res = unsafe { (&self.open_fn)(std::ptr::null(), &mut id) };
         if res == 0x00 {
             self.is_connected = true;
         }
@@ -220,6 +213,7 @@ impl PassthruDrv {
     }
 
     // type PassThruWriteMsgsFn = unsafe extern "stdcall" fn(channel_id: u32, msgs: *mut PASSTHRU_MSG, num_msgs: *mut u32, timeout: u32) -> i32;
+    #[allow(trivial_casts)]
     pub fn write_messages(
         &self,
         channel_id: u32,
@@ -268,8 +262,8 @@ impl PassthruDrv {
         let res = unsafe {
             (&self.read_msg_fn)(
                 channel_id,
-                write_array.as_mut_ptr() as *mut PASSTHRU_MSG,
-                &mut msg_count as *mut u32,
+                write_array.as_mut_ptr(),
+                &mut msg_count,
                 timeout,
             )
         };
@@ -351,15 +345,8 @@ impl PassthruDrv {
         baud: u32,
     ) -> PassthruResult<u32> {
         let mut channel_id: u32 = 0;
-        let res = unsafe {
-            (&self.connect_fn)(
-                dev_id,
-                protocol as u32,
-                flags as u32,
-                baud,
-                &mut channel_id as *mut u32,
-            )
-        };
+        let res =
+            unsafe { (&self.connect_fn)(dev_id, protocol as u32, flags, baud, &mut channel_id) };
         ret_res(res, channel_id)
     }
 
@@ -378,14 +365,7 @@ impl PassthruDrv {
         time_interval: u32,
     ) -> PassthruResult<u32> {
         let mut msg_id: u32 = 0;
-        let res = unsafe {
-            (&self.start_periodic_fn)(
-                channel_id,
-                msg as *const PASSTHRU_MSG,
-                &mut msg_id as *mut u32,
-                time_interval,
-            )
-        };
+        let res = unsafe { (&self.start_periodic_fn)(channel_id, msg, &mut msg_id, time_interval) };
         ret_res(res, msg_id)
     }
 
@@ -416,21 +396,14 @@ impl PassthruDrv {
                 (&self.start_filter_fn)(
                     channel_id,
                     tmp,
-                    mask as *const PASSTHRU_MSG,
-                    pattern as *const PASSTHRU_MSG,
-                    std::ptr::null() as *const PASSTHRU_MSG,
-                    &mut filter_id as *mut u32,
+                    mask,
+                    pattern,
+                    std::ptr::null(),
+                    &mut filter_id,
                 )
             },
             Some(fc) => unsafe {
-                (&self.start_filter_fn)(
-                    channel_id,
-                    tmp,
-                    mask as *const PASSTHRU_MSG,
-                    pattern as *const PASSTHRU_MSG,
-                    fc as *const PASSTHRU_MSG,
-                    &mut filter_id as *mut u32,
-                )
+                (&self.start_filter_fn)(channel_id, tmp, mask, pattern, fc, &mut filter_id)
             },
         };
         ret_res(res, filter_id)

@@ -1,9 +1,8 @@
-//! The passthru API (Also known as SAE J2534) is an adapter protocol used by some OBD2 adapters.
+//! The Passthru API (Also known as SAE J2534) is an adapter protocol used by some vehicle communication
+//! interfaces (VCI).
 //!
-//! This module provides support for V04.04 of the API, including experimental support for OSX and Linux, used by
-//! [Macchina-J2534][1]
-//!
-//! [1]: http://github.com/rnd-ash/macchina-J2534
+//! This module provides support for Version 04.04 of the API, including experimental support for OSX and Linux, used by
+//! [Macchina-J2534](http://github.com/rnd-ash/macchina-J2534)
 //!
 //! The API supports the following communication protocols:
 //! * ISO9141
@@ -22,18 +21,20 @@ use std::{
     ffi::c_void,
     sync::{Arc, Mutex, PoisonError},
     time::Instant,
-    path::Path
 };
 
 #[cfg(windows)]
 use winreg::enums::*;
 
 #[cfg(windows)]
-use winreg::{RegKey, RegValue};
+use winreg::RegKey;
 
+#[cfg(unix)]
+use std::path::Path;
 
 use j2534_rust::{
-    ConnectFlags, FilterType, IoctlID, Loggable, PassthruError, Protocol, TxFlag, PASSTHRU_MSG, RxFlag,
+    ConnectFlags, FilterType, IoctlID, Loggable, PassthruError, Protocol, RxFlag, TxFlag,
+    PASSTHRU_MSG,
 };
 
 use crate::channel::{
@@ -53,7 +54,7 @@ pub struct PassthruScanner {
     devices: Vec<PassthruInfo>,
 }
 
-impl std::default::Default for PassthruScanner {
+impl Default for PassthruScanner {
     fn default() -> Self {
         Self::new()
     }
@@ -96,17 +97,15 @@ impl PassthruScanner {
         match RegKey::predef(HKEY_LOCAL_MACHINE)
             .open_subkey("SOFTWARE\\WOW6432Node\\PassThruSupport.04.04")
         {
-            Ok(r) => {
-                Self {
-                    devices: r
+            Ok(r) => Self {
+                devices: r
                     .enum_keys()
                     .into_iter()
                     .filter_map(|e| e.ok())
                     .map(|key| r.open_subkey(key))
                     .map(|x| PassthruInfo::new(&x.unwrap()))
                     .filter_map(|d| d.ok())
-                    .collect()
-                }
+                    .collect(),
             },
             Err(_) => Self {
                 devices: Vec::new(),
@@ -116,21 +115,18 @@ impl PassthruScanner {
 }
 
 impl super::HardwareScanner<PassthruDevice> for PassthruScanner {
-    fn list_devices(&self) -> Vec<super::HardwareInfo> {
+    fn list_devices(&self) -> Vec<HardwareInfo> {
         self.devices.iter().map(|x| x.into()).collect()
     }
 
-    fn open_device_by_index(
-        &self,
-        idx: usize,
-    ) -> super::HardwareResult<Arc<Mutex<PassthruDevice>>> {
+    fn open_device_by_index(&self, idx: usize) -> HardwareResult<Arc<Mutex<PassthruDevice>>> {
         match self.devices.get(idx) {
             Some(info) => Ok(Arc::new(Mutex::new(PassthruDevice::open_device(info)?))),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
 
-    fn open_device_by_name(&self, name: &str) -> super::HardwareResult<Arc<Mutex<PassthruDevice>>> {
+    fn open_device_by_name(&self, name: &str) -> HardwareResult<Arc<Mutex<PassthruDevice>>> {
         match self.devices.iter().find(|s| s.name == name) {
             Some(info) => Ok(Arc::new(Mutex::new(PassthruDevice::open_device(info)?))),
             None => Err(HardwareError::DeviceNotFound),
@@ -158,12 +154,15 @@ struct PassthruInfo {
 impl PassthruInfo {
     #[cfg(unix)]
     pub fn new(path: &Path) -> HardwareResult<Self> {
-
         return if let Ok(s) = std::fs::read_to_string(&path) {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(s.as_str()) {
-                let lib = json["FUNCTION_LIB"].as_str().unwrap_or("UNKNOWN PASSTHRU DEVICE FUNCTION LIB");
+                let lib = json["FUNCTION_LIB"]
+                    .as_str()
+                    .unwrap_or("UNKNOWN PASSTHRU DEVICE FUNCTION LIB");
                 let name = json["NAME"].as_str().unwrap_or("UNKNOWN PASSTHRU DEVICE");
-                let vend = json["VENDOR"].as_str().unwrap_or("UNKNOWN PASSTHRU DEVICE VENDOR");
+                let vend = json["VENDOR"]
+                    .as_str()
+                    .unwrap_or("UNKNOWN PASSTHRU DEVICE VENDOR");
                 Ok(PassthruInfo {
                     function_lib: String::from(lib),
                     name: String::from(name),
@@ -192,7 +191,6 @@ impl PassthruInfo {
     fn read_bool(j: &serde_json::Value, s: &str) -> bool {
         j[s].as_bool().unwrap_or(false)
     }
-
 
     #[cfg(windows)]
     pub fn new(r: &RegKey) -> HardwareResult<Self> {
@@ -289,7 +287,7 @@ impl PassthruDevice {
             // Set new version information from the device!
             ret.info.api_version = Some(version.api_version.clone());
             ret.info.device_fw_version = Some(version.fw_version.clone());
-            ret.info.library_version = Some(version.dll_version.clone());
+            ret.info.library_version = Some(version.dll_version);
         }
         Ok(ret)
     }
@@ -376,6 +374,15 @@ impl super::Hardware for PassthruDevice {
         Ok(Box::new(can_channel))
     }
 
+    fn is_iso_tp_channel_open(&self) -> bool {
+        self.can_channel
+    }
+
+    fn is_can_channel_open(&self) -> bool {
+        self.isotp_channel
+    }
+
+    #[allow(trivial_casts)]
     fn read_battery_voltage(&mut self) -> Option<f32> {
         let mut output: u32 = 0;
         match self.safe_passthru_op(|idx, drv: PassthruDrv| {
@@ -391,6 +398,7 @@ impl super::Hardware for PassthruDevice {
         }
     }
 
+    #[allow(trivial_casts)]
     fn read_ignition_voltage(&mut self) -> Option<f32> {
         let mut output: u32 = 0;
         match self.safe_passthru_op(|idx, drv: PassthruDrv| {
@@ -408,14 +416,6 @@ impl super::Hardware for PassthruDevice {
 
     fn get_info(&self) -> &HardwareInfo {
         &self.info
-    }
-
-    fn is_iso_tp_channel_open(&self) -> bool {
-        self.can_channel
-    }
-
-    fn is_can_channel_open(&self) -> bool {
-        self.isotp_channel
     }
 }
 
@@ -438,7 +438,7 @@ impl PassthruCanChannel {
 }
 
 impl CanChannel for PassthruCanChannel {
-    fn set_can_cfg(&mut self, baud: u32, use_extended: bool) -> crate::channel::ChannelResult<()> {
+    fn set_can_cfg(&mut self, baud: u32, use_extended: bool) -> ChannelResult<()> {
         self.baud = baud;
         self.use_ext = use_extended;
         Ok(())
@@ -446,7 +446,7 @@ impl CanChannel for PassthruCanChannel {
 }
 
 impl PacketChannel<CanFrame> for PassthruCanChannel {
-    fn open(&mut self) -> crate::channel::ChannelResult<()> {
+    fn open(&mut self) -> ChannelResult<()> {
         let mut device = self.device.lock()?;
         // Already open, ignore request
         if self.channel_id.is_some() {
@@ -492,7 +492,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             Ok(_) => Ok(()), // Channel setup complete
             Err(e) => {
                 // Oops! Teardown
-                std::mem::drop(device);
+                drop(device);
                 if let Err(e) = self.close() {
                     eprintln!("TODO PT close failed! {}", e)
                 }
@@ -500,7 +500,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             }
         }
     }
-    fn close(&mut self) -> crate::channel::ChannelResult<()> {
+    fn close(&mut self) -> ChannelResult<()> {
         let mut device = self.device.lock()?;
         // Channel already closed, ignore request
         if self.channel_id.is_none() {
@@ -515,11 +515,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         Ok(())
     }
 
-    fn write_packets(
-        &mut self,
-        packets: Vec<CanFrame>,
-        timeout_ms: u32,
-    ) -> crate::channel::ChannelResult<()> {
+    fn write_packets(&mut self, packets: Vec<CanFrame>, timeout_ms: u32) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         let mut msgs: Vec<PASSTHRU_MSG> = packets.iter().map(|f| f.into()).collect();
         self.device
@@ -529,11 +525,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             .map(|_| ())
     }
 
-    fn read_packets(
-        &mut self,
-        max: usize,
-        timeout_ms: u32,
-    ) -> crate::channel::ChannelResult<Vec<CanFrame>> {
+    fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<CanFrame>> {
         let channel_id = self.get_channel_id()?;
         match self
             .device
@@ -545,7 +537,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         }
     }
 
-    fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         self.device
             .lock()?
@@ -560,7 +552,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             .map_err(|e| e.into())
     }
 
-    fn clear_tx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
+    fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         self.device
             .lock()?
@@ -666,7 +658,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
             Ok(_) => Ok(()), // Channel setup complete
             Err(e) => {
                 // Oops! Teardown
-                std::mem::drop(device);
+                drop(device);
                 if let Err(e) = self.close() {
                     eprintln!("TODO PT close failed! {}", e)
                 }
@@ -719,7 +711,9 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 // but instead they use these 2 flags to denote echo messages!
                 if ((msg.rx_status & RxFlag::ISO15765_FIRST_FRAME.bits() == 0) // Not a first frame indication
                     && (msg.rx_status & RxFlag::TX_MSG_TYPE.bits() == 0)) // Not an echo message
-                        || msg.data_size != 4 { // Normal way of checking for ISO15765_FIRST_FRAME indication
+                        || msg.data_size != 4
+                {
+                    // Normal way of checking for ISO15765_FIRST_FRAME indication
                     // Read complete!
                     // First 4 bytes are CAN ID, so ignore those
                     return Ok(msg.data[4..msg.data_size as usize].to_vec());
@@ -802,7 +796,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
 }
 
 impl<'a> IsoTPChannel for PassthruIsoTpChannel {
-    fn set_iso_tp_cfg(&mut self, cfg: crate::channel::IsoTPSettings) -> ChannelResult<()> {
+    fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()> {
         self.cfg_complete = true;
         self.cfg = cfg;
         Ok(())
@@ -846,8 +840,8 @@ impl From<&PASSTHRU_MSG> for CanFrame {
     }
 }
 
-impl From<j2534_rust::PassthruError> for HardwareError {
-    fn from(err: j2534_rust::PassthruError) -> Self {
+impl From<PassthruError> for HardwareError {
+    fn from(err: PassthruError) -> Self {
         HardwareError::APIError {
             code: err as u32,
             desc: err.to_string().into(),

@@ -38,71 +38,13 @@ impl From<UDSSessionType> for u8 {
     }
 }
 
-/// Tells the ECU to enter default diagnostic session mode
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-pub fn set_default_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-    server
-        .execute_command_with_response(
+impl UdsDiagnosticServer {
+    /// Requests the ECU to go into a specific diagnostic session mode
+    pub fn set_session_mode(&mut self, session_mode: UDSSessionType) -> DiagServerResult<()> {
+        self.execute_command_with_response(
             UDSCommand::DiagnosticSessionControl,
-            &[UDSSessionType::Default.into()],
+            &[session_mode.into()],
         )
         .map(|_| ())
-}
-
-/// Tells the ECU to enter a programming diagnostic session mode
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-pub fn set_programming_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-    server
-        .execute_command_with_response(
-            UDSCommand::DiagnosticSessionControl,
-            &[UDSSessionType::Programming.into()],
-        )
-        .map(|_| ())
-}
-
-/// Tells the ECU to enter an extended diagnostic session mode
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-pub fn set_extended_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-    server
-        .execute_command_with_response(
-            UDSCommand::DiagnosticSessionControl,
-            &[UDSSessionType::Extended.into()],
-        )
-        .map(|_| ())
-}
-
-/// Tells the ECU to enter a safety system diagnostic session mode
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-pub fn set_safety_system_mode(server: &mut UdsDiagnosticServer) -> DiagServerResult<()> {
-    server
-        .execute_command_with_response(
-            UDSCommand::DiagnosticSessionControl,
-            &[UDSSessionType::SafetySystem.into()],
-        )
-        .map(|_| ())
-}
-
-/// Tells the ECU to enter a custom diagnostic session mode
-///
-/// ## Parameters
-/// * server - The UDS Diagnostic server
-/// * custom_mode_id - Custom diagnostic session mode
-pub fn set_custom_mode(
-    server: &mut UdsDiagnosticServer,
-    custom_mode_id: u8,
-) -> DiagServerResult<()> {
-    server
-        .execute_command_with_response(
-            UDSCommand::DiagnosticSessionControl,
-            &[UDSSessionType::Other(custom_mode_id).into()],
-        )
-        .map(|_| ())
+    }
 }

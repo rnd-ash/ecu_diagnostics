@@ -8,29 +8,32 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
     },
-    thread::JoinHandle,
     time::Instant,
 };
 
-use crate::{BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent, ServerEventHandler, channel::IsoTPChannel, channel::IsoTPSettings, dtc::DTCFormatType, helpers};
+use crate::{
+    channel::IsoTPChannel, channel::IsoTPSettings, dtc::DTCFormatType, helpers, BaseServerPayload,
+    BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer, ServerEvent,
+    ServerEventHandler,
+};
 
+mod access_timing_parameter;
+mod clear_diagnostic_information;
+mod communication_control;
 mod diagnostic_session_control;
 mod ecu_reset;
 mod read_dtc_information;
-mod security_access;
-mod clear_diagnostic_information;
-mod communication_control;
-mod access_timing_parameter;
 mod scaling_data;
+mod security_access;
 
+pub use access_timing_parameter::*;
+pub use clear_diagnostic_information::*;
+pub use communication_control::*;
 pub use diagnostic_session_control::*;
 pub use ecu_reset::*;
 pub use read_dtc_information::*;
-pub use security_access::*;
-pub use clear_diagnostic_information::*;
-pub use communication_control::*;
-pub use access_timing_parameter::*;
 pub use scaling_data::*;
+pub use security_access::*;
 
 /// UDS Command Service IDs
 #[allow(missing_docs)]
@@ -69,7 +72,7 @@ pub enum UDSCommand {
     RequestUpload,
     TransferData,
     RequestTransferExit,
-    Other(u8)
+    Other(u8),
 }
 
 impl From<u8> for UDSCommand {
@@ -100,7 +103,7 @@ impl From<u8> for UDSCommand {
             0x35 => UDSCommand::RequestUpload,
             0x36 => UDSCommand::TransferData,
             0x37 => UDSCommand::RequestTransferExit,
-            _ => UDSCommand::Other(sid)
+            _ => UDSCommand::Other(sid),
         }
     }
 }
@@ -160,7 +163,7 @@ pub enum UDSError {
     /// not being correct
     ConditionsNotCorrect,
     /// The ECU cannot perform the request as the request has been sent in the incorrect order.
-    /// For example, if [security_access::send_key] is used before [security_access::request_seed],
+    /// For example, if [UdsDiagnosticServer::send_key] is used before [UdsDiagnosticServer::request_seed],
     /// then the ECU will respond with this error.
     RequestSequenceError,
     /// The ECU cannot perform the request as it has timed out trying to communicate with another
@@ -173,7 +176,7 @@ pub enum UDSError {
     RequestOutOfRange,
     /// The request could not be completed due to security access being denied.
     SecurityAccessDenied,
-    /// The key sent from [security_access::send_key] was invalid
+    /// The key sent from [UdsDiagnosticServer::send_key] was invalid
     InvalidKey,
     /// The client has tried to obtain security access to the ECU too many times with
     /// incorrect keys
@@ -289,8 +292,8 @@ impl From<u8> for UDSError {
             0x91 => Self::TorqueConverterClutchLocked,
             0x92 => Self::VoltageTooHigh,
             0x93 => Self::VoltageTooLow,
-            (0x94..=0xFE) => Self::ReserverdForSpecificConditionsNotCorrect,
-            (0x38..=0x4F) => Self::ReservedByExtendedDataLinkSecurityDocumentation,
+            0x94..=0xFE => Self::ReserverdForSpecificConditionsNotCorrect,
+            0x38..=0x4F => Self::ReservedByExtendedDataLinkSecurityDocumentation,
             x => Self::IsoSAEReserved(x),
         }
     }
@@ -356,10 +359,10 @@ impl UdsCmd {
         }
     }
 
-    pub (crate) fn from_raw(r: &[u8], response_required: bool) -> Self {
+    pub(crate) fn from_raw(r: &[u8], response_required: bool) -> Self {
         Self {
             bytes: r.to_vec(),
-            response_required
+            response_required,
         }
     }
 
@@ -403,7 +406,6 @@ pub struct UdsDiagnosticServer {
     settings: UdsServerOptions,
     tx: mpsc::Sender<UdsCmd>,
     rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
-    join_handler: JoinHandle<()>,
     repeat_count: u32,
     repeat_interval: std::time::Duration,
     dtc_format: Option<DTCFormatType>, // Used as a cache
@@ -441,7 +443,7 @@ impl UdsDiagnosticServer {
         let (tx_cmd, rx_cmd) = mpsc::channel::<UdsCmd>();
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
-        let handle = std::thread::spawn(move || {
+        std::thread::spawn(move || {
             let mut send_tester_present = false;
             let mut last_tester_present_time: Instant = Instant::now();
 
@@ -462,9 +464,8 @@ impl UdsDiagnosticServer {
                             &cmd,
                             &settings,
                             &mut server_channel,
-                            0x78,
                             0x21,
-                            lookup_uds_nrc
+                            lookup_uds_nrc,
                         ) {
                             // 0x78 - Response correctly received, response pending
                             Ok(res) => {
@@ -503,9 +504,8 @@ impl UdsDiagnosticServer {
                             &cmd,
                             &settings,
                             &mut server_channel,
-                            0x78, // UDSError::RequestCorrectlyReceivedResponsePending
                             0x21,
-                            lookup_uds_nrc
+                            lookup_uds_nrc,
                         );
                         event_handler.on_event(ServerEvent::Response(&res));
                         //event_handler.on_event(&res);
@@ -531,9 +531,14 @@ impl UdsDiagnosticServer {
                         x => x,
                     };
 
-                    if let Err(e) =
-                        helpers::perform_cmd(addr, &cmd, &settings, &mut server_channel, 0x78, 0x21, lookup_uds_nrc)
-                    {
+                    if let Err(e) = helpers::perform_cmd(
+                        addr,
+                        &cmd,
+                        &settings,
+                        &mut server_channel,
+                        0x21,
+                        lookup_uds_nrc,
+                    ) {
                         event_handler.on_event(ServerEvent::TesterPresentError(e))
                     }
                     last_tester_present_time = Instant::now();
@@ -553,7 +558,6 @@ impl UdsDiagnosticServer {
             tx: tx_cmd,
             rx: rx_res,
             settings,
-            join_handler: handle,
             repeat_count: 3,
             repeat_interval: std::time::Duration::from_millis(1000),
             dtc_format: None,
@@ -575,7 +579,6 @@ impl UdsDiagnosticServer {
 }
 
 impl DiagnosticServer<UDSCommand> for UdsDiagnosticServer {
-
     fn is_server_running(&self) -> bool {
         self.server_running.load(Ordering::Relaxed)
     }
@@ -605,8 +608,8 @@ impl DiagnosticServer<UDSCommand> for UdsDiagnosticServer {
                 match self.exec_command(cmd.clone()) {
                     Ok(resp) => return Ok(resp),
                     Err(e) => {
-                        if let DiagError::ECUError{code, def} = e {
-                            return Err(DiagError::ECUError{code, def}); // ECU Error. Sending again won't help.
+                        if let DiagError::ECUError { code, def } = e {
+                            return Err(DiagError::ECUError { code, def }); // ECU Error. Sending again won't help.
                         }
                         last_err = Some(e); // Other error. Sleep and then try again
                         if let Some(sleep_time) = self.repeat_interval.checked_sub(start.elapsed())
