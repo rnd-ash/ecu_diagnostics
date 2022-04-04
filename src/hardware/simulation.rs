@@ -10,9 +10,6 @@ pub struct SimulationIsoTpChannel {
     rx_queue: Arc<RwLock<VecDeque<Vec<u8>>>>,
 }
 
-unsafe impl Send for SimulationIsoTpChannel{}
-unsafe impl Sync for SimulationIsoTpChannel{}
-
 impl SimulationIsoTpChannel {
     pub fn new() -> Self {
         Self {

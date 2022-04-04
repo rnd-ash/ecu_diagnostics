@@ -191,9 +191,6 @@ pub enum ServerEvent<'a, SessionState> {
     InterfaceCloseOnExitError(ChannelError),
 }
 
-unsafe impl<'a, SessionType> Send for ServerEvent<'a, SessionType> {}
-unsafe impl<'a, SessionType> Sync for ServerEvent<'a, SessionType> {}
-
 /// Handler for when [ServerEvent] get broadcast by the diagnostic servers background thread
 pub trait ServerEventHandler<SessionState>: Send + Sync {
     /// Handle incoming server events
