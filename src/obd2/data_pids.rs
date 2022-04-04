@@ -5,6 +5,7 @@ use strum_macros::EnumString;
 /// OBD2 data PIDs used for Service 01 and 02
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, EnumString)]
 #[repr(u8)]
+#[allow(missing_docs)]
 pub enum DataPid {
     StatusSinceDTCCleared,
     FreezeDTC,
@@ -338,7 +339,8 @@ impl DataPid {
         return Ok(r);
     }
 
-    pub fn get_value(
+    /// Returns parsed value after request the ECU for the PID
+    pub (crate) fn get_value(
         &self,
         server: &mut OBD2DiagnosticServer,
         ff: Option<u16>,
