@@ -14,7 +14,9 @@ pub struct Service01<'a> {
 
 impl OBD2DiagnosticServer {
     /// Initializes the service 01 wrapper. Automatically query's the ECU
-    /// on init for supported PIDs
+    /// on init for supported PIDs.
+    /// NOTE: Unlike other functions, if this function encounters a ECU communication
+    /// error, it will still return OK.
     pub fn init_service_01(&mut self) -> DiagServerResult<Service01> {
         // Query supported pids
         let mut total_support_list = Vec::new();
@@ -26,7 +28,9 @@ impl OBD2DiagnosticServer {
                     if let DiagError::ECUError { code: _, def: _ } = e {
                         total_support_list.extend_from_slice(&[0x00, 0x00, 0x00, 0x00])
                     } else {
-                        return Err(e); // Communication error?
+                        // Communication error
+                        // Some glithcy Merc ECUs will do this so ignore it for now
+                        total_support_list.extend_from_slice(&[0x00, 0x00, 0x00, 0x00])
                     }
                 }
             }
