@@ -56,7 +56,7 @@ impl ObdValue {
 
     /// Returns inner value
     pub fn get_value(&self) -> ObdUnitType {
-        self.value
+        self.value.clone()
     }
 }
 
@@ -220,7 +220,7 @@ impl Distance {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 /// OBD unit type wrapper
 pub enum ObdUnitType {
     /// Raw number
@@ -243,6 +243,8 @@ pub enum ObdUnitType {
     Pressure(Pressure),
     /// Encoded enumeration value
     Encoded(ObdEnumValue),
+    /// Byte array (Bit encoding)
+    ByteArray(Vec<u8>),
 }
 
 impl ObdUnitType {
@@ -271,6 +273,7 @@ impl ObdUnitType {
             ObdUnitType::Distance(d) => format!("{} km", d.to_kilometers()),
             ObdUnitType::Pressure(p) => format!("{} bar", p.to_bar()),
             ObdUnitType::Encoded(e) => e.to_string(),
+            ObdUnitType::ByteArray(v) => format!("{:02X?}", v),
         }
     }
 
@@ -299,6 +302,7 @@ impl ObdUnitType {
             ObdUnitType::Distance(d) => format!("{} miles", d.to_miles()),
             ObdUnitType::Pressure(p) => format!("{} bar", p.to_psi()),
             ObdUnitType::Encoded(e) => e.to_string(),
+            ObdUnitType::ByteArray(v) => format!("{:02X?}", v),
         }
     }
 
@@ -351,6 +355,7 @@ impl ObdUnitType {
     /// Returns the raw value as a float in imperial form.
     ///
     /// NOTE: encoded enum values are returned as their integer representation!
+    /// Byte array is simply returned as the sum of all the values in the byte array
     pub fn as_imperial(&self) -> f32 {
         match self {
             ObdUnitType::Raw(x) => *x,
@@ -363,12 +368,14 @@ impl ObdUnitType {
             ObdUnitType::Distance(x) => x.to_miles(),
             ObdUnitType::Pressure(x) => x.to_bar(),
             ObdUnitType::Encoded(x) => u32::from(*x) as f32,
+            ObdUnitType::ByteArray(v) => v.iter().map(|x| *x as f32).sum::<f32>(),
         }
     }
 
     /// Returns the raw value as a float in metric form.
     ///
     /// NOTE: encoded enum values are returned as their integer representation!
+    /// Byte array is simply returned as the sum of all the values in the byte array
     pub fn as_metric(&self) -> f32 {
         match self {
             ObdUnitType::Raw(x) => *x,
@@ -381,6 +388,7 @@ impl ObdUnitType {
             ObdUnitType::Distance(x) => x.to_kilometers(),
             ObdUnitType::Pressure(x) => x.to_bar(),
             ObdUnitType::Encoded(x) => u32::from(*x) as f32,
+            ObdUnitType::ByteArray(v) => v.iter().map(|x| *x as f32).sum::<f32>(),
         }
     }
 }

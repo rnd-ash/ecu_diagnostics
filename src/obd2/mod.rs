@@ -22,11 +22,11 @@ mod units;
 
 // Exports
 use crate::dtc::{DTCFormatType, DTCStatus, DTC};
+pub use data_pids::*;
 pub use enumerations::*;
 pub use service01::*;
 pub use service09::*;
 pub use units::*;
-pub use data_pids::*;
 
 // OBD2 does not have a 'session type' like KWP or UDS,
 // so create a dummy marker just to satisfy the <VoidHandler> trait

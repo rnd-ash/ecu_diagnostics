@@ -48,7 +48,7 @@ impl<'a> Service01<'a> {
         let mut r = Vec::new();
         for (idx, supported) in self.support_list.iter().enumerate() {
             if *supported {
-                let pid = (idx+1) as u8;
+                let pid = (idx + 1) as u8;
                 if !&[0x13, 0x1D, 0x20, 0x40, 0x60, 0x80, 0xA0, 0xC0, 0xE0].contains(&pid) {
                     r.push(DataPid::from(pid))
                 }
