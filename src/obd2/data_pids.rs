@@ -932,7 +932,7 @@ impl DataPid {
                 ])
             }
             DataPid::CatTempBank1Sensor1 => {
-                let r: Vec<u32> = self.request_ecu(server, ff, 4)?.iter().map(|x| *x as u32).collect();
+                let r: Vec<u32> = self.request_ecu(server, ff, 2)?.iter().map(|x| *x as u32).collect();
                 Ok(vec![
                     ObdValue::new(
                         "Catalyst Temperature bank 1, sensor 1",
@@ -945,7 +945,7 @@ impl DataPid {
                 ])
             }
             DataPid::CatTempBank2Sensor1 => {
-                let r: Vec<u32> = self.request_ecu(server, ff, 4)?.iter().map(|x| *x as u32).collect();
+                let r: Vec<u32> = self.request_ecu(server, ff, 2)?.iter().map(|x| *x as u32).collect();
                 Ok(vec![
                     ObdValue::new(
                         "Catalyst Temperature bank 2, sensor 1",
@@ -958,7 +958,7 @@ impl DataPid {
                 ])
             }
             DataPid::CatTempBank1Sensor2 => {
-                let r: Vec<u32> = self.request_ecu(server, ff, 4)?.iter().map(|x| *x as u32).collect();
+                let r: Vec<u32> = self.request_ecu(server, ff, 2)?.iter().map(|x| *x as u32).collect();
                 Ok(vec![
                     ObdValue::new(
                         "Catalyst Temperature bank 1, sensor 2",
@@ -971,7 +971,7 @@ impl DataPid {
                 ])
             }
             DataPid::CatTempBank2Sensor2 => {
-                let r: Vec<u32> = self.request_ecu(server, ff, 4)?.iter().map(|x| *x as u32).collect();
+                let r: Vec<u32> = self.request_ecu(server, ff, 2)?.iter().map(|x| *x as u32).collect();
                 Ok(vec![
                     ObdValue::new(
                         "Catalyst Temperature bank 2, sensor 2",

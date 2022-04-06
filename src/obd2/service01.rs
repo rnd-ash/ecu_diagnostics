@@ -29,10 +29,12 @@ impl OBD2DiagnosticServer {
                         total_support_list.extend_from_slice(&[0x00, 0x00, 0x00, 0x00])
                     } else {
                         // Communication error
-                        // Some glithcy Merc ECUs will do this so ignore it for now
                         total_support_list.extend_from_slice(&[0x00, 0x00, 0x00, 0x00])
                     }
                 }
+            }
+            if total_support_list.last().unwrap() & 0x01 == 0 { // Early return if we don't support any more PIDs
+                break;
             }
         }
         Ok(Service01 {
@@ -121,6 +123,7 @@ pub mod service_09_test {
         obd.read_dtcs();
         let mut s_01 = obd.init_service_01().unwrap();
         let pids = s_01.get_supported_pids();
+        println!("Supported PIDs: {:?}", pids);
         for p in pids {
             match s_01.query_pid(p) {
                 Err(e) => println!("Query for {:?} failed {}", p, e),
