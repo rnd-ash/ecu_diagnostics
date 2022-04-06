@@ -80,7 +80,10 @@ impl<'a> Service09<'a> {
         let resp = self
             .server
             .exec_command(OBD2Cmd::new(OBD2Command::Service09, &[0x02]))?;
-        Ok(unsafe { String::from_utf8_unchecked(resp[3..].to_vec()) })
+        Ok(
+            String::from_utf8_lossy(resp.get(3..).ok_or(DiagError::InvalidResponseLength)?)
+                .into_owned(),
+        )
     }
 
     /// Reads the vehicles stored calibration ID (More than 1 may be returned)

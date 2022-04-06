@@ -662,9 +662,6 @@ pub fn get_description_of_ecu_error(error: u8) -> UDSError {
     error.into()
 }
 
-unsafe impl Sync for UdsDiagnosticServer {}
-unsafe impl Send for UdsDiagnosticServer {}
-
 impl Drop for UdsDiagnosticServer {
     fn drop(&mut self) {
         self.server_running.store(false, Ordering::Relaxed); // Stop server
