@@ -366,6 +366,12 @@ pub struct Kwp2000ServerOptions {
     pub tester_present_interval_ms: u32,
     /// Configures if the diagnostic server will poll for a response from tester present.
     pub tester_present_require_response: bool,
+    /// Session control uses global_tp_id if specified
+    /// If `global_tp_id` is set to 0, then this value is ignored.
+    /// 
+    /// IMPORTANT: This can set your ENTIRE vehicle network into diagnostic
+    /// session mode, so be very careful doing this!
+    pub global_session_control: bool
 }
 
 impl BaseServerSettings for Kwp2000ServerOptions {
@@ -433,7 +439,7 @@ impl Kwp2000DiagnosticServer {
                     break;
                 }
 
-                if let Ok(cmd) = rx_cmd.try_recv() {
+                if let Ok(mut cmd) = rx_cmd.try_recv() {
                     event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
                     // We have an incoming command
                     log::debug!(
@@ -441,9 +447,20 @@ impl Kwp2000DiagnosticServer {
                         cmd
                     );
                     if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {
+                        let mut send_id = settings.send_id;
                         // Session change! Handle this differently
+
+                        // In this case, we have to broadcast the session control messages
+                        // onto the GLOBAL ID, which puts the entire CAN network
+                        // into diagnostic session mode.
+                        //
+                        // NOTE: We won't get a response from the target ECU in this case.
+                        if settings.global_session_control && settings.global_tp_id != 0 {
+                            cmd.response_required = false;
+                            send_id = settings.global_tp_id;
+                        }
                         match helpers::perform_cmd(
-                            settings.send_id,
+                            send_id,
                             &cmd,
                             &settings,
                             &mut server_channel,
