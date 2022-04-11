@@ -66,6 +66,7 @@ impl DynamicDiagSession {
                 global_tp_id: 0x00,
                 tester_present_interval_ms: 2000,
                 tester_present_require_response: true,
+                global_session_control: false
             },
             iso_tp_channel,
             channel_cfg,
