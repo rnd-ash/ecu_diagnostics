@@ -3,9 +3,11 @@
 //! in order to communicate with vehicle ECUs
 
 mod dpdu;
+
+#[cfg(feature = "passthru")]
 pub mod passthru; // Not finished at all yet, hide from the crate
 
-#[cfg(unix)]
+#[cfg(all(feature = "socketcan", unix))]
 pub mod socketcan;
 
 use std::sync::{Arc, Mutex};
@@ -101,9 +103,12 @@ pub enum HardwareError {
     DeviceNotFound,
     /// Function called on device that has not yet been opened
     DeviceNotOpen,
+
     /// Lib loading error
+    #[cfg(feature = "passthru")]
     LibLoadError(libloading::Error),
 }
+#[cfg(feature = "passthru")]
 impl From<libloading::Error> for HardwareError {
     fn from(err: libloading::Error) -> Self {
         Self::LibLoadError(err)
@@ -126,6 +131,7 @@ impl std::fmt::Display for HardwareError {
             }
             HardwareError::DeviceNotFound => write!(f, "Device not found"),
             HardwareError::DeviceNotOpen => write!(f, "Hardware device not open"),
+            #[cfg(feature = "passthru")]
             HardwareError::LibLoadError(e) => write!(f, "LibLoading error: {}", e),
         }
     }
@@ -134,6 +140,7 @@ impl std::fmt::Display for HardwareError {
 impl std::error::Error for HardwareError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self {
+            #[cfg(feature = "passthru")]
             HardwareError::LibLoadError(l) => Some(l),
             _ => None,
         }
