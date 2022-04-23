@@ -6,7 +6,7 @@
 
 use std::{
     borrow::BorrowMut,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, PoisonError},
 };
 
 use crate::hardware::HardwareError;
@@ -54,6 +54,21 @@ impl std::fmt::Display for ChannelError {
             ChannelError::ConfigurationError => {
                 write!(f, "Channel opened prior to being configured")
             }
+        }
+    }
+}
+
+impl<T> From<PoisonError<T>> for ChannelError {
+    fn from(err: PoisonError<T>) -> Self {
+        ChannelError::HardwareError(HardwareError::from(err))
+    }
+}
+
+impl<T> From<PoisonError<T>> for HardwareError {
+    fn from(_x: PoisonError<T>) -> Self {
+        HardwareError::APIError {
+            code: 99,
+            desc: "PoisonError".into(),
         }
     }
 }

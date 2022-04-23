@@ -19,7 +19,7 @@
 
 use std::{
     ffi::c_void,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, Mutex},
     time::Instant,
 };
 
@@ -845,24 +845,6 @@ impl From<PassthruError> for HardwareError {
         HardwareError::APIError {
             code: err as u32,
             desc: err.to_string().into(),
-        }
-    }
-}
-
-impl<T> From<PoisonError<T>> for ChannelError {
-    fn from(_x: PoisonError<T>) -> Self {
-        ChannelError::HardwareError(HardwareError::APIError {
-            code: 99,
-            desc: "PoisonError".into(),
-        })
-    }
-}
-
-impl<T> From<PoisonError<T>> for HardwareError {
-    fn from(_x: PoisonError<T>) -> Self {
-        HardwareError::APIError {
-            code: 99,
-            desc: "PoisonError".into(),
         }
     }
 }
