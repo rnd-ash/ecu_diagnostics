@@ -26,19 +26,24 @@ members = [
     "ffi",
 ]
 
+[features]
+default = ["passthru", "socketcan"]
+socketcan = ["dep:socketcan-isotp", "dep:socketcan"]
+passthru = ["dep:libloading", "dep:shellexpand", "dep:winreg", "dep:serde_json", "dep:j2534_rust"]
+
+
 [dependencies]
-j2534_rust = "1.0"
-serde_json = "1.0.79"
-libloading = "0.7.3"
-env_logger="0.9.0"
+j2534_rust = { version = "1.0", optional = true }
+serde_json = { version = "1.0.79", optional = true }
+libloading = { version = "0.7.3", optional = true }
 log="0.4.16"
 strum = "0.24"
 strum_macros = "0.24"
 
 [target.'cfg(windows)'.dependencies]
-winreg = "0.10.1"
+winreg = { version = "0.10.1", optional = true }
 
 [target.'cfg(unix)'.dependencies]
-shellexpand = "2.1.0"
-socketcan-isotp = "1.0.0"
-socketcan = "1.7.0"
+shellexpand = { version = "2.1.0", optional = true }
+socketcan-isotp = { version = "1.0.0", optional = true }
+socketcan = { version = "1.7.0", optional = true }
