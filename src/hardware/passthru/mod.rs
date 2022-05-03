@@ -272,7 +272,7 @@ pub struct PassthruDevice {
 impl PassthruDevice {
     /// Opens the passthru device
     fn open_device(info: &PassthruInfo) -> HardwareResult<Self> {
-        log::debug!("[Passthru] Opening device {}. Function library is at {}", info.name, info.function_lib);
+        log::debug!("Opening device {}. Function library is at {}", info.name, info.function_lib);
         let lib = info.function_lib.clone();
         let mut drv = lib_funcs::PassthruDrv::load_lib(lib)?;
         let idx = drv.open()?;

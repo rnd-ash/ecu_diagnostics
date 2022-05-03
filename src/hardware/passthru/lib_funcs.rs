@@ -123,7 +123,7 @@ fn ret_res<T>(res: i32, ret: T) -> PassthruResult<T> {
     match res {
         0 => Ok(ret),
         _ => {
-            log::error!("[Passthru_Func] Function call failed with status {}", res);
+            log::error!("Function call failed with status {}", res);
             Err(PassthruError::from_raw(res as u32).unwrap())
         },
     }
@@ -131,7 +131,7 @@ fn ret_res<T>(res: i32, ret: T) -> PassthruResult<T> {
 
 impl PassthruDrv {
     pub fn load_lib(path: String) -> Result<PassthruDrv, libloading::Error> {
-        log::debug!("[Passthru_Func] Opening function library {}", path);
+        log::debug!("Opening function library {}", path);
         let lib = unsafe { Library::new(path)? };
         unsafe {
             let open_fn = *lib.get::<PassThruOpenFn>(b"PassThruOpen\0")?.into_raw();
@@ -170,7 +170,7 @@ impl PassthruDrv {
             let read_version_fn = *lib
                 .get::<PassThruReadVersionFn>(b"PassThruReadVersion\0")?
                 .into_raw();
-
+            
             Ok(PassthruDrv {
                 lib: Arc::new(lib),
                 is_connected: false,
@@ -199,7 +199,7 @@ impl PassthruDrv {
 
     //type PassThruOpenFn = unsafe extern "stdcall" fn(name: *const libc::c_void, device_id: *mut u32) -> i32;
     pub fn open(&mut self) -> PassthruResult<u32> {
-        log::debug!("[Passthru_Func] PT_OPEN called");
+        log::debug!("PT_OPEN called");
         let mut id: u32 = 0;
         let res = unsafe { (&self.open_fn)(std::ptr::null(), &mut id) };
         if res == 0x00 {
@@ -210,7 +210,7 @@ impl PassthruDrv {
 
     //type PassThruCloseFn = unsafe extern "stdcall" fn(device_id: u32) -> i32;
     pub fn close(&mut self, dev_id: u32) -> PassthruResult<()> {
-        log::debug!("[Passthru_Func] PT_CLOSE called. Device ID: {}", dev_id);
+        log::debug!("PT_CLOSE called. Device ID: {}", dev_id);
         let res = unsafe { (&self.close_fn)(dev_id) };
         if res == 0x00 {
             self.is_connected = false;
@@ -226,7 +226,7 @@ impl PassthruDrv {
         msgs: &mut [PASSTHRU_MSG],
         timeout: u32,
     ) -> PassthruResult<usize> {
-        log::debug!("[Passthru_Func] PT_WRITE_MSGS called. Channel ID: {}, {} msgs, Timeout {}", channel_id, msgs.len(), timeout);
+        log::debug!("PT_WRITE_MSGS called. Channel ID: {}, {} msgs, Timeout {}", channel_id, msgs.len(), timeout);
         if msgs.is_empty() {
             // No messages? Just tell application everything is OK
             return Ok(0);
@@ -250,7 +250,7 @@ impl PassthruDrv {
         max_msgs: u32,
         timeout: u32,
     ) -> PassthruResult<Vec<PASSTHRU_MSG>> {
-        log::debug!("[Passthru_Func] PT_READ_MSGS called. Channel ID: {}, {} msgs, Timeout {}", channel_id, max_msgs, timeout);
+        log::debug!("PT_READ_MSGS called. Channel ID: {}, {} msgs, Timeout {}", channel_id, max_msgs, timeout);
         let mut msg_count: u32 = max_msgs;
         // Create a blank array of empty passthru messages according to the max we should read
         let mut write_array: Vec<PASSTHRU_MSG> = vec![
@@ -291,7 +291,7 @@ impl PassthruDrv {
 
     //type PassThruReadVersionFn = unsafe extern "stdcall" fn(device_id: u32, firmware_version: *mut libc::c_char, dll_version: *mut libc::c_char, api_version: *mut libc::c_char) -> i32;
     pub fn get_version(&self, dev_id: u32) -> PassthruResult<DrvVersion> {
-        log::debug!("[Passthru_Func] PT_GET_VERSION called. Device ID {}", dev_id);
+        log::debug!("PT_GET_VERSION called. Device ID {}", dev_id);
         let mut firmware_version: [u8; 80] = [0; 80];
         let mut dll_version: [u8; 80] = [0; 80];
         let mut api_version: [u8; 80] = [0; 80];
@@ -339,7 +339,7 @@ impl PassthruDrv {
         input: *mut c_void,
         output: *mut c_void,
     ) -> PassthruResult<()> {
-        log::debug!("[Passthru_Func] PT_IOCTL called. handle ID {}, IOCTL ID {}", handle_id, ioctl_id);
+        log::debug!("PT_IOCTL called. handle ID {}, IOCTL ID {}", handle_id, ioctl_id);
         let res = unsafe { (&self.ioctl_fn)(handle_id, ioctl_id as u32, input, output) };
         ret_res(res, ())
     }
@@ -353,7 +353,7 @@ impl PassthruDrv {
         flags: u32,
         baud: u32,
     ) -> PassthruResult<u32> {
-        log::debug!("[Passthru_Func] PT_CONNECT called. Device ID {}, protocol {}, flags: {:08X?}, baud: {}", dev_id, protocol, flags, baud);
+        log::debug!("PT_CONNECT called. Device ID {}, protocol {}, flags: {:08X?}, baud: {}", dev_id, protocol, flags, baud);
         let mut channel_id: u32 = 0;
         let res =
             unsafe { (&self.connect_fn)(dev_id, protocol as u32, flags, baud, &mut channel_id) };
@@ -362,7 +362,7 @@ impl PassthruDrv {
 
     //type PassThruDisconnectFn = unsafe extern "stdcall" fn(channel_id: u32) -> i32;
     pub fn disconnect(&self, channel_id: u32) -> PassthruResult<()> {
-        log::debug!("[Passthru_Func] PT_DISCONNECT called. Channel ID {}", channel_id);
+        log::debug!("PT_DISCONNECT called. Channel ID {}", channel_id);
         ret_res(unsafe { (&self.disconnect_fn)(channel_id) }, ())
     }
 
@@ -396,7 +396,7 @@ impl PassthruDrv {
         pattern: &PASSTHRU_MSG,
         flow_control: Option<PASSTHRU_MSG>,
     ) -> PassthruResult<u32> {
-        log::debug!("[Passthru_Func] PT_START_MSG_FILTER called. Channel ID {}", channel_id);
+        log::debug!("PT_START_MSG_FILTER called. Channel ID {}", channel_id);
         let tmp = filter_type as u32;
         if tmp == FLOW_CONTROL_FILTER as u32 && flow_control.is_none() {
             return Err(PassthruError::ERR_INVALID_FILTER_ID);
@@ -423,7 +423,7 @@ impl PassthruDrv {
 
     //type PassThruStopMsgFilterFn = unsafe extern "stdcall" fn(channel_id: u32, filter_id: u32) -> i32;
     pub fn stop_msg_filter(&self, channel_id: u32, filter_id: u32) -> PassthruResult<()> {
-        log::debug!("[Passthru_Func] PT_STOP_MSG_FILTER called. Channel ID {}, Filter ID {}", channel_id, filter_id);
+        log::debug!("PT_STOP_MSG_FILTER called. Channel ID {}, Filter ID {}", channel_id, filter_id);
         let res = unsafe { (&self.stop_filter_fn)(channel_id, filter_id) };
         match res {
             0 => Ok(()),

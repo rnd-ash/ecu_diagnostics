@@ -278,17 +278,17 @@ impl OBD2DiagnosticServer {
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
         std::thread::spawn(move || {
-            log::debug!("[OBD2] server start");
+            log::debug!("server start");
             loop {
                 if !is_running_t.load(Ordering::Relaxed) {
-                    log::debug!("[OBD2] server exit");
+                    log::debug!("server exit");
                     break;
                 }
 
                 if let Ok(cmd) = rx_cmd.try_recv() {
                     // We have an incoming command
                     log::debug!(
-                        "[OBD2] Incoming request from tester. Sending {:02X?} to ECU",
+                        "Incoming request from tester. Sending {:02X?} to ECU",
                         cmd
                     );
                     let res = helpers::perform_cmd(
