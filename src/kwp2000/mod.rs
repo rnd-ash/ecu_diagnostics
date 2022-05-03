@@ -432,10 +432,10 @@ impl Kwp2000DiagnosticServer {
             let mut last_tester_present_time: Instant = Instant::now();
 
             event_handler.on_event(ServerEvent::ServerStart);
-            log::debug!("KWP2000 server start");
+            log::debug!("[KWP2000] server start");
             loop {
                 if !is_running_t.load(Ordering::Relaxed) {
-                    log::debug!("KWP2000 server exit");
+                    log::debug!("[KWP2000] server exit");
                     break;
                 }
 
@@ -443,7 +443,7 @@ impl Kwp2000DiagnosticServer {
                     event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
                     // We have an incoming command
                     log::debug!(
-                        "KWP2000 Incoming request from tester. Sending {:02X?} to ECU",
+                        "[KWP2000] Incoming request from tester. Sending {:02X?} to ECU",
                         cmd
                     );
                     if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {

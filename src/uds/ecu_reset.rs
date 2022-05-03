@@ -58,8 +58,7 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn ecu_hard_reset(&mut self) -> DiagServerResult<()> {
-        self
-            .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::HardReset.into()])
+        self.execute_command_with_response(UDSCommand::ECUReset, &[ResetType::HardReset.into()])
             .map(|_| ())
     }
 
@@ -68,8 +67,7 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn ecu_key_off_on_reset(&mut self) -> DiagServerResult<()> {
-        self
-            .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::KeyOffReset.into()])
+        self.execute_command_with_response(UDSCommand::ECUReset, &[ResetType::KeyOffReset.into()])
             .map(|_| ())
     }
 
@@ -78,8 +76,7 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn ecu_soft_reset(&mut self) -> DiagServerResult<()> {
-        self
-            .execute_command_with_response(UDSCommand::ECUReset, &[ResetType::SoftReset.into()])
+        self.execute_command_with_response(UDSCommand::ECUReset, &[ResetType::SoftReset.into()])
             .map(|_| ())
     }
 
@@ -110,11 +107,10 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn disable_rapid_power_shutdown(&mut self) -> DiagServerResult<()> {
-        self
-            .execute_command_with_response(
-                UDSCommand::ECUReset,
-                &[ResetType::DisableRapidPowerShutDown.into()],
-            )
-            .map(|_| ())
+        self.execute_command_with_response(
+            UDSCommand::ECUReset,
+            &[ResetType::DisableRapidPowerShutDown.into()],
+        )
+        .map(|_| ())
     }
 }
