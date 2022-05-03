@@ -36,7 +36,7 @@ passthru = ["dep:libloading", "dep:shellexpand", "dep:winreg", "dep:serde_json",
 j2534_rust = { version = "1.0", optional = true }
 serde_json = { version = "1.0.79", optional = true }
 libloading = { version = "0.7.3", optional = true }
-log="0.4.17"
+log="0.4.16"
 strum = "0.24"
 strum_macros = "0.24"
 
