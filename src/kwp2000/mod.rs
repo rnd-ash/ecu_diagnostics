@@ -442,10 +442,7 @@ impl Kwp2000DiagnosticServer {
                 if let Ok(mut cmd) = rx_cmd.try_recv() {
                     event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
                     // We have an incoming command
-                    log::debug!(
-                        "Incoming request from tester. Sending {:02X?} to ECU",
-                        cmd
-                    );
+                    log::debug!("Sending {:02X?} to ECU", cmd.to_bytes());
                     if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {
                         let mut send_id = settings.send_id;
                         // Session change! Handle this differently

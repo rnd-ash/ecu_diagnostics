@@ -1,7 +1,5 @@
 //! When parsing ECU response data from raw bytes,
 //! Some functions in here can be useful with data transformation
-
-use log::{debug, error, warn};
 use std::time::{Duration, Instant};
 
 use crate::{
@@ -47,7 +45,7 @@ pub(crate) fn perform_cmd<
     let target = cmd.get_sid_byte();
     if !cmd.requires_response() {
         // Just send the data and return an empty response
-        debug!("Request doesn't require response. Just sending.");
+        log::debug!("Request doesn't require response. Just sending");
         channel.write_bytes(addr, cmd.to_bytes(), settings.get_write_timeout_ms())?;
         return Ok(Vec::new());
     }
@@ -57,44 +55,46 @@ pub(crate) fn perform_cmd<
         settings.get_write_timeout_ms(),
         settings.get_read_timeout_ms(),
     )?;
+    log::debug!("ECU response: {:02X?}", res);
     if res.is_empty() {
         return Err(DiagError::EmptyResponse);
     }
     if res[0] == 0x7F {
         if res[2] == busy_repeat_byte {
-            warn!("ECU Responded with busy_repeat_request! Retrying in 500ms");
+            log::warn!("ECU Responded with busy_repeat_request! Retrying in 500ms");
             std::thread::sleep(std::time::Duration::from_millis(500));
             return perform_cmd(addr, cmd, settings, channel, busy_repeat_byte, lookup_func);
         }
         if res[2] == 0x78 {
             // Always busy wait for response
-            warn!("ECU Responded with await_response! Waiting for real response");
+            log::warn!("ECU Responded with await_response! Waiting for real response");
             // For both UDS or
             // Wait a bit longer for the ECU response
             let timestamp = Instant::now();
             while timestamp.elapsed() <= Duration::from_millis(2000) {
                 if let Ok(res2) = channel.read_bytes(settings.get_read_timeout_ms()) {
+                    log::debug!("ECU next response: {:02X?}", res2);
                     if res2.is_empty() {
-                        error!("ECU Response was empty after await_response!?");
+                        log::error!("ECU Response was empty after await_response!?");
                         return Err(DiagError::EmptyResponse);
                     }
                     return if res2[0] == 0x7F {
                         // Still an error. Give up
-                        error!("ECU Still responded negatively (0x{:02X?}) after await_response. Giving up.", res2[2]);
+                        log::error!("ECU Still responded negatively (0x{:02X?}) after await_response. Giving up.", res2[2]);
                         Err(super::DiagError::ECUError {
                             code: res2[2],
                             def: Some(lookup_func(res2[2])),
                         })
                     } else {
                         // Response OK!
-                        debug!("ECU Responded positively after await.");
+                        log::debug!("ECU Responded positively after await.");
                         check_pos_response_id(target, res2)
                     };
                 }
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
         }
-        error!("ECU Negative response 0x{:02X?}", res[2]);
+        log::error!("ECU Negative response 0x{:02X?}", res[2]);
         return Err(super::DiagError::ECUError {
             code: res[2],
             def: Some(lookup_func(res[2])),
