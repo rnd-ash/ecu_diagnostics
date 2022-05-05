@@ -303,14 +303,17 @@ impl PassthruDevice {
             Some(idx) => match f(idx, self.drv.clone()) {
                 Ok(res) => Ok(res),
                 Err(e) => {
+                    log::warn!("Function failed with status {:?}, status 0x{:02X}", e, e as u32);
                     if e == PassthruError::ERR_FAILED {
                         // Err failed, query the adapter for error!
                         if let Ok(reason) = self.drv.get_last_error() {
+                            log::warn!("Function generic failure reason: {}", reason);
                             Err(HardwareError::APIError {
                                 code: e as u32,
                                 desc: reason,
                             })
                         } else {
+                            log::warn!("Function generic failure with no reason");
                             // No reason, just ERR_FAILED
                             Err(e.into())
                         }
@@ -327,6 +330,7 @@ impl PassthruDevice {
 impl Drop for PassthruDevice {
     #[allow(unused_must_use)] // If this function fails, then device is already closed, so don't care!
     fn drop(&mut self) {
+        log::debug!("Drop called for device");
         if let Some(idx) = self.device_idx {
             self.drv.close(idx);
             self.device_idx = None;
@@ -571,6 +575,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
 impl Drop for PassthruCanChannel {
     #[allow(unused_must_use)]
     fn drop(&mut self) {
+        log::debug!("Drop called for CanChannel");
         // Close the channel before dropping!
         self.close();
     }
@@ -806,6 +811,7 @@ impl<'a> IsoTPChannel for PassthruIsoTpChannel {
 impl<'a> Drop for PassthruIsoTpChannel {
     #[allow(unused_must_use)]
     fn drop(&mut self) {
+        log::debug!("Drop called for IsoTPChannel");
         // Close the channel before dropping!
         self.close();
     }
