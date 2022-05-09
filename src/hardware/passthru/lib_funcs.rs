@@ -124,7 +124,7 @@ fn ret_res<T>(res: i32, ret: T) -> PassthruResult<T> {
         0 => Ok(ret),
         _ => {
             log::error!("Function call failed with status {}", res);
-            Err(PassthruError::from_raw(res as u32).unwrap())
+            Err(PassthruError::try_from(res as u32).unwrap())
         },
     }
 }
@@ -427,7 +427,7 @@ impl PassthruDrv {
         let res = unsafe { (&self.stop_filter_fn)(channel_id, filter_id) };
         match res {
             0 => Ok(()),
-            _ => Err(PassthruError::from_raw(res as u32).unwrap()),
+            _ => Err(PassthruError::try_from(res as u32).unwrap()),
         }
     }
 

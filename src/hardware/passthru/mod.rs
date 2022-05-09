@@ -33,7 +33,7 @@ use winreg::RegKey;
 use std::path::Path;
 
 use j2534_rust::{
-    ConnectFlags, FilterType, IoctlID, Loggable, PassthruError, Protocol, RxFlag, TxFlag,
+    ConnectFlags, FilterType, IoctlID, PassthruError, Protocol, RxFlag, TxFlag,
     PASSTHRU_MSG,
 };
 
@@ -457,14 +457,14 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             return Ok(());
         }
 
-        let mut flags = 0u32;
+        let mut flags = ConnectFlags::empty();
         if self.use_ext {
-            flags |= ConnectFlags::CAN_29BIT_ID as u32;
+            flags |= ConnectFlags::CAN_29BIT_ID;
         }
         // Initialize the interface
         let channel_id = device
             .safe_passthru_op(|device_id, device| {
-                device.connect(device_id, Protocol::CAN, flags, self.baud)
+                device.connect(device_id, Protocol::CAN, flags.bits(), self.baud)
             })
             .map_err(ChannelError::HardwareError)?;
         device.can_channel = true; // Acknowledge CAN is open now
@@ -605,12 +605,12 @@ impl PayloadChannel for PassthruIsoTpChannel {
         if self.channel_id.is_some() {
             return Ok(());
         }
-        let mut flags = 0u32;
+        let mut flags = ConnectFlags::empty();
         if self.cfg.can_use_ext_addr {
-            flags |= ConnectFlags::CAN_29BIT_ID as u32;
+            flags |= ConnectFlags::CAN_29BIT_ID;
         }
         if self.cfg.extended_addressing {
-            flags |= ConnectFlags::ISO15765_ADDR_TYPE as u32;
+            flags |= ConnectFlags::ISO15765_ADDR_TYPE;
         }
 
         let mut device = self.device.lock()?;
@@ -618,7 +618,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
         // Initialize the interface
         let channel_id = device
             .safe_passthru_op(|device_id, device| {
-                device.connect(device_id, Protocol::ISO15765, flags, self.cfg.can_speed)
+                device.connect(device_id, Protocol::ISO15765, flags.bits(), self.cfg.can_speed)
             })
             .map_err(ChannelError::HardwareError)?;
         device.isotp_channel = true; // Acknowledge CAN is open now
