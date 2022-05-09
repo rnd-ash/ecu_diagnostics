@@ -34,7 +34,7 @@ use std::path::Path;
 
 use j2534_rust::{
     ConnectFlags, FilterType, IoctlID, PassthruError, Protocol, RxFlag, TxFlag,
-    PASSTHRU_MSG,
+    PASSTHRU_MSG, SConfig, IoctlParam, SConfigList,
 };
 
 use crate::channel::{
@@ -601,6 +601,7 @@ impl PassthruIsoTpChannel {
 }
 
 impl PayloadChannel for PassthruIsoTpChannel {
+    #[allow(trivial_casts)]
     fn open(&mut self) -> ChannelResult<()> {
         if self.channel_id.is_some() {
             return Ok(());
@@ -660,7 +661,28 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 Some(flow_control),
             )
         }) {
-            Ok(_) => Ok(()), // Channel setup complete
+            Ok(_) => {
+                let mut params = [
+                    SConfig {
+                        parameter: IoctlParam::CAN_MIXED_FORMAT as u32,
+                        value: 1,
+                    }
+                ];
+
+                let mut sconfig_list = SConfigList { num_of_params: 1, config_ptr: params.as_mut_ptr() };
+
+                // Allow mixed mode addressing
+                let lock = self.device.lock().unwrap();
+                if let Err(e) = lock.drv.ioctl(
+                    lock.device_idx.unwrap(), 
+                    IoctlID::SET_CONFIG, 
+                    (&mut sconfig_list) as *mut _ as *mut c_void, 
+                    std::ptr::null_mut()
+                ) {
+                    log::warn!("Device rejected Mixed mode filtering. Some ISO-TP messages may be lost if ECU does not pad frames correctly!")
+                }
+                Ok(())
+            }, // Channel setup complete
             Err(e) => {
                 // Oops! Teardown
                 drop(device);
