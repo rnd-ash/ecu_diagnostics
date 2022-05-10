@@ -662,14 +662,35 @@ impl PayloadChannel for PassthruIsoTpChannel {
             )
         }) {
             Ok(_) => {
+                // Set BS and STMIN
                 let mut params = [
                     SConfig {
-                        parameter: IoctlParam::CAN_MIXED_FORMAT as u32,
-                        value: 2, // All frames allowed
+                        parameter: IoctlParam::ISO15765_BS as u32,
+                        value: self.cfg.block_size as u32,
+                    },
+                    SConfig {
+                        parameter: IoctlParam::ISO15765_STMIN as u32,
+                        value: self.cfg.st_min as u32,
                     }
                 ];
+                let mut sconfig_list = SConfigList { num_of_params: 2, config_ptr: params.as_mut_ptr() };
 
-                let mut sconfig_list = SConfigList { num_of_params: 1, config_ptr: params.as_mut_ptr() };
+                if let Err(e) = device.drv.ioctl(
+                    channel_id, 
+                    IoctlID::SET_CONFIG, 
+                    (&mut sconfig_list) as *mut _ as *mut c_void, 
+                    std::ptr::null_mut()
+                ) {
+                    log::warn!("Device rejected STMIN/BS request ({}). ISO-TP may not work correctly!", e)
+                }
+                
+                let mut params_mixed_mode = [
+                    SConfig {
+                        parameter: IoctlParam::CAN_MIXED_FORMAT as u32,
+                        value: 1, // All frames allowed
+                    }
+                ];
+                sconfig_list = SConfigList { num_of_params: 1, config_ptr: params_mixed_mode.as_mut_ptr() };
 
                 // Allow mixed mode addressing
                 if let Err(e) = device.drv.ioctl(
