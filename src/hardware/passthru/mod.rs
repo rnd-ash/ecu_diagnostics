@@ -665,7 +665,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 let mut params = [
                     SConfig {
                         parameter: IoctlParam::CAN_MIXED_FORMAT as u32,
-                        value: 1,
+                        value: 2, // All frames allowed
                     }
                 ];
 
