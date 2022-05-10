@@ -672,14 +672,13 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 let mut sconfig_list = SConfigList { num_of_params: 1, config_ptr: params.as_mut_ptr() };
 
                 // Allow mixed mode addressing
-                let lock = self.device.lock().unwrap();
-                if let Err(e) = lock.drv.ioctl(
-                    lock.device_idx.unwrap(), 
+                if let Err(e) = device.drv.ioctl(
+                    channel_id, 
                     IoctlID::SET_CONFIG, 
                     (&mut sconfig_list) as *mut _ as *mut c_void, 
                     std::ptr::null_mut()
                 ) {
-                    log::warn!("Device rejected Mixed mode filtering. Some ISO-TP messages may be lost if ECU does not pad frames correctly!")
+                    log::warn!("Device rejected Mixed mode filtering ({}). Some ISO-TP messages may be lost if ECU does not pad frames correctly!", e)
                 }
                 Ok(())
             }, // Channel setup complete
