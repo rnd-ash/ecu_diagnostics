@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-use socketcan_isotp::{ExtendedId, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId};
+use socketcan_isotp::{ExtendedId, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId, FlowControlOptions};
 
 use crate::channel::{
     CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet,
@@ -256,6 +256,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             rx_ext_address,
         )
         .unwrap();
+
         let link_opts: LinkLayerOptions = LinkLayerOptions::default();
 
         let (tx_id, rx_id) = match self.cfg.extended_addressing {
@@ -269,12 +270,14 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             ),
         };
 
+        let fc_opts = FlowControlOptions::new(self.cfg.block_size, self.cfg.st_min, 0);
+
         let socket = socketcan_isotp::IsoTpSocket::open_with_opts(
             &device.info.name,
             rx_id,
             tx_id,
             Some(opts),
-            None,
+            Some(fc_opts),
             Some(link_opts),
         )?;
         socket.set_nonblocking(true)?;
