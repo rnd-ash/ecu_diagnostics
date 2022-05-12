@@ -714,9 +714,8 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 // don't do that, instead returning a message with an arbitrary number
                 // of bytes, all set to 0x00. This breaks the specification!
                 // but instead they use these 2 flags to denote echo messages!
-                if ((msg.rx_status & RxFlag::ISO15765_FIRST_FRAME.bits() == 0) // Not a first frame indication
-                    && (msg.rx_status & RxFlag::TX_MSG_TYPE.bits() == 0)) // Not an echo message
-                        || msg.data_size != 4
+                if (msg.rx_status & RxFlag::ISO15765_FIRST_FRAME.bits() == 0) // Not a first frame indication
+                    && (msg.rx_status & RxFlag::TX_MSG_TYPE.bits() == 0) // Not an echo message
                 {
                     // Normal way of checking for ISO15765_FIRST_FRAME indication
                     // Read complete!
