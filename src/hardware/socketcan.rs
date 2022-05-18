@@ -249,10 +249,10 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 
         let opts: IsoTpOptions = IsoTpOptions::new(
             flags,
-            std::time::Duration::from_millis(0),
+            std::time::Duration::from_millis(1), // Default linux/can/isotp.h
             ext_address,
-            0x00,
-            0x00,
+            0xCC,
+            0xCC,
             rx_ext_address,
         )
         .unwrap();

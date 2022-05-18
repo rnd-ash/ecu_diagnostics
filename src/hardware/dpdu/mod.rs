@@ -9,7 +9,6 @@
 //! * KWP2000 light plus on VW TP1.6
 //! * KWP2000 light plus on VW TP2.0
 //! * ISO11898 RAW
-//! * Softing's ISO 11898 onboard
 //!
 //! It also supports the following K-Line based protocols:
 //! * KWP2000 - ISO 14230-2/3

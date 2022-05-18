@@ -2,10 +2,11 @@
 //! for interacting with common hardware that can be used for either Bench setups or OBD2 adapters
 //! in order to communicate with vehicle ECUs
 
-mod dpdu;
-
 #[cfg(feature = "passthru")]
 pub mod passthru; // Not finished at all yet, hide from the crate
+
+#[cfg(all(feature = "dpdu", unix))]
+pub mod dpdu;
 
 #[cfg(all(feature = "socketcan", unix))]
 pub mod socketcan;
