@@ -1,6 +1,6 @@
 [package]
 name = "ecu_diagnostics"
-version = "0.90.41"
+version = "0.90.42-pdu-beta.0"
 authors = ["Ashcon Mohseninia <ashconm@outlook.com>"]
 edition = "2021"
 description = "A rust crate for ECU diagnostic servers and communication APIs"
@@ -37,6 +37,7 @@ dpdu = ["dep:dpdu-rust"]
 j2534_rust = { version = "1.5.0", optional = true }
 serde_json = { version = "1.0.79", optional = true }
 libloading = { version = "0.7.3", optional = true }
+dpdu-rust = { version = "0.8.0", optional = true }
 log="0.4.16"
 strum = "0.24"
 strum_macros = "0.24"
@@ -49,4 +50,3 @@ shellexpand = { version = "2.1.0", optional = true }
 #socketcan-isotp = { version = "1.0.0", optional = true }
 socketcan-isotp = { optional = true, git = "https://github.com/marcelbuesing/socketcan-isotp.git", rev = "49b7dd7230f98080d4388cbc92299a5f02e1d7ab" }
 socketcan = { version = "1.7.0", optional = true }
-dpdu-rust = { version = "0.8.0", optional = true }
