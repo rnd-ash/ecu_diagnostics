@@ -7,11 +7,13 @@
 A cross-platform crate with FFI bindings to allow for complex vehicle ECU diagnostics.
 
 ## IMPORTANT
+
 This crate is a work in progress, and ECU compatibility may vary! This crate goes by the KWP2000 and UDS specification, but some ECUs choose to deviate slightly from the official specification!
 
 ## Ensure you are running Rust 1.56.0 (2021 edition) or higher to use this crate!
 
 ## Features
+
 * Easy to use (Check the examples folder)
 * Implements UDS, KWP2000 and OBD2
 * Hardware API for accessing common OBD-2 adapter types (Passthru)
@@ -25,11 +27,13 @@ This crate is a work in progress, and ECU compatibility may vary! This crate goe
 ## A quick overview of diagnostic servers used by ECUs
 
 ### On-board diagnostics (OBD2)
+
 ISO9141 - OBD2 is a legal requirement on all vehicles produced from 2002, allowing for
 reading of sensor data, reading and clearing standard DTCs, and reading basic vehicle information.
 OBD2 is designed to be safe and simple, and does not write data to the ECU.
 
 ### Keyword protocol 2000 (KWP2000)
+
 ISO14230 - KWP2000 is a advanced diagnostic protocol utilized by many vehicle manufacturers from 2000-2006 (Superseded by UDS).
 Unlike OBD2, KWP2000 allows for much more complex operations, which could potentially cause damage to a vehicle if used incorrectly.  
  A few examples of features allowed by KWP2000 are
@@ -41,37 +45,55 @@ Unlike OBD2, KWP2000 allows for much more complex operations, which could potent
 
  The specification implemented in this crate is v2.2, dated 05-08-2002
 
- ### Unified diagnostic services (UDS)
+### Unified diagnostic services (UDS)
+
  ISO14429 - UDS is an advanced diagnostic protocol utilized by almost all vehicle manufacturers from 2006 onwards. Like KWP2000,
  this protocol allows for reading/writing directly to the ECU, and should therefore be used with caution.
 
  The specification implemented in this crate is the second edition, dated 01-12-2006.
 
+## Diagnostic API features
 
+The following features are working for each diagnostic server
 
-## Diagnostic server checklist
+### Global
+
+These features are implemented for all diagnostic server
+
+* SendByteArray
+* SendByteArrayWithResponse
 
 ### OBD2
-TBA
+
+* Service01 - Live PIDs
+* Service09 - Vehicle information
+* Service04 - Clear DTCs
+
 
 ### KWP2000
 
-Custom service support: YES
-
 Working specification services:
-* StartDiagnosticSession
-* ECUReset
-* ReadDTCByStatus
-* ReadECUIdentification
-* ReadStatusOfDTC
+
 * ClearDiagnosticInformation
+* ECUReset
+* InputOutputControlByLocalIdentifier
+* Enable/Disable messageTransmission
+* ReadDataByIdentifier
+* ReadDataByLocalIdentifier
+* ReadECUIdentification (Specific for Daimler ECUs)
+* ReadMemoryByAddress
+* ReadStatusOfDTCs
+* Routine control (Start, stop, status)
+* SecurityAccess
+* StartDiagnosticSession
 
 ### UDS
 
-Custom service support: YES
-
 Working specification services:
 
+* AccessTimingParameters
+* ClearDiagnosticInformation
+* CommunicationControl
 * DiagnosticSessionControl
 * ECUReset
 * ReadDTCInformation
@@ -84,16 +106,21 @@ The Hardware API contains a common interface for scanning for compatible devices
 for creating Channels for diagnostic servers using the hardware
 
 ### Passthru (SAE J2534)
+
 * ISO-TP
 * CAN
 * Read Battery voltage
 
 ### SocketCAN
-TBA
+
+* CAN
+* ISO-TP
 
 ### D-PDU (ISO 22900-2)
-TBA
+
+Work in progress!!
 
 
 # Notable contributions
+
 * @LLBlumire
