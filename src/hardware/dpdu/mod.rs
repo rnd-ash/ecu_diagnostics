@@ -19,3 +19,44 @@
 //! Additionally, the protocol also supports the following IP based protocols:
 //! * ISO14229-5 on ISO 13400-2 (DoIP)
 //!
+
+use super::Hardware;
+
+pub mod scanner;
+pub mod lib_funcs;
+
+#[derive(Debug)]
+/// PDU Device
+pub struct PDUDevice {
+    lib: lib_funcs::PduDrv
+}
+
+impl Hardware for PDUDevice {
+    fn create_iso_tp_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::IsoTPChannel>> {
+        todo!()
+    }
+
+    fn create_can_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::CanChannel>> {
+        todo!()
+    }
+
+    fn is_iso_tp_channel_open(&self) -> bool {
+        todo!()
+    }
+
+    fn is_can_channel_open(&self) -> bool {
+        todo!()
+    }
+
+    fn read_battery_voltage(&mut self) -> Option<f32> {
+        todo!()
+    }
+
+    fn read_ignition_voltage(&mut self) -> Option<f32> {
+        todo!()
+    }
+
+    fn get_info(&self) -> &super::HardwareInfo {
+        todo!()
+    }
+}

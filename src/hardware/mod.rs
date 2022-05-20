@@ -3,9 +3,9 @@
 //! in order to communicate with vehicle ECUs
 
 #[cfg(feature = "passthru")]
-pub mod passthru; // Not finished at all yet, hide from the crate
+pub mod passthru;
 
-#[cfg(all(feature = "dpdu", unix))]
+#[cfg(all(feature = "dpdu"))]
 pub mod dpdu;
 
 #[cfg(all(feature = "socketcan", unix))]
