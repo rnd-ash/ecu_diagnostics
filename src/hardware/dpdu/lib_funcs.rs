@@ -1,6 +1,6 @@
 //! Module for interfacing with a PDU device's library
 
-use std::{sync::Arc, ptr};
+use std::{sync::Arc, ptr, borrow::BorrowMut, time::Duration};
 use dpdu_rust::*;
 use libloading::Library;
 
@@ -320,4 +320,321 @@ impl PduDrv {
             e => Err(e)
         }
     }
-}
+
+    /// Tries to connect a created ComLogicalLink
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw VCI handle to VCI to connect the Com logical link
+    /// * logical_link_handle - Raw Handle of the logical link to connect. Created by [create_com_logical_link]
+    pub fn connect(&mut self, vci_handle: u32, logical_link_handle: u32) -> PDUResult<()> {
+        match (&self.connect_fn)(vci_handle, logical_link_handle) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Tries to disconnect a created ComLogicalLink
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw VCI handle to VCI to disconnect the Com logical link
+    /// * logical_link_handle - Raw Handle of the logical link to disconnect. Created by [create_com_logical_link]
+    pub fn disconnect(&mut self, vci_handle: u32, logical_link_handle: u32) -> PDUResult<()> {
+        match (&self.disconnect_fn)(vci_handle, logical_link_handle) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Tries to lock a resource, which allows a ComLogicalLink exclusive access
+    /// to one of a vehicle's communication interface
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw VCI handle to VCI
+    /// * logical_link_handle - Raw Handle of the logical link to lock
+    /// * lock_mask - Bit encoded mask which encodes the lock resource request
+    pub fn lock_resource(&mut self, vci_handle: u32, logical_link_handle: u32, lock_mask: u32) -> PDUResult<()> {
+        match (&self.lock_resource_fn)(vci_handle, logical_link_handle, lock_mask) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Tries to unlock a resource that was previously locked with [lock_resource],
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw VCI handle to VCI
+    /// * logical_link_handle - Raw Handle of the logical link to unlock
+    /// * lock_mask - Bit encoded mask which encodes the unlock resource request
+    pub fn unlock_resource(&mut self, vci_handle: u32, logical_link_handle: u32, lock_mask: u32) -> PDUResult<()> {
+        match (&self.unlock_resource_fn)(vci_handle, logical_link_handle, lock_mask) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Gets a ComParam
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw VCI handle to VCI
+    /// * logical_link_handle - Raw Handle of the logical link to request the ComParam from
+    /// * param_id - ID of the ComParam to be requested
+    pub fn get_com_param(&mut self, vci_handle: u32, logical_link_handle: u32, param_id: u32) -> PDUResult<ParamItem> {
+        let mut param_item: ParamItem = unsafe { std::mem::zeroed() };
+        let mut param_item_ptr: *mut ParamItem = &mut param_item;
+        match (&self.get_cp_fn)(vci_handle, logical_link_handle, param_id, &mut param_item_ptr) {
+            PduError::StatusNoError => Ok(param_item),
+            e => Err(e)
+        }
+    }
+
+    /// Sets a ComParam
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw VCI handle to VCI
+    /// * logical_link_handle - Raw Handle of the logical link to request the ComParam from
+    /// * param_item - ComParam to set
+    pub fn set_com_param(&mut self, vci_handle: u32, logical_link_handle: u32, param_item: &mut ParamItem) -> PDUResult<()> {
+        match (&self.set_cp_fn)(vci_handle, logical_link_handle, param_item) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Starts a Com Primitive on a ComLogicalLink
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw VCI handle to VCI
+    /// * logical_link_handle - Raw Handle of the logical link to start the ComPrimitive on
+    /// * cp_type - The type of ComPrimitive to start
+    /// * data - Data for the ComPrimitive (Can be empty)
+    /// * ctrl - Control data for the ComPrimitive (Can be null)
+    /// 
+    /// ## Notes
+    /// * This function does not yet support setting the pCopTag
+    /// 
+    /// ## Returns
+    /// This function if successful will return the raw handle of the ComPrimitive that was started
+    pub fn start_com_primitive(&mut self, vci_handle: u32, logical_link_handle: u32, cp_type: PduCopt, data: &mut [u8], ctrl: &mut CopCtrlData) -> PDUResult<u32> {
+
+        let data_ptr: *mut u8 = if data.len() == 0 { ptr::null_mut() } else { data.as_mut_ptr() };
+
+        let data_size = data.len() as u32;
+        let mut handle = 0;
+        match (&self.start_cp_fn)(vci_handle, logical_link_handle, cp_type, data_size, data_ptr, ctrl, ptr::null_mut(), &mut handle) {
+            PduError::StatusNoError => Ok(handle),
+            e => Err(e)
+        }
+    }
+
+    /// Stops a created a Com Primitive on a ComLogicalLink
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw VCI handle to VCI
+    /// * logical_link_handle - Raw Handle of the logical link to start the ComPrimitive on
+    /// * com_primitive_handle - Raw handle of the Started ComPrimitive, see [start_com_primitive]
+    pub fn cancel_com_primitive(&mut self, vci_handle: u32, logical_link_handle: u32, com_primitive_handle: u32) -> PDUResult<()> {
+        match (&self.cancel_cp_fn)(vci_handle, logical_link_handle, com_primitive_handle) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Gets event item data for an event source
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Optional VCI handle
+    /// * logical_link_handle - optional ComLogicalLink handle
+    /// 
+    /// ## Notes
+    /// * In the event that `vci_handle` is `None`, `logical_link_handle` cannot be `Some`
+    pub fn get_event_item(&mut self, vci_handle: Option<u32>, logical_link_handle: Option<u32>, event_data_prefilled: EventItem) -> PDUResult<Option<EventItem>> {
+        if vci_handle.is_none() && logical_link_handle.is_some() { // Invalid input state
+            return Err(PduError::InvalidParameters)
+        }
+        let vci = vci_handle.unwrap_or(PDU_HANDLE_UNDEF);
+        let cll = vci_handle.unwrap_or(PDU_HANDLE_UNDEF);
+
+        let mut event = event_data_prefilled;
+        let mut ptr: *mut EventItem = event.borrow_mut();
+
+        match (&self.get_evt_item_fn)(vci, cll, &mut ptr) {
+            PduError::StatusNoError => {
+                if ptr.is_null() {
+                    Ok(None)
+                } else {
+                    Ok(Some(event))
+                }
+            },
+            e => Err(e)
+        }
+
+    }
+
+    /// Destroys an item created earlier
+    /// 
+    /// ## Parameters
+    /// * item - Pointer to item to be destroyed
+    pub fn destroy_item(&mut self, item: *mut PduItem) -> PDUResult<()> {
+        match (&self.destroy_item_fn)(item) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Registers a callback for the PDU API
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw VCI handle, if set to none then callback will be used for system callbacks
+    /// * com_logical_link_handle - Raw Handle of the ComLogicalLink. If None, then callback will be for system or module callbacks
+    /// * callback - The callback function
+    pub fn register_callback(&mut self, vci_handle: Option<u32>, com_logical_link_handle: Option<u32>, callback: EventCallbackFn) -> PDUResult<()> {
+        let vci = vci_handle.unwrap_or(PDU_HANDLE_UNDEF);
+        let cll = com_logical_link_handle.unwrap_or(PDU_HANDLE_UNDEF);
+        match (&self.register_callback_fn)(vci, cll, callback) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+
+    /// Gets an object ID given an object name from the VCI
+    /// 
+    /// ## Parameters
+    /// * object_type - The type of object to request
+    /// * name - The short name of the object to request
+    /// 
+    /// ## Returns
+    /// If this function is successful, then an optional ID of the requested object will be returned.
+    /// This function can also return `Ok(None)` which would imply the function call was successful,
+    /// but no matching object ID was found.
+    pub fn get_object_id<T: Into<String>>(&mut self, object_type: PduObjt, name: T) -> PDUResult<Option<u32>> {
+        let mut c: String = name.into();
+        let mut dest: u32 = PDU_ID_UNDEF;
+        match (&self.get_obj_id_fn)(object_type, c.as_mut_ptr(), &mut dest) {
+            PduError::StatusNoError => {
+                if dest == PDU_ID_UNDEF {
+                    Ok(None)
+                } else {
+                    Ok(Some(dest))
+                }
+            },
+            e => Err(e)
+        }
+    }
+
+    /// Gets a list of module IDs and their status
+    pub fn get_module_ids(&mut self) -> PDUResult<ModuleItem> {
+        let l: *mut *mut ModuleItem = std::ptr::null_mut();
+        match (&self.get_module_ids_fn)(l) {
+            PduError::StatusNoError => {
+                // Take pointer of pointer and read it to returned data
+                Ok(unsafe { Box::from_raw(l).read() })
+            }
+            e => Err(e)
+        }
+    }
+
+    /// Gets resource IDs from the PDU API
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Optional VCI handle to get resource IDs from. If None, then 
+    ///                 it will return ALL the resource IDs, regardless of the device
+    /// 
+    /// ## Returns
+    /// If this function is successful, then 2 things are returned
+    /// 1. The resource ID Data
+    /// 2. The resource ID list
+    pub fn get_resource_ids(&mut self, vci_handle: Option<u32>) -> PDUResult<(RscData, RscIdItem)> {
+        let vci = vci_handle.unwrap_or(PDU_HANDLE_UNDEF);
+        let list: *mut *mut RscIdItem = std::ptr::null_mut();
+        let mut data: RscData = unsafe { std::mem::zeroed() };
+        match (&self.get_res_ids_fn)(vci, &mut data, list) {
+            PduError::StatusNoError => {
+                Ok((
+                    data,
+                    unsafe { Box::from_raw(list).read() }
+                ))
+            }
+            e => Err(e)
+        }
+    }
+
+    /// Gets conflicting resources from PDU API
+    /// 
+    /// ## Parameters
+    /// * resource_id - Resource ID to check
+    /// * module_list - The list of modules to check [resource_id] against for conflicts
+    pub fn get_conflicting_resources(&mut self, resource_id: u32, module_list: ModuleItem) -> PDUResult<RscConflictItem> {
+        let list: *mut *mut RscConflictItem = std::ptr::null_mut();
+        let mut m_list = module_list;
+        match (&self.get_conflicting_res_fn)(resource_id, &mut m_list, list) {
+            PduError::StatusNoError => {
+                Ok(unsafe { Box::from_raw(list).read() })
+            }
+            e => Err(e)
+        }
+    }
+
+
+    /// Gets unique response ID table
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw handle of the VCI
+    /// * com_logical_link_handle - Raw handle of the ComLogicalLink
+    pub fn get_unqiue_response_id_table(&mut self, vci_handle: u32, com_logical_link_handle: u32) -> PDUResult<UniqueRespIdTableItem> {
+        let table: *mut *mut UniqueRespIdTableItem = std::ptr::null_mut();
+        match (&self.get_unique_resp_id_table_fn)(vci_handle, com_logical_link_handle, table) {
+            PduError::StatusNoError => {
+                Ok(unsafe { Box::from_raw(table).read() })
+            }
+            e => Err(e)
+        }
+    }
+
+    /// Sets the unique response ID table
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw handle of the VCI
+    /// * com_logical_link_handle - Raw handle of the ComLogicalLink
+    /// * unique_resp_table - Unique response table to set
+    pub fn set_unqiue_response_id_table(&mut self, vci_handle: u32, com_logical_link_handle: u32, unique_resp_table: &mut UniqueRespIdTableItem) -> PDUResult<()> {
+        match (&self.set_unqiue_resp_id_table_fn)(vci_handle, com_logical_link_handle, unique_resp_table) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Connects a VCI
+    ///
+    /// ## Parameters
+    /// * vci_handle - Raw handle of the VCI to connect
+    pub fn module_connect(&mut self, vci_handle: u32) -> PDUResult<()> {
+        match (&self.module_connect_fn)(vci_handle) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Disconnects a VCI
+    ///
+    /// ## Parameters
+    /// * vci_handle - Raw handle of the VCI to disconnect
+    pub fn module_disconnect(&mut self, vci_handle: u32) -> PDUResult<()> {
+        match (&self.module_disconnect_fn)(vci_handle) {
+            PduError::StatusNoError => Ok(()),
+            e => Err(e)
+        }
+    }
+
+    /// Gets the timestamp from the VCI
+    /// 
+    /// ## Parameters
+    /// * vci_handle - Raw handle of the VCI to get the timestamp from
+    pub fn get_timestamp(&mut self, vci_handle: u32) -> PDUResult<Duration> {
+        let mut p: u32 = 0;
+        match (&self.get_timestamp_fn)(vci_handle, &mut p) {
+            PduError::StatusNoError => Ok(Duration::from_micros(p as u64)),
+            e => Err(e)
+        }
+    }
+}   
