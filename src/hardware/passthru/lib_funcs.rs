@@ -125,7 +125,7 @@ fn ret_res<T>(res: i32, ret: T) -> PassthruResult<T> {
         _ => {
             log::error!("Function call failed with status {}", res);
             Err(PassthruError::try_from(res as u32).unwrap())
-        },
+        }
     }
 }
 
@@ -170,7 +170,7 @@ impl PassthruDrv {
             let read_version_fn = *lib
                 .get::<PassThruReadVersionFn>(b"PassThruReadVersion\0")?
                 .into_raw();
-            
+
             Ok(PassthruDrv {
                 lib: Arc::new(lib),
                 is_connected: false,
@@ -226,7 +226,12 @@ impl PassthruDrv {
         msgs: &mut [PASSTHRU_MSG],
         timeout: u32,
     ) -> PassthruResult<usize> {
-        log::debug!("PT_WRITE_MSGS called. Channel ID: {}, {} msgs, Timeout {}", channel_id, msgs.len(), timeout);
+        log::debug!(
+            "PT_WRITE_MSGS called. Channel ID: {}, {} msgs, Timeout {}",
+            channel_id,
+            msgs.len(),
+            timeout
+        );
         if msgs.is_empty() {
             // No messages? Just tell application everything is OK
             return Ok(0);
@@ -250,7 +255,12 @@ impl PassthruDrv {
         max_msgs: u32,
         timeout: u32,
     ) -> PassthruResult<Vec<PASSTHRU_MSG>> {
-        log::debug!("PT_READ_MSGS called. Channel ID: {}, {} msgs, Timeout {}", channel_id, max_msgs, timeout);
+        log::debug!(
+            "PT_READ_MSGS called. Channel ID: {}, {} msgs, Timeout {}",
+            channel_id,
+            max_msgs,
+            timeout
+        );
         let mut msg_count: u32 = max_msgs;
         // Create a blank array of empty passthru messages according to the max we should read
         let mut write_array: Vec<PASSTHRU_MSG> = vec![
@@ -339,7 +349,11 @@ impl PassthruDrv {
         input: *mut c_void,
         output: *mut c_void,
     ) -> PassthruResult<()> {
-        log::debug!("PT_IOCTL called. handle ID {}, IOCTL ID {}", handle_id, ioctl_id);
+        log::debug!(
+            "PT_IOCTL called. handle ID {}, IOCTL ID {}",
+            handle_id,
+            ioctl_id
+        );
         let res = unsafe { (&self.ioctl_fn)(handle_id, ioctl_id as u32, input, output) };
         ret_res(res, ())
     }
@@ -353,7 +367,13 @@ impl PassthruDrv {
         flags: u32,
         baud: u32,
     ) -> PassthruResult<u32> {
-        log::debug!("PT_CONNECT called. Device ID {}, protocol {}, flags: {:08X?}, baud: {}", dev_id, protocol, flags, baud);
+        log::debug!(
+            "PT_CONNECT called. Device ID {}, protocol {}, flags: {:08X?}, baud: {}",
+            dev_id,
+            protocol,
+            flags,
+            baud
+        );
         let mut channel_id: u32 = 0;
         let res =
             unsafe { (&self.connect_fn)(dev_id, protocol as u32, flags, baud, &mut channel_id) };
@@ -423,7 +443,11 @@ impl PassthruDrv {
 
     //type PassThruStopMsgFilterFn = unsafe extern "stdcall" fn(channel_id: u32, filter_id: u32) -> i32;
     pub fn stop_msg_filter(&self, channel_id: u32, filter_id: u32) -> PassthruResult<()> {
-        log::debug!("PT_STOP_MSG_FILTER called. Channel ID {}, Filter ID {}", channel_id, filter_id);
+        log::debug!(
+            "PT_STOP_MSG_FILTER called. Channel ID {}, Filter ID {}",
+            channel_id,
+            filter_id
+        );
         let res = unsafe { (&self.stop_filter_fn)(channel_id, filter_id) };
         match res {
             0 => Ok(()),

@@ -20,23 +20,29 @@
 //! * ISO14229-5 on ISO 13400-2 (DoIP)
 //!
 
-use super::Hardware;
+use super::{Hardware, HardwareResult};
 
-pub mod scanner;
 pub mod lib_funcs;
+pub mod scanner;
 
 #[derive(Debug)]
 /// PDU Device
 pub struct PDUDevice {
-    lib: lib_funcs::PduDrv
+    lib: lib_funcs::PduDrv,
 }
 
+impl PDUDevice {}
+
 impl Hardware for PDUDevice {
-    fn create_iso_tp_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::IsoTPChannel>> {
+    fn create_iso_tp_channel(
+        this: std::sync::Arc<std::sync::Mutex<Self>>,
+    ) -> HardwareResult<Box<dyn crate::channel::IsoTPChannel>> {
         todo!()
     }
 
-    fn create_can_channel(this: std::sync::Arc<std::sync::Mutex<Self>>) -> super::HardwareResult<Box<dyn crate::channel::CanChannel>> {
+    fn create_can_channel(
+        this: std::sync::Arc<std::sync::Mutex<Self>>,
+    ) -> HardwareResult<Box<dyn crate::channel::CanChannel>> {
         todo!()
     }
 
@@ -58,5 +64,16 @@ impl Hardware for PDUDevice {
 
     fn get_info(&self) -> &super::HardwareInfo {
         todo!()
+    }
+}
+
+#[cfg(all(windows, test))]
+pub mod pdu_test {
+    use crate::hardware::HardwareScanner;
+
+    #[test]
+    pub fn scan_devices() {
+        let scanner = super::scanner::PDUScanner::new();
+        println!("{:#?}", scanner.list_devices());
     }
 }

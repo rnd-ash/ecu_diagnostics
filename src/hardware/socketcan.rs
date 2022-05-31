@@ -5,7 +5,9 @@ use std::{
     time::Instant,
 };
 
-use socketcan_isotp::{ExtendedId, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId, FlowControlOptions};
+use socketcan_isotp::{
+    ExtendedId, FlowControlOptions, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId,
+};
 
 use crate::channel::{
     CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet,

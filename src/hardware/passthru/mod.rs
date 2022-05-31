@@ -33,8 +33,7 @@ use winreg::RegKey;
 use std::path::Path;
 
 use j2534_rust::{
-    ConnectFlags, FilterType, IoctlID, PassthruError, Protocol, RxFlag, TxFlag,
-    PASSTHRU_MSG,
+    ConnectFlags, FilterType, IoctlID, PassthruError, Protocol, RxFlag, TxFlag, PASSTHRU_MSG,
 };
 
 use crate::channel::{
@@ -272,7 +271,11 @@ pub struct PassthruDevice {
 impl PassthruDevice {
     /// Opens the passthru device
     fn open_device(info: &PassthruInfo) -> HardwareResult<Self> {
-        log::debug!("Opening device {}. Function library is at {}", info.name, info.function_lib);
+        log::debug!(
+            "Opening device {}. Function library is at {}",
+            info.name,
+            info.function_lib
+        );
         let lib = info.function_lib.clone();
         let mut drv = lib_funcs::PassthruDrv::load_lib(lib)?;
         let idx = drv.open()?;
@@ -303,7 +306,11 @@ impl PassthruDevice {
             Some(idx) => match f(idx, self.drv.clone()) {
                 Ok(res) => Ok(res),
                 Err(e) => {
-                    log::warn!("Function failed with status {:?}, status 0x{:02X}", e, e as u32);
+                    log::warn!(
+                        "Function failed with status {:?}, status 0x{:02X}",
+                        e,
+                        e as u32
+                    );
                     if e == PassthruError::ERR_FAILED {
                         // Err failed, query the adapter for error!
                         if let Ok(reason) = self.drv.get_last_error() {
@@ -618,7 +625,12 @@ impl PayloadChannel for PassthruIsoTpChannel {
         // Initialize the interface
         let channel_id = device
             .safe_passthru_op(|device_id, device| {
-                device.connect(device_id, Protocol::ISO15765, flags.bits(), self.cfg.can_speed)
+                device.connect(
+                    device_id,
+                    Protocol::ISO15765,
+                    flags.bits(),
+                    self.cfg.can_speed,
+                )
             })
             .map_err(ChannelError::HardwareError)?;
         device.isotp_channel = true; // Acknowledge CAN is open now
@@ -715,7 +727,8 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 // of bytes, all set to 0x00. This breaks the specification!
                 // but instead they use these 2 flags to denote echo messages!
                 if (msg.rx_status & RxFlag::ISO15765_FIRST_FRAME.bits() == 0) // Not a first frame indication
-                    && (msg.rx_status & RxFlag::TX_MSG_TYPE.bits() == 0) // Not an echo message
+                    && (msg.rx_status & RxFlag::TX_MSG_TYPE.bits() == 0)
+                // Not an echo message
                 {
                     // Normal way of checking for ISO15765_FIRST_FRAME indication
                     // Read complete!
