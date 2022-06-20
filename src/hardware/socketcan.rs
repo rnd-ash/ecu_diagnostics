@@ -259,7 +259,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 
         let link_opts: LinkLayerOptions = LinkLayerOptions::default();
 
-        let (tx_id, rx_id) = match self.cfg.extended_addressing {
+        let (tx_id, rx_id) = match self.cfg.can_use_ext_addr {
             true => (
                 Id::Extended(unsafe { ExtendedId::new_unchecked(self.ids.0) }),
                 Id::Extended(unsafe { ExtendedId::new_unchecked(self.ids.1) }),
