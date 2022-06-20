@@ -46,5 +46,5 @@ winreg = { version = "0.10.1", optional = true }
 [target.'cfg(unix)'.dependencies]
 shellexpand = { version = "2.1.0", optional = true }
 #socketcan-isotp = { version = "1.0.0", optional = true }
-socketcan-isotp = { optional = true, git = "https://github.com/marcelbuesing/socketcan-isotp.git", rev = "49b7dd7230f98080d4388cbc92299a5f02e1d7ab" }
+socketcan-isotp = { optional = true, version = "1.0.1" }
 socketcan = { version = "1.7.0", optional = true }
