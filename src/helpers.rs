@@ -70,7 +70,7 @@ pub(crate) fn perform_cmd<
             log::warn!("ECU Responded with await_response! Waiting for real response");
             // For both UDS or
             // Wait a bit longer for the ECU response
-            let timestamp = Instant::now();
+            let mut timestamp = Instant::now();
             while timestamp.elapsed() <= Duration::from_millis(2000) {
                 if let Ok(res2) = channel.read_bytes(settings.get_read_timeout_ms()) {
                     log::debug!("ECU next response: {:02X?}", res2);
@@ -78,17 +78,22 @@ pub(crate) fn perform_cmd<
                         log::error!("ECU Response was empty after await_response!?");
                         return Err(DiagError::EmptyResponse);
                     }
-                    return if res2[0] == 0x7F {
-                        // Still an error. Give up
-                        log::error!("ECU Still responded negatively (0x{:02X?}) after await_response. Giving up.", res2[2]);
-                        Err(super::DiagError::ECUError {
-                            code: res2[2],
-                            def: Some(lookup_func(res2[2])),
-                        })
+                    if res2[0] == 0x7F {
+                        if res2[2] == 0x78 {
+                            log::warn!("ECU Still asking for tester to wait for its response");
+                            timestamp = Instant::now();
+                        } else {
+                            // Still an error but not busy. Give up
+                            log::error!("ECU Still responded negatively (0x{:02X?}) after await_response. Giving up.", res2[2]);
+                            return Err(super::DiagError::ECUError {
+                                code: res2[2],
+                                def: Some(lookup_func(res2[2])),
+                            })
+                        }
                     } else {
                         // Response OK!
                         log::debug!("ECU Responded positively after await.");
-                        check_pos_response_id(target, res2)
+                        return check_pos_response_id(target, res2)
                     };
                 }
                 std::thread::sleep(std::time::Duration::from_millis(50));
