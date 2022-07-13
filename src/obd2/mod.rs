@@ -488,6 +488,20 @@ impl DiagnosticServer<OBD2Command> for OBD2DiagnosticServer {
     fn is_server_running(&self) -> bool {
         self.server_running.load(Ordering::Relaxed)
     }
+
+    /// Sets read and write timeouts
+    fn set_rw_timeout(&mut self, _read_timeout_ms: u32, _write_timeout_ms: u32) {
+        // Does nothing on OBD
+    }
+
+    /// Get command response read timeout
+    fn get_read_timeout(&self) -> u32 {
+        10000
+    }
+    /// Gets command write timeout
+    fn get_write_timeout(&self) -> u32 {
+        10000
+    }
 }
 
 /// Returns the OBD2 error from a given error code

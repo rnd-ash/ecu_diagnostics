@@ -2,7 +2,7 @@
 //!
 
 use std::{
-    borrow::BorrowMut,
+    borrow::{BorrowMut, Borrow},
     sync::{Arc, Mutex},
 };
 
@@ -219,6 +219,29 @@ impl DynamicDiagSession {
         match self.session.borrow_mut() {
             DynamicSessionType::Kwp(k) => k.send_byte_array(payload),
             DynamicSessionType::Uds(u) => u.send_byte_array(payload),
+        }
+    }
+
+    /// Sets read and write timeouts
+    pub fn set_rw_timeout(&mut self, read_timeout_ms: u32, write_timeout_ms: u32) {
+        match self.session.borrow_mut() {
+            DynamicSessionType::Kwp(k) => k.set_rw_timeout(read_timeout_ms, write_timeout_ms),
+            DynamicSessionType::Uds(u) => u.set_rw_timeout(read_timeout_ms, write_timeout_ms),
+        }
+    }
+
+    /// Get command response read timeout
+    pub fn get_read_timeout(&self) -> u32 {
+        match self.session.borrow() {
+            DynamicSessionType::Kwp(k) => k.get_read_timeout(),
+            DynamicSessionType::Uds(u) => u.get_read_timeout(),
+        }
+    }
+    /// Gets command write timeout
+    pub fn get_write_timeout(&self) -> u32 {
+        match self.session.borrow() {
+            DynamicSessionType::Kwp(k) => k.get_write_timeout(),
+            DynamicSessionType::Uds(u) => u.get_write_timeout(),
         }
     }
 }
