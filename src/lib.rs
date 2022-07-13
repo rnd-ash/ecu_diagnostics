@@ -222,6 +222,14 @@ pub trait DiagnosticServer<CommandType> {
     /// Sets the minimum interval in milliseconds
     /// between a command failure and an attempted repeat transmission
     fn set_repeat_interval_count(&mut self, interval_ms: u32);
+
+    /// Sets read and write timeouts
+    fn set_rw_timeout(&mut self, read_timeout_ms: u32, write_timeout_ms: u32);
+
+    /// Get command response read timeout
+    fn get_read_timeout(&self) -> u32;
+    /// Gets command write timeout
+    fn get_write_timeout(&self) -> u32;
 }
 
 /// Basic diagnostic server settings
