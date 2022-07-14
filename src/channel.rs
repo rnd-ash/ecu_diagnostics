@@ -6,7 +6,7 @@
 
 use std::{
     borrow::BorrowMut,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, Mutex, PoisonError, mpsc},
 };
 
 use crate::hardware::HardwareError;
@@ -70,6 +70,36 @@ impl<T> From<PoisonError<T>> for HardwareError {
             code: 99,
             desc: "PoisonError".into(),
         }
+    }
+}
+
+impl From<mpsc::RecvError> for HardwareError {
+    fn from(e: mpsc::RecvError) -> Self {
+        HardwareError::APIError { 
+            code: 98, 
+            desc: e.to_string() 
+        }
+    }
+}
+
+impl From<mpsc::RecvError> for ChannelError {
+    fn from(err: mpsc::RecvError) -> Self {
+        ChannelError::HardwareError(HardwareError::from(err))
+    }
+}
+
+impl<T> From<mpsc::SendError<T>> for HardwareError {
+    fn from(e: mpsc::SendError<T>) -> Self {
+        HardwareError::APIError { 
+            code: 98, 
+            desc: e.to_string() 
+        }
+    }
+}
+
+impl<T> From<mpsc::SendError<T>> for ChannelError {
+    fn from(err: mpsc::SendError<T>) -> Self {
+        ChannelError::HardwareError(HardwareError::from(err))
     }
 }
 
@@ -355,7 +385,7 @@ pub trait Packet: Send + Sync + Sized {
     fn set_data(&mut self, data: &[u8]);
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// CAN Frame
 pub struct CanFrame {
     id: u32,
@@ -363,6 +393,9 @@ pub struct CanFrame {
     data: [u8; 8],
     ext: bool,
 }
+
+unsafe impl Sync for CanFrame{}
+unsafe impl Send for CanFrame{}
 
 impl CanFrame {
     /// Creates a new CAN Frame given data and an ID.
