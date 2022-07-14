@@ -47,6 +47,9 @@ use self::lib_funcs::PassthruDrv;
 use super::{HardwareCapabilities, HardwareError, HardwareInfo, HardwareResult};
 
 mod lib_funcs;
+mod sw_isotp;
+
+pub use sw_isotp::PtCombiChannel;
 
 /// Device scanner for Passthru supported devices
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -378,13 +381,21 @@ impl Drop for PassthruDevice {
 
 impl super::Hardware for PassthruDevice {
     fn create_iso_tp_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn IsoTPChannel>> {
+        // If in sw mode
+        if this.lock().unwrap().software_mode {
+            return Ok(Box::new(PtCombiChannel::new(this)?))
+        }
         {
             let this = this.lock()?;
-            if !this.info.capabilities.iso_tp {
-                return Err(HardwareError::ChannelNotSupported);
-            }
-            if this.can_channel {
-                return Err(HardwareError::ConflictingChannel);
+            if this.software_mode {
+                
+            } else {
+                if !this.info.capabilities.iso_tp {
+                    return Err(HardwareError::ChannelNotSupported);
+                }
+                if this.can_channel {
+                    return Err(HardwareError::ConflictingChannel);
+                }
             }
         }
         let iso_tp_channel = PassthruIsoTpChannel {
@@ -398,11 +409,10 @@ impl super::Hardware for PassthruDevice {
     }
 
     fn create_can_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn CanChannel>> {
-        {
-            let this = this.lock()?;
-            if !this.info.capabilities.can {
-                return Err(HardwareError::ChannelNotSupported);
-            }
+        // If in sw mode
+        if this.lock().unwrap().software_mode {
+            return Ok(Box::new(PtCombiChannel::new(this)?))
+        }
         let can_channel = Self::make_can_channel_raw(this)?;
         Ok(Box::new(can_channel))
     }
