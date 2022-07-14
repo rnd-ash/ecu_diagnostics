@@ -346,6 +346,23 @@ impl PassthruDevice {
         self.software_mode = state;
     }
 
+    pub (crate) fn make_can_channel_raw(this: Arc<Mutex<Self>>) -> HardwareResult<PassthruCanChannel> {
+        {
+            let this = this.lock()?;
+            if !this.info.capabilities.can {
+                return Err(HardwareError::ChannelNotSupported);
+            }
+            if this.can_channel {
+                return Err(HardwareError::ConflictingChannel);
+            }
+        }
+        Ok(PassthruCanChannel {
+            device: this,
+            channel_id: None,
+            baud: 0,
+            use_ext: false,
+        })
+    }
 }
 
 impl Drop for PassthruDevice {
@@ -386,16 +403,7 @@ impl super::Hardware for PassthruDevice {
             if !this.info.capabilities.can {
                 return Err(HardwareError::ChannelNotSupported);
             }
-            if this.can_channel {
-                return Err(HardwareError::ConflictingChannel);
-            }
-        }
-        let can_channel = PassthruCanChannel {
-            device: this,
-            channel_id: None,
-            baud: 0,
-            use_ext: false,
-        };
+        let can_channel = Self::make_can_channel_raw(this)?;
         Ok(Box::new(can_channel))
     }
 
