@@ -267,6 +267,7 @@ pub struct PassthruDevice {
     device_idx: Option<u32>,
     can_channel: bool,
     isotp_channel: bool,
+    software_mode: bool
 }
 
 impl PassthruDevice {
@@ -282,6 +283,7 @@ impl PassthruDevice {
             device_idx: Some(idx),
             can_channel: false,
             isotp_channel: false,
+            software_mode: false
         };
         if let Ok(version) = ret.drv.get_version(idx) {
             // Set new version information from the device!
@@ -325,6 +327,25 @@ impl PassthruDevice {
             None => Err(HardwareError::DeviceNotOpen),
         }
     }
+
+    /// Toggles software channel emulation.
+    /// This is useful if you are trying to run a concurrent ISO-TP and CAN channel. As
+    /// the J2534 API does not support this (Confliting channels). Instead, the ISO-TP channel
+    /// will be emulated in software and the CAN packets are manually sent over an opened CAN channel.
+    ///
+    /// The CAN channel can then be accessed as normal, in parallel!
+    ///
+    /// ## CAUTION
+    /// Since this relys on a fully unfiltered CAN channel, some cheaper J2534 devices may struggle with
+    /// this mode, and result in unstable ISO-TP connections!
+    ///  
+    /// Note that this toggled state will only affect newly created channels, currently
+    /// opened channels will not be affected, so it would be best to close them prior to 
+    /// toggling this function
+    pub fn toggle_sw_channel(&mut self, state: bool) {
+        self.software_mode = state;
+    }
+
 }
 
 impl Drop for PassthruDevice {
