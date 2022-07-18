@@ -476,8 +476,9 @@ pub struct IsoTPSettings {
     ///
     /// NOTE: This value might be overridden by the device's implementation of ISO-TP
     pub st_min: u8,
-    /// Use extended ISO-TP addressing
-    pub extended_addressing: bool,
+    /// Extended addressing bytes
+    /// order is Tx ext address, Rx ext address
+    pub extended_addresses: Option<(u8, u8)>,
     /// Pad frames over ISO-TP if data size is less than 8.
     pub pad_frame: bool,
     /// Baud rate of the CAN Network
@@ -491,7 +492,7 @@ impl Default for IsoTPSettings {
         Self {
             block_size: 8,
             st_min: 20,
-            extended_addressing: false,
+            extended_addresses: None,
             pad_frame: true,
             can_speed: 500_000,
             can_use_ext_addr: false,

@@ -648,7 +648,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
         if self.cfg.can_use_ext_addr {
             flags |= ConnectFlags::CAN_29BIT_ID;
         }
-        if self.cfg.extended_addressing {
+        if self.cfg.extended_addresses.is_some() {
             flags |= ConnectFlags::ISO15765_ADDR_TYPE;
         }
 
@@ -666,19 +666,19 @@ impl PayloadChannel for PassthruIsoTpChannel {
         // Now create open filter
         let mut mask = PASSTHRU_MSG {
             protocol_id: Protocol::ISO15765 as u32,
-            data_size: 4,
+            data_size: if self.cfg.extended_addresses.is_some() { 5 } else { 4 },
             ..Default::default()
         };
 
         let mut pattern = PASSTHRU_MSG {
             protocol_id: Protocol::ISO15765 as u32,
-            data_size: 4,
+            data_size: if self.cfg.extended_addresses.is_some() { 5 } else { 4 },
             ..Default::default()
         };
 
         let mut flow_control = PASSTHRU_MSG {
             protocol_id: Protocol::ISO15765 as u32,
-            data_size: 4,
+            data_size: if self.cfg.extended_addresses.is_some() { 5 } else { 4 },
             ..Default::default()
         };
 
@@ -686,9 +686,20 @@ impl PayloadChannel for PassthruIsoTpChannel {
         // Mask: 0xFFFF
         // Pattern: Recv ID
         // FC: Send ID
+        match self.cfg.extended_addresses {
+            Some((tx, rx)) => {
+                mask.data[0..5].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+                pattern.data[0] = rx;
+                pattern.data[1..4].copy_from_slice(&self.ids.1.to_be_bytes());
+                flow_control.data[0] = tx;
+                flow_control.data[1..4].copy_from_slice(&self.ids.0.to_be_bytes());
+            },
+            None => {
         mask.data[0..4].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
         pattern.data[0..4].copy_from_slice(&self.ids.1.to_be_bytes());
         flow_control.data[0..4].copy_from_slice(&self.ids.0.to_be_bytes());
+            }
+        }
 
         match device.safe_passthru_op(|_, device| {
             device.start_msg_filter(
@@ -785,16 +796,20 @@ impl PayloadChannel for PassthruIsoTpChannel {
         if self.cfg.pad_frame {
             tx_flags |= TxFlag::ISO15765_FRAME_PAD.bits();
         }
-        if self.cfg.extended_addressing {
+        if self.cfg.extended_addresses.is_some() {
             tx_flags |= TxFlag::ISO15765_EXT_ADDR.bits();
         }
-
+        let mut offset = 0;
+        if let Some((tx, rx)) = self.cfg.extended_addresses {
+            offset = 1;
+            write_msg.data[0] = tx;
+        }
         write_msg.tx_flags = tx_flags;
-        write_msg.data[0] = (addr >> 24) as u8;
-        write_msg.data[1] = (addr >> 16) as u8;
-        write_msg.data[2] = (addr >> 8) as u8;
-        write_msg.data[3] = addr as u8;
-        write_msg.data[4..4 + buffer.len()].copy_from_slice(buffer);
+        write_msg.data[offset] = (addr >> 24) as u8;
+        write_msg.data[offset+1] = (addr >> 16) as u8;
+        write_msg.data[offset+2] = (addr >> 8) as u8;
+        write_msg.data[offset+3] = addr as u8;
+        write_msg.data[offset+4..4 + buffer.len()].copy_from_slice(buffer);
 
         // Now transmit our message!
 
@@ -863,10 +878,7 @@ impl From<&CanFrame> for PASSTHRU_MSG {
         }
         f.protocol_id = Protocol::CAN as u32;
         f.data_size = (frame.get_data().len() + 4) as u32;
-        f.data[0] = (frame.get_address() >> 24) as u8;
-        f.data[1] = (frame.get_address() >> 16) as u8;
-        f.data[2] = (frame.get_address() >> 8) as u8;
-        f.data[3] = frame.get_address() as u8;
+        f.data[0..4].copy_from_slice(&frame.get_address().to_be_bytes());
         f.data[4..4 + frame.get_data().len()].copy_from_slice(frame.get_data());
         f
     }

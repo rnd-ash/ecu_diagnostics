@@ -232,7 +232,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
         let mut device = self.device.lock()?;
         let mut flags: IsoTpBehaviour = IsoTpBehaviour::empty();
 
-        if self.cfg.extended_addressing {
+        if self.cfg.extended_addresses.is_some() {
             flags |= IsoTpBehaviour::CAN_ISOTP_EXTEND_ADDR
         }
         if self.cfg.pad_frame {
@@ -242,9 +242,9 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 
         let mut ext_address: u8 = 0;
         let mut rx_ext_address: u8 = 0;
-        if self.cfg.extended_addressing {
-            ext_address = self.ids.0 as u8;
-            rx_ext_address = self.ids.1 as u8;
+        if let Some((tx, rx)) = self.cfg.extended_addresses {
+            ext_address = tx;
+            rx_ext_address = rx;
         }
 
         let opts: IsoTpOptions = IsoTpOptions::new(
@@ -336,19 +336,17 @@ impl PayloadChannel for SocketCanIsoTPChannel {
         // If the buffer is less than 7/6 bytes, we can send it as 1 frame (Usually for global tester present msg)
         // If this is the case, we can simply open a socketCAN channel to send that frame in parallel to the ISO-TP channel already open!
         if addr != self.ids.0 {
-            if (buffer.len() <= 7 && !self.cfg.extended_addressing)
-                || (buffer.len() <= 6 && self.cfg.extended_addressing)
+            if (buffer.len() <= 7 && !self.cfg.extended_addresses.is_some())
+                || (buffer.len() <= 6 && self.cfg.extended_addresses.is_some())
             {
                 let mut data = Vec::new();
-                let can_id = if self.cfg.extended_addressing {
-                    // Std ISO-TP addr
-                    data.push((addr & 0xFF) as u8);
+                let can_id = addr;
+                if let Some((tx, rx)) = self.cfg.extended_addresses {
+                    data.push(tx);
                     data.push(buffer.len() as u8);
-                    (addr >> 8) & 0xFFFF
                 } else {
                     // Ext ISO-TP addr
                     data.push(buffer.len() as u8);
-                    addr
                 };
                 data.extend_from_slice(buffer); // Push Tx Data
 
