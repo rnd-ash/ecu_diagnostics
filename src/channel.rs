@@ -37,6 +37,8 @@ pub enum ChannelError {
     NotOpen,
     /// Channel not configured prior to opening
     ConfigurationError,
+    /// Other Channel error
+    Other(String)
 }
 
 impl std::fmt::Display for ChannelError {
@@ -51,6 +53,7 @@ impl std::fmt::Display for ChannelError {
             ChannelError::InterfaceNotOpen => write!(f, "channel's interface is not open"),
             ChannelError::HardwareError(err) => write!(f, "Channel hardware error: {}", err),
             ChannelError::NotOpen => write!(f, "Channel has not been opened"),
+            ChannelError::Other(e) => write!(f, "{}", e),
             ChannelError::ConfigurationError => {
                 write!(f, "Channel opened prior to being configured")
             }
