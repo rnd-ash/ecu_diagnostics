@@ -91,6 +91,12 @@ impl From<mpsc::RecvError> for ChannelError {
     }
 }
 
+impl From<mpsc::RecvTimeoutError> for ChannelError {
+    fn from(err: mpsc::RecvTimeoutError) -> Self {
+        ChannelError::WriteTimeout // Only used for writing
+    }
+}
+
 impl<T> From<mpsc::SendError<T>> for HardwareError {
     fn from(e: mpsc::SendError<T>) -> Self {
         HardwareError::APIError { 
