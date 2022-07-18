@@ -19,9 +19,10 @@
 
 use std::{
     ffi::c_void,
-    sync::{Arc, Mutex},
     time::Instant,
 };
+
+use std::sync::{Arc, Mutex};
 
 #[cfg(windows)]
 use winreg::enums::*;
@@ -349,13 +350,18 @@ impl PassthruDevice {
         self.software_mode = state;
     }
 
+    /// Do it on raw device
+    pub fn toggle_sw_channel_raw(dev: &mut Arc<Mutex<PassthruDevice>>, state: bool) {
+        dev.lock().unwrap().toggle_sw_channel(state)
+    }
+
     pub (crate) fn make_can_channel_raw(this: Arc<Mutex<Self>>) -> HardwareResult<PassthruCanChannel> {
         {
             let this = this.lock()?;
             if !this.info.capabilities.can {
                 return Err(HardwareError::ChannelNotSupported);
             }
-            if this.can_channel {
+            if this.can_channel && !this.software_mode {
                 return Err(HardwareError::ConflictingChannel);
             }
         }
@@ -695,9 +701,9 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 flow_control.data[1..4].copy_from_slice(&self.ids.0.to_be_bytes());
             },
             None => {
-        mask.data[0..4].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
-        pattern.data[0..4].copy_from_slice(&self.ids.1.to_be_bytes());
-        flow_control.data[0..4].copy_from_slice(&self.ids.0.to_be_bytes());
+                mask.data[0..4].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
+                pattern.data[0..4].copy_from_slice(&self.ids.1.to_be_bytes());
+                flow_control.data[0..4].copy_from_slice(&self.ids.0.to_be_bytes());
             }
         }
 
@@ -886,13 +892,11 @@ impl From<&CanFrame> for PASSTHRU_MSG {
 
 impl From<&PASSTHRU_MSG> for CanFrame {
     fn from(msg: &PASSTHRU_MSG) -> CanFrame {
-        let id = (msg.data[0] as u32) << 24
-            | (msg.data[1] as u32) << 16
-            | (msg.data[2] as u32) << 8
-            | (msg.data[3] as u32);
-        let data = &msg.data[4..msg.data_size as usize];
-        let is_ext = msg.tx_flags & TxFlag::CAN_29BIT_ID.bits() != 0;
-        CanFrame::new(id, data, is_ext)
+        CanFrame::new(
+            u32::from_be_bytes(msg.data[0..4].try_into().unwrap()), 
+            &msg.data[4..msg.data_size as usize], 
+            msg.tx_flags & TxFlag::CAN_29BIT_ID.bits() != 0
+        )
     }
 }
 
