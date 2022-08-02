@@ -58,7 +58,7 @@ fn main() {
     let iso_tp_settings = IsoTPSettings {
         block_size: 8,
         st_min: 20,
-        extended_addressing: true,
+        extended_addresses: None,
         pad_frame: true,
         can_speed: 500000,
         can_use_ext_addr: false,
