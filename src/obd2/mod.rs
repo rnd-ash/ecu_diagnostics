@@ -1,11 +1,9 @@
 //! Module for OBD (ISO-9141)
 
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
-    },
-    time::Instant,
+use std::time::Instant;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, Arc,
 };
 
 use crate::{
