@@ -1,11 +1,9 @@
 //! Module for OBD (ISO-9141)
 
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
-    },
-    time::Instant,
+use std::time::Instant;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, Arc,
 };
 
 use crate::{
@@ -487,6 +485,20 @@ impl DiagnosticServer<OBD2Command> for OBD2DiagnosticServer {
     /// Returns true if the internal OBD2 Server is running
     fn is_server_running(&self) -> bool {
         self.server_running.load(Ordering::Relaxed)
+    }
+
+    /// Sets read and write timeouts
+    fn set_rw_timeout(&mut self, _read_timeout_ms: u32, _write_timeout_ms: u32) {
+        // Does nothing on OBD
+    }
+
+    /// Get command response read timeout
+    fn get_read_timeout(&self) -> u32 {
+        10000
+    }
+    /// Gets command write timeout
+    fn get_write_timeout(&self) -> u32 {
+        10000
     }
 }
 

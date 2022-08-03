@@ -19,9 +19,10 @@
 
 use std::{
     ffi::c_void,
-    sync::{Arc, Mutex},
     time::Instant,
 };
+
+use std::sync::{Arc, Mutex};
 
 #[cfg(windows)]
 use winreg::enums::*;
@@ -47,6 +48,9 @@ use self::lib_funcs::PassthruDrv;
 use super::{HardwareCapabilities, HardwareError, HardwareInfo, HardwareResult};
 
 mod lib_funcs;
+mod sw_isotp;
+
+pub use sw_isotp::PtCombiChannel;
 
 /// Device scanner for Passthru supported devices
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -267,6 +271,7 @@ pub struct PassthruDevice {
     device_idx: Option<u32>,
     can_channel: bool,
     isotp_channel: bool,
+    software_mode: bool
 }
 
 impl PassthruDevice {
@@ -282,6 +287,7 @@ impl PassthruDevice {
             device_idx: Some(idx),
             can_channel: false,
             isotp_channel: false,
+            software_mode: false
         };
         if let Ok(version) = ret.drv.get_version(idx) {
             // Set new version information from the device!
@@ -325,6 +331,47 @@ impl PassthruDevice {
             None => Err(HardwareError::DeviceNotOpen),
         }
     }
+
+    /// Toggles software channel emulation.
+    /// This is useful if you are trying to run a concurrent ISO-TP and CAN channel. As
+    /// the J2534 API does not support this (Confliting channels). Instead, the ISO-TP channel
+    /// will be emulated in software and the CAN packets are manually sent over an opened CAN channel.
+    ///
+    /// The CAN channel can then be accessed as normal, in parallel!
+    ///
+    /// ## CAUTION
+    /// Since this relys on a fully unfiltered CAN channel, some cheaper J2534 devices may struggle with
+    /// this mode, and result in unstable ISO-TP connections!
+    ///  
+    /// Note that this toggled state will only affect newly created channels, currently
+    /// opened channels will not be affected, so it would be best to close them prior to 
+    /// toggling this function
+    pub fn toggle_sw_channel(&mut self, state: bool) {
+        self.software_mode = state;
+    }
+
+    /// Do it on raw device
+    pub fn toggle_sw_channel_raw(dev: &mut Arc<Mutex<PassthruDevice>>, state: bool) {
+        dev.lock().unwrap().toggle_sw_channel(state)
+    }
+
+    pub (crate) fn make_can_channel_raw(this: Arc<Mutex<Self>>) -> HardwareResult<PassthruCanChannel> {
+        {
+            let this = this.lock()?;
+            if !this.info.capabilities.can {
+                return Err(HardwareError::ChannelNotSupported);
+            }
+            if this.can_channel && !this.software_mode {
+                return Err(HardwareError::ConflictingChannel);
+            }
+        }
+        Ok(PassthruCanChannel {
+            device: this,
+            channel_id: None,
+            baud: 0,
+            use_ext: false,
+        })
+    }
 }
 
 impl Drop for PassthruDevice {
@@ -340,13 +387,21 @@ impl Drop for PassthruDevice {
 
 impl super::Hardware for PassthruDevice {
     fn create_iso_tp_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn IsoTPChannel>> {
+        // If in sw mode
+        if this.lock().unwrap().software_mode {
+            return Ok(Box::new(PtCombiChannel::new(this)?))
+        }
         {
             let this = this.lock()?;
-            if !this.info.capabilities.iso_tp {
-                return Err(HardwareError::ChannelNotSupported);
-            }
-            if this.can_channel {
-                return Err(HardwareError::ConflictingChannel);
+            if this.software_mode {
+                
+            } else {
+                if !this.info.capabilities.iso_tp {
+                    return Err(HardwareError::ChannelNotSupported);
+                }
+                if this.can_channel {
+                    return Err(HardwareError::ConflictingChannel);
+                }
             }
         }
         let iso_tp_channel = PassthruIsoTpChannel {
@@ -360,21 +415,11 @@ impl super::Hardware for PassthruDevice {
     }
 
     fn create_can_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn CanChannel>> {
-        {
-            let this = this.lock()?;
-            if !this.info.capabilities.can {
-                return Err(HardwareError::ChannelNotSupported);
-            }
-            if this.can_channel {
-                return Err(HardwareError::ConflictingChannel);
-            }
+        // If in sw mode
+        if this.lock().unwrap().software_mode {
+            return Ok(Box::new(PtCombiChannel::new(this)?))
         }
-        let can_channel = PassthruCanChannel {
-            device: this,
-            channel_id: None,
-            baud: 0,
-            use_ext: false,
-        };
+        let can_channel = Self::make_can_channel_raw(this)?;
         Ok(Box::new(can_channel))
     }
 
@@ -609,7 +654,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
         if self.cfg.can_use_ext_addr {
             flags |= ConnectFlags::CAN_29BIT_ID;
         }
-        if self.cfg.extended_addressing {
+        if self.cfg.extended_addresses.is_some() {
             flags |= ConnectFlags::ISO15765_ADDR_TYPE;
         }
 
@@ -627,19 +672,19 @@ impl PayloadChannel for PassthruIsoTpChannel {
         // Now create open filter
         let mut mask = PASSTHRU_MSG {
             protocol_id: Protocol::ISO15765 as u32,
-            data_size: 4,
+            data_size: if self.cfg.extended_addresses.is_some() { 5 } else { 4 },
             ..Default::default()
         };
 
         let mut pattern = PASSTHRU_MSG {
             protocol_id: Protocol::ISO15765 as u32,
-            data_size: 4,
+            data_size: if self.cfg.extended_addresses.is_some() { 5 } else { 4 },
             ..Default::default()
         };
 
         let mut flow_control = PASSTHRU_MSG {
             protocol_id: Protocol::ISO15765 as u32,
-            data_size: 4,
+            data_size: if self.cfg.extended_addresses.is_some() { 5 } else { 4 },
             ..Default::default()
         };
 
@@ -647,9 +692,20 @@ impl PayloadChannel for PassthruIsoTpChannel {
         // Mask: 0xFFFF
         // Pattern: Recv ID
         // FC: Send ID
-        mask.data[0..4].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
-        pattern.data[0..4].copy_from_slice(&self.ids.1.to_be_bytes());
-        flow_control.data[0..4].copy_from_slice(&self.ids.0.to_be_bytes());
+        match self.cfg.extended_addresses {
+            Some((tx, rx)) => {
+                mask.data[0..5].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+                pattern.data[0] = rx;
+                pattern.data[1..4].copy_from_slice(&self.ids.1.to_be_bytes());
+                flow_control.data[0] = tx;
+                flow_control.data[1..4].copy_from_slice(&self.ids.0.to_be_bytes());
+            },
+            None => {
+                mask.data[0..4].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
+                pattern.data[0..4].copy_from_slice(&self.ids.1.to_be_bytes());
+                flow_control.data[0..4].copy_from_slice(&self.ids.0.to_be_bytes());
+            }
+        }
 
         match device.safe_passthru_op(|_, device| {
             device.start_msg_filter(
@@ -746,16 +802,20 @@ impl PayloadChannel for PassthruIsoTpChannel {
         if self.cfg.pad_frame {
             tx_flags |= TxFlag::ISO15765_FRAME_PAD.bits();
         }
-        if self.cfg.extended_addressing {
+        if self.cfg.extended_addresses.is_some() {
             tx_flags |= TxFlag::ISO15765_EXT_ADDR.bits();
         }
-
+        let mut offset = 0;
+        if let Some((tx, rx)) = self.cfg.extended_addresses {
+            offset = 1;
+            write_msg.data[0] = tx;
+        }
         write_msg.tx_flags = tx_flags;
-        write_msg.data[0] = (addr >> 24) as u8;
-        write_msg.data[1] = (addr >> 16) as u8;
-        write_msg.data[2] = (addr >> 8) as u8;
-        write_msg.data[3] = addr as u8;
-        write_msg.data[4..4 + buffer.len()].copy_from_slice(buffer);
+        write_msg.data[offset] = (addr >> 24) as u8;
+        write_msg.data[offset+1] = (addr >> 16) as u8;
+        write_msg.data[offset+2] = (addr >> 8) as u8;
+        write_msg.data[offset+3] = addr as u8;
+        write_msg.data[offset+4..4 + buffer.len()].copy_from_slice(buffer);
 
         // Now transmit our message!
 
@@ -824,10 +884,7 @@ impl From<&CanFrame> for PASSTHRU_MSG {
         }
         f.protocol_id = Protocol::CAN as u32;
         f.data_size = (frame.get_data().len() + 4) as u32;
-        f.data[0] = (frame.get_address() >> 24) as u8;
-        f.data[1] = (frame.get_address() >> 16) as u8;
-        f.data[2] = (frame.get_address() >> 8) as u8;
-        f.data[3] = frame.get_address() as u8;
+        f.data[0..4].copy_from_slice(&frame.get_address().to_be_bytes());
         f.data[4..4 + frame.get_data().len()].copy_from_slice(frame.get_data());
         f
     }
@@ -835,13 +892,11 @@ impl From<&CanFrame> for PASSTHRU_MSG {
 
 impl From<&PASSTHRU_MSG> for CanFrame {
     fn from(msg: &PASSTHRU_MSG) -> CanFrame {
-        let id = (msg.data[0] as u32) << 24
-            | (msg.data[1] as u32) << 16
-            | (msg.data[2] as u32) << 8
-            | (msg.data[3] as u32);
-        let data = &msg.data[4..msg.data_size as usize];
-        let is_ext = msg.tx_flags & TxFlag::CAN_29BIT_ID.bits() != 0;
-        CanFrame::new(id, data, is_ext)
+        CanFrame::new(
+            u32::from_be_bytes(msg.data[0..4].try_into().unwrap()), 
+            &msg.data[4..msg.data_size as usize], 
+            msg.tx_flags & TxFlag::CAN_29BIT_ID.bits() != 0
+        )
     }
 }
 

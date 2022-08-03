@@ -141,7 +141,7 @@ pub mod service_09_test {
             IsoTPSettings {
                 block_size: 8,
                 st_min: 20,
-                extended_addressing: false,
+                extended_addresses: None,
                 pad_frame: true,
                 can_speed: 500_000,
                 can_use_ext_addr: false,

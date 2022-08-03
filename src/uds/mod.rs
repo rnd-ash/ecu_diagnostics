@@ -6,7 +6,7 @@
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
+        mpsc, Arc, RwLock,
     },
     time::Instant,
 };
@@ -403,7 +403,7 @@ impl ServerEventHandler<UDSSessionType> for UdsVoidHandler {
 /// UDS Diagnostic server
 pub struct UdsDiagnosticServer {
     server_running: Arc<AtomicBool>,
-    settings: UdsServerOptions,
+    settings: Arc<RwLock<UdsServerOptions>>,
     tx: mpsc::Sender<UdsCmd>,
     rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
     repeat_count: u32,
@@ -424,7 +424,7 @@ impl UdsDiagnosticServer {
     /// * event_handler - Handler for logging events happening within the server. If you don't want
     /// to create your own handler, use [UdsVoidHandler]
     pub fn new_over_iso_tp<C, E>(
-        settings: UdsServerOptions,
+        setting: UdsServerOptions,
         mut server_channel: C,
         channel_cfg: IsoTPSettings,
         mut event_handler: E,
@@ -434,8 +434,10 @@ impl UdsDiagnosticServer {
         E: ServerEventHandler<UDSSessionType> + 'static,
     {
         server_channel.set_iso_tp_cfg(channel_cfg)?;
-        server_channel.set_ids(settings.send_id, settings.recv_id)?;
+        server_channel.set_ids(setting.send_id, setting.recv_id)?;
         server_channel.open()?;
+
+        let settings_ref = Arc::new(RwLock::new(setting));
 
         let is_running = Arc::new(AtomicBool::new(true));
         let is_running_t = is_running.clone();
@@ -443,6 +445,7 @@ impl UdsDiagnosticServer {
         let (tx_cmd, rx_cmd) = mpsc::channel::<UdsCmd>();
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
+        let settings_ref_clone = settings_ref.clone();
         std::thread::spawn(move || {
             let mut send_tester_present = false;
             let mut last_tester_present_time: Instant = Instant::now();
@@ -460,9 +463,9 @@ impl UdsDiagnosticServer {
                     if cmd.get_uds_sid() == UDSCommand::DiagnosticSessionControl {
                         // Session change! Handle this differently
                         match helpers::perform_cmd(
-                            settings.send_id,
+                            setting.send_id,
                             &cmd,
-                            &settings,
+                            &settings_ref_clone.read().unwrap().clone(),
                             &mut server_channel,
                             0x21,
                             lookup_uds_nrc,
@@ -500,9 +503,9 @@ impl UdsDiagnosticServer {
                     } else {
                         // Generic command just perform it
                         let res = helpers::perform_cmd(
-                            settings.send_id,
+                            setting.send_id,
                             &cmd,
-                            &settings,
+                            &settings_ref_clone.read().unwrap().clone(),
                             &mut server_channel,
                             0x21,
                             lookup_uds_nrc,
@@ -522,19 +525,19 @@ impl UdsDiagnosticServer {
                 // Deal with tester present
                 if send_tester_present
                     && last_tester_present_time.elapsed().as_millis() as u32
-                        >= settings.tester_present_interval_ms
+                        >= setting.tester_present_interval_ms
                 {
                     // Send tester present message
                     let cmd = UdsCmd::new(UDSCommand::TesterPresent, &[0x00], true);
-                    let addr = match settings.global_tp_id {
-                        0 => settings.send_id,
+                    let addr = match setting.global_tp_id {
+                        0 => setting.send_id,
                         x => x,
                     };
 
                     if let Err(e) = helpers::perform_cmd(
                         addr,
                         &cmd,
-                        &settings,
+                        &settings_ref_clone.read().unwrap().clone(),
                         &mut server_channel,
                         0x21,
                         lookup_uds_nrc,
@@ -557,7 +560,7 @@ impl UdsDiagnosticServer {
             server_running: is_running,
             tx: tx_cmd,
             rx: rx_res,
-            settings,
+            settings: settings_ref,
             repeat_count: 3,
             repeat_interval: std::time::Duration::from_millis(1000),
             dtc_format: None,
@@ -566,7 +569,7 @@ impl UdsDiagnosticServer {
 
     /// Returns the current settings used by the UDS Server
     pub fn get_settings(&self) -> UdsServerOptions {
-        self.settings
+        self.settings.read().unwrap().clone()
     }
 
     /// Internal command for sending UDS payload to the ECU
@@ -653,6 +656,22 @@ impl DiagnosticServer<UDSCommand> for UdsDiagnosticServer {
     fn send_byte_array_with_response(&mut self, arr: &[u8]) -> DiagServerResult<Vec<u8>> {
         let cmd = UdsCmd::from_raw(arr, true);
         self.exec_command(cmd)
+    }
+
+    /// Sets read and write timeouts
+    fn set_rw_timeout(&mut self, read_timeout_ms: u32, write_timeout_ms: u32) {
+        let mut lock = self.settings.write().unwrap();
+        lock.read_timeout_ms = read_timeout_ms;
+        lock.write_timeout_ms = write_timeout_ms;
+    }
+
+    /// Get command response read timeout
+    fn get_read_timeout(&self) -> u32 {
+        self.settings.read().unwrap().read_timeout_ms
+    }
+    /// Gets command write timeout
+    fn get_write_timeout(&self) -> u32 {
+        self.settings.read().unwrap().write_timeout_ms
     }
 }
 

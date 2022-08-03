@@ -37,7 +37,7 @@ fn main() {
     let isotp_cfg = IsoTPSettings {
         block_size: 8,
         st_min: 20,
-        extended_addressing: false,
+        extended_addresses: None,
         pad_frame: true,
         can_speed: 500000,
         can_use_ext_addr: false,

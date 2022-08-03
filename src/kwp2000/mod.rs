@@ -15,7 +15,7 @@
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
+        mpsc, Arc, RwLock,
     },
     time::Instant,
 };
@@ -388,7 +388,7 @@ impl BaseServerSettings for Kwp2000ServerOptions {
 /// Kwp2000 Diagnostic server
 pub struct Kwp2000DiagnosticServer {
     server_running: Arc<AtomicBool>,
-    settings: Kwp2000ServerOptions,
+    settings: Arc<RwLock<Kwp2000ServerOptions>>,
     tx: mpsc::Sender<Kwp2000Cmd>,
     rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
     repeat_count: u32,
@@ -408,7 +408,7 @@ impl Kwp2000DiagnosticServer {
     /// * event_handler - Handler for logging events happening within the server. If you don't want
     /// to create your own handler, use [Kwp2000VoidHandler]
     pub fn new_over_iso_tp<C, E>(
-        settings: Kwp2000ServerOptions,
+        setting: Kwp2000ServerOptions,
         mut server_channel: C,
         channel_cfg: IsoTPSettings,
         mut event_handler: E,
@@ -418,8 +418,10 @@ impl Kwp2000DiagnosticServer {
         E: ServerEventHandler<SessionType> + 'static,
     {
         server_channel.set_iso_tp_cfg(channel_cfg)?;
-        server_channel.set_ids(settings.send_id, settings.recv_id)?;
+        server_channel.set_ids(setting.send_id, setting.recv_id)?;
         server_channel.open()?;
+
+        let settings_ref = Arc::new(RwLock::new(setting));
 
         let is_running = Arc::new(AtomicBool::new(true));
         let is_running_t = is_running.clone();
@@ -427,6 +429,7 @@ impl Kwp2000DiagnosticServer {
         let (tx_cmd, rx_cmd) = mpsc::channel::<Kwp2000Cmd>();
         let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
 
+        let settings_ref_c = settings_ref.clone();
         std::thread::spawn(move || {
             let mut send_tester_present = false;
             let mut last_tester_present_time: Instant = Instant::now();
@@ -444,7 +447,7 @@ impl Kwp2000DiagnosticServer {
                     // We have an incoming command
                     log::debug!("Sending {:02X?} to ECU", cmd.to_bytes());
                     if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {
-                        let mut send_id = settings.send_id;
+                        let mut send_id = setting.send_id;
                         // Session change! Handle this differently
 
                         // In this case, we have to broadcast the session control messages
@@ -452,14 +455,14 @@ impl Kwp2000DiagnosticServer {
                         // into diagnostic session mode.
                         //
                         // NOTE: We won't get a response from the target ECU in this case.
-                        if settings.global_session_control && settings.global_tp_id != 0 {
+                        if setting.global_session_control && setting.global_tp_id != 0 {
                             cmd.response_required = false;
-                            send_id = settings.global_tp_id;
+                            send_id = setting.global_tp_id;
                         }
                         match helpers::perform_cmd(
                             send_id,
                             &cmd,
-                            &settings,
+                            &settings_ref_c.read().unwrap().clone(),
                             &mut server_channel,
                             0x21,
                             lookup_kwp_nrc,
@@ -498,9 +501,9 @@ impl Kwp2000DiagnosticServer {
                     } else if cmd.get_kwp_sid() == KWP2000Command::ECUReset {
                         // After successful reset we have to go back to default diag mode! (NO Tester present)
                         match helpers::perform_cmd(
-                            settings.send_id,
+                            setting.send_id,
                             &cmd,
-                            &settings,
+                            &settings_ref_c.read().unwrap().clone(),
                             &mut server_channel,
                             0x21,
                             lookup_kwp_nrc,
@@ -529,9 +532,9 @@ impl Kwp2000DiagnosticServer {
                     } else {
                         // Generic command just perform it
                         let res = helpers::perform_cmd(
-                            settings.send_id,
+                            setting.send_id,
                             &cmd,
-                            &settings,
+                            &settings_ref_c.read().unwrap().clone(),
                             &mut server_channel,
                             0x21,
                             lookup_kwp_nrc,
@@ -551,10 +554,10 @@ impl Kwp2000DiagnosticServer {
                 // Deal with tester present
                 if send_tester_present
                     && last_tester_present_time.elapsed().as_millis() as u32
-                        >= settings.tester_present_interval_ms
+                        >= setting.tester_present_interval_ms
                 {
                     // Send tester present message
-                    let arg = if settings.tester_present_require_response {
+                    let arg = if setting.tester_present_require_response {
                         0x01
                     } else {
                         0x02
@@ -563,17 +566,17 @@ impl Kwp2000DiagnosticServer {
                     let cmd = Kwp2000Cmd::new(
                         KWP2000Command::TesterPresent,
                         &[arg],
-                        settings.tester_present_require_response,
+                        setting.tester_present_require_response,
                     );
-                    let addr = match settings.global_tp_id {
-                        0 => settings.send_id,
+                    let addr = match setting.global_tp_id {
+                        0 => setting.send_id,
                         x => x,
                     };
 
                     if let Err(e) = helpers::perform_cmd(
                         addr,
                         &cmd,
-                        &settings,
+                        &settings_ref_c.read().unwrap().clone(),
                         &mut server_channel,
                         0x21,
                         lookup_kwp_nrc,
@@ -597,7 +600,7 @@ impl Kwp2000DiagnosticServer {
             server_running: is_running,
             tx: tx_cmd,
             rx: rx_res,
-            settings,
+            settings: settings_ref,
             repeat_count: 3,
             repeat_interval: std::time::Duration::from_millis(1000),
         })
@@ -605,7 +608,7 @@ impl Kwp2000DiagnosticServer {
 
     /// Returns the current settings used by the KWP2000 Server
     pub fn get_settings(&self) -> Kwp2000ServerOptions {
-        self.settings
+        self.settings.read().unwrap().clone()
     }
 
     /// Internal command for sending KWP2000 payload to the ECU
@@ -693,6 +696,22 @@ impl DiagnosticServer<KWP2000Command> for Kwp2000DiagnosticServer {
     /// Returns true if the internal KWP2000 Server is running
     fn is_server_running(&self) -> bool {
         self.server_running.load(Ordering::Relaxed)
+    }
+
+    /// Sets read and write timeouts
+    fn set_rw_timeout(&mut self, read_timeout_ms: u32, write_timeout_ms: u32) {
+        let mut lock = self.settings.write().unwrap();
+        lock.read_timeout_ms = read_timeout_ms;
+        lock.write_timeout_ms = write_timeout_ms;
+    }
+
+    /// Get command response read timeout
+    fn get_read_timeout(&self) -> u32 {
+        self.settings.read().unwrap().read_timeout_ms
+    }
+    /// Gets command write timeout
+    fn get_write_timeout(&self) -> u32 {
+        self.settings.read().unwrap().write_timeout_ms
     }
 }
 

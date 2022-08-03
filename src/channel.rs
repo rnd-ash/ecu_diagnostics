@@ -6,7 +6,7 @@
 
 use std::{
     borrow::BorrowMut,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, Mutex, PoisonError, mpsc},
 };
 
 use crate::hardware::HardwareError;
@@ -37,6 +37,8 @@ pub enum ChannelError {
     NotOpen,
     /// Channel not configured prior to opening
     ConfigurationError,
+    /// Other Channel error
+    Other(String)
 }
 
 impl std::fmt::Display for ChannelError {
@@ -51,6 +53,7 @@ impl std::fmt::Display for ChannelError {
             ChannelError::InterfaceNotOpen => write!(f, "channel's interface is not open"),
             ChannelError::HardwareError(err) => write!(f, "Channel hardware error: {}", err),
             ChannelError::NotOpen => write!(f, "Channel has not been opened"),
+            ChannelError::Other(e) => write!(f, "{}", e),
             ChannelError::ConfigurationError => {
                 write!(f, "Channel opened prior to being configured")
             }
@@ -70,6 +73,42 @@ impl<T> From<PoisonError<T>> for HardwareError {
             code: 99,
             desc: "PoisonError".into(),
         }
+    }
+}
+
+impl From<mpsc::RecvError> for HardwareError {
+    fn from(e: mpsc::RecvError) -> Self {
+        HardwareError::APIError { 
+            code: 98, 
+            desc: e.to_string() 
+        }
+    }
+}
+
+impl From<mpsc::RecvError> for ChannelError {
+    fn from(err: mpsc::RecvError) -> Self {
+        ChannelError::HardwareError(HardwareError::from(err))
+    }
+}
+
+impl From<mpsc::RecvTimeoutError> for ChannelError {
+    fn from(err: mpsc::RecvTimeoutError) -> Self {
+        ChannelError::WriteTimeout // Only used for writing
+    }
+}
+
+impl<T> From<mpsc::SendError<T>> for HardwareError {
+    fn from(e: mpsc::SendError<T>) -> Self {
+        HardwareError::APIError { 
+            code: 98, 
+            desc: e.to_string() 
+        }
+    }
+}
+
+impl<T> From<mpsc::SendError<T>> for ChannelError {
+    fn from(err: mpsc::SendError<T>) -> Self {
+        ChannelError::HardwareError(HardwareError::from(err))
     }
 }
 
@@ -355,7 +394,7 @@ pub trait Packet: Send + Sync + Sized {
     fn set_data(&mut self, data: &[u8]);
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// CAN Frame
 pub struct CanFrame {
     id: u32,
@@ -363,6 +402,9 @@ pub struct CanFrame {
     data: [u8; 8],
     ext: bool,
 }
+
+unsafe impl Sync for CanFrame{}
+unsafe impl Send for CanFrame{}
 
 impl CanFrame {
     /// Creates a new CAN Frame given data and an ID.
@@ -434,8 +476,9 @@ pub struct IsoTPSettings {
     ///
     /// NOTE: This value might be overridden by the device's implementation of ISO-TP
     pub st_min: u8,
-    /// Use extended ISO-TP addressing
-    pub extended_addressing: bool,
+    /// Extended addressing bytes
+    /// order is Tx ext address, Rx ext address
+    pub extended_addresses: Option<(u8, u8)>,
     /// Pad frames over ISO-TP if data size is less than 8.
     pub pad_frame: bool,
     /// Baud rate of the CAN Network
@@ -449,7 +492,7 @@ impl Default for IsoTPSettings {
         Self {
             block_size: 8,
             st_min: 20,
-            extended_addressing: false,
+            extended_addresses: None,
             pad_frame: true,
             can_speed: 500_000,
             can_use_ext_addr: false,
