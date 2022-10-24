@@ -105,5 +105,6 @@ pub(crate) fn perform_cmd<
             def: Some(lookup_func(res[2])),
         });
     }
+    log::debug!("ECU Responded with {:02X?}", res);
     check_pos_response_id(target, res) // ECU Response OK!
 }
