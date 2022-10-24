@@ -167,10 +167,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
-        self.safe_with_iface(|iface| {
-            while iface.read_frame().is_ok() {} // Keep reading until we drain the buffer
-            Ok(())
-        })
+        Ok(())
     }
 
     fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
@@ -251,8 +248,8 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             flags,
             std::time::Duration::from_millis(0),
             ext_address,
-            0x00,
-            0x00,
+            0xCC,
+            0xCC,
             rx_ext_address,
         )
         .unwrap();
