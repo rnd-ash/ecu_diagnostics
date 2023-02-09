@@ -371,7 +371,10 @@ pub struct Kwp2000ServerOptions {
     /// 
     /// IMPORTANT: This can set your ENTIRE vehicle network into diagnostic
     /// session mode, so be very careful doing this!
-    pub global_session_control: bool
+    pub global_session_control: bool,
+    /// Cooldown period in MS after receiving a response from an ECU before sending a request.
+    /// This is useful for some slower ECUs
+    pub command_cooldown_ms: u128
 }
 
 impl BaseServerSettings for Kwp2000ServerOptions {
@@ -436,118 +439,121 @@ impl Kwp2000DiagnosticServer {
 
             event_handler.on_event(ServerEvent::ServerStart);
             log::debug!("server start");
+            let mut last_cmd_time = Instant::now();
             loop {
                 if !is_running_t.load(Ordering::Relaxed) {
                     log::debug!("server exit");
                     break;
                 }
+                if last_cmd_time.elapsed().as_millis() > setting.command_cooldown_ms {
+                    if let Ok(mut cmd) = rx_cmd.try_recv() {
+                        event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
+                        // We have an incoming command
+                        log::debug!("Sending {:02X?} to ECU", cmd.to_bytes());
+                        if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {
+                            let mut send_id = setting.send_id;
+                            // Session change! Handle this differently
 
-                if let Ok(mut cmd) = rx_cmd.try_recv() {
-                    event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
-                    // We have an incoming command
-                    log::debug!("Sending {:02X?} to ECU", cmd.to_bytes());
-                    if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {
-                        let mut send_id = setting.send_id;
-                        // Session change! Handle this differently
-
-                        // In this case, we have to broadcast the session control messages
-                        // onto the GLOBAL ID, which puts the entire CAN network
-                        // into diagnostic session mode.
-                        //
-                        // NOTE: We won't get a response from the target ECU in this case.
-                        if setting.global_session_control && setting.global_tp_id != 0 {
-                            cmd.response_required = false;
-                            send_id = setting.global_tp_id;
-                        }
-                        match helpers::perform_cmd(
-                            send_id,
-                            &cmd,
-                            &settings_ref_c.read().unwrap().clone(),
-                            &mut server_channel,
-                            0x21,
-                            lookup_kwp_nrc,
-                        ) {
-                            Ok(res) => {
-                                // Set server session type
-                                if cmd.bytes[1] == u8::from(SessionType::Passive)
-                                    || cmd.bytes[1] == u8::from(SessionType::Normal)
-                                {
-                                    // Default session, disable tester present
+                            // In this case, we have to broadcast the session control messages
+                            // onto the GLOBAL ID, which puts the entire CAN network
+                            // into diagnostic session mode.
+                            //
+                            // NOTE: We won't get a response from the target ECU in this case.
+                            if setting.global_session_control && setting.global_tp_id != 0 {
+                                cmd.response_required = false;
+                                send_id = setting.global_tp_id;
+                            }
+                            match helpers::perform_cmd(
+                                send_id,
+                                &cmd,
+                                &settings_ref_c.read().unwrap().clone(),
+                                &mut server_channel,
+                                0x21,
+                                lookup_kwp_nrc,
+                            ) {
+                                Ok(res) => {
+                                    // Set server session type
+                                    if cmd.bytes[1] == u8::from(SessionType::Passive)
+                                        || cmd.bytes[1] == u8::from(SessionType::Normal)
+                                    {
+                                        // Default session, disable tester present
+                                        send_tester_present = false;
+                                    } else {
+                                        // Enable tester present and refresh the delay
+                                        send_tester_present = true;
+                                        last_tester_present_time = Instant::now();
+                                    }
+                                    // Send response to client
+                                    if tx_res.send(Ok(res)).is_err() {
+                                        // Terminate! Something has gone wrong and data can no longer be sent to client
+                                        is_running_t.store(false, Ordering::Relaxed);
+                                        event_handler.on_event(ServerEvent::CriticalError {
+                                            desc: "Channel Tx SendError occurred".into(),
+                                        })
+                                    }
+                                }
+                                Err(e) => {
+                                    if tx_res.send(Err(e)).is_err() {
+                                        // Terminate! Something has gone wrong and data can no longer be sent to client
+                                        is_running_t.store(false, Ordering::Relaxed);
+                                        event_handler.on_event(ServerEvent::CriticalError {
+                                            desc: "Channel Tx SendError occurred".into(),
+                                        })
+                                    }
+                                }
+                            }
+                        } else if cmd.get_kwp_sid() == KWP2000Command::ECUReset {
+                            // After successful reset we have to go back to default diag mode! (NO Tester present)
+                            match helpers::perform_cmd(
+                                setting.send_id,
+                                &cmd,
+                                &settings_ref_c.read().unwrap().clone(),
+                                &mut server_channel,
+                                0x21,
+                                lookup_kwp_nrc,
+                            ) {
+                                Ok(res) => {
                                     send_tester_present = false;
-                                } else {
-                                    // Enable tester present and refresh the delay
-                                    send_tester_present = true;
-                                    last_tester_present_time = Instant::now();
+                                    // Send response to client
+                                    if tx_res.send(Ok(res)).is_err() {
+                                        // Terminate! Something has gone wrong and data can no longer be sent to client
+                                        is_running_t.store(false, Ordering::Relaxed);
+                                        event_handler.on_event(ServerEvent::CriticalError {
+                                            desc: "Channel Tx SendError occurred".into(),
+                                        })
+                                    }
                                 }
-                                // Send response to client
-                                if tx_res.send(Ok(res)).is_err() {
-                                    // Terminate! Something has gone wrong and data can no longer be sent to client
-                                    is_running_t.store(false, Ordering::Relaxed);
-                                    event_handler.on_event(ServerEvent::CriticalError {
-                                        desc: "Channel Tx SendError occurred".into(),
-                                    })
-                                }
-                            }
-                            Err(e) => {
-                                if tx_res.send(Err(e)).is_err() {
-                                    // Terminate! Something has gone wrong and data can no longer be sent to client
-                                    is_running_t.store(false, Ordering::Relaxed);
-                                    event_handler.on_event(ServerEvent::CriticalError {
-                                        desc: "Channel Tx SendError occurred".into(),
-                                    })
+                                Err(e) => {
+                                    if tx_res.send(Err(e)).is_err() {
+                                        // Terminate! Something has gone wrong and data can no longer be sent to client
+                                        is_running_t.store(false, Ordering::Relaxed);
+                                        event_handler.on_event(ServerEvent::CriticalError {
+                                            desc: "Channel Tx SendError occurred".into(),
+                                        })
+                                    }
                                 }
                             }
-                        }
-                    } else if cmd.get_kwp_sid() == KWP2000Command::ECUReset {
-                        // After successful reset we have to go back to default diag mode! (NO Tester present)
-                        match helpers::perform_cmd(
-                            setting.send_id,
-                            &cmd,
-                            &settings_ref_c.read().unwrap().clone(),
-                            &mut server_channel,
-                            0x21,
-                            lookup_kwp_nrc,
-                        ) {
-                            Ok(res) => {
-                                send_tester_present = false;
-                                // Send response to client
-                                if tx_res.send(Ok(res)).is_err() {
-                                    // Terminate! Something has gone wrong and data can no longer be sent to client
-                                    is_running_t.store(false, Ordering::Relaxed);
-                                    event_handler.on_event(ServerEvent::CriticalError {
-                                        desc: "Channel Tx SendError occurred".into(),
-                                    })
-                                }
-                            }
-                            Err(e) => {
-                                if tx_res.send(Err(e)).is_err() {
-                                    // Terminate! Something has gone wrong and data can no longer be sent to client
-                                    is_running_t.store(false, Ordering::Relaxed);
-                                    event_handler.on_event(ServerEvent::CriticalError {
-                                        desc: "Channel Tx SendError occurred".into(),
-                                    })
-                                }
+                        } else {
+                            // Generic command just perform it
+                            let res = helpers::perform_cmd(
+                                setting.send_id,
+                                &cmd,
+                                &settings_ref_c.read().unwrap().clone(),
+                                &mut server_channel,
+                                0x21,
+                                lookup_kwp_nrc,
+                            );
+                            event_handler.on_event(ServerEvent::Response(&res));
+                            //event_handler.on_event(&res);
+                            if tx_res.send(res).is_err() {
+                                // Terminate! Something has gone wrong and data can no longer be sent to client
+                                is_running_t.store(false, Ordering::Relaxed);
+                                event_handler.on_event(ServerEvent::CriticalError {
+                                    desc: "Channel Tx SendError occurred".into(),
+                                })
                             }
                         }
-                    } else {
-                        // Generic command just perform it
-                        let res = helpers::perform_cmd(
-                            setting.send_id,
-                            &cmd,
-                            &settings_ref_c.read().unwrap().clone(),
-                            &mut server_channel,
-                            0x21,
-                            lookup_kwp_nrc,
-                        );
-                        event_handler.on_event(ServerEvent::Response(&res));
-                        //event_handler.on_event(&res);
-                        if tx_res.send(res).is_err() {
-                            // Terminate! Something has gone wrong and data can no longer be sent to client
-                            is_running_t.store(false, Ordering::Relaxed);
-                            event_handler.on_event(ServerEvent::CriticalError {
-                                desc: "Channel Tx SendError occurred".into(),
-                            })
-                        }
+                        last_cmd_time = Instant::now();
                     }
                 }
 
