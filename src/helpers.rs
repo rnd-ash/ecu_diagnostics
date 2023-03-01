@@ -71,7 +71,7 @@ pub(crate) fn perform_cmd<
             // For both UDS or
             // Wait a bit longer for the ECU response
             let mut timestamp = Instant::now();
-            while timestamp.elapsed() <= Duration::from_millis(2000) {
+            while timestamp.elapsed() <=  Duration::from_millis(settings.get_read_timeout_ms() as u64 * 2) {
                 if let Ok(res2) = channel.read_bytes(settings.get_read_timeout_ms()) {
                     log::debug!("ECU next response: {:02X?}", res2);
                     if res2.is_empty() {
