@@ -35,10 +35,19 @@ pub use read_dtc_information::*;
 pub use scaling_data::*;
 pub use security_access::*;
 
-pub use auto_uds::{Command as UDSCommand, UdsError as UDSError};
+/// FIXME: Use UdsCommand instead
+/// Note: `#[deprecated]` doesn't work here due to https://github.com/rust-lang/rust/issues/30827
+pub use auto_uds::UdsCommand as UDSCommand;
+
+/// FIXME: Use UdsError instead
+/// Note: `#[deprecated]` doesn't work here due to https://github.com/rust-lang/rust/issues/30827
+pub use auto_uds::UdsError as UDSError;
+
+pub use auto_uds::{UdsCommand, UdsError};
+use auto_uds::{UdsCommandByte, UdsErrorByte};
 
 fn lookup_uds_nrc(x: u8) -> String {
-    format!("{:?}", UDSError::from(x))
+    format!("{:?}", UdsErrorByte::from(x))
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -91,7 +100,7 @@ impl std::fmt::Debug for UdsCmd {
 
 impl UdsCmd {
     /// Creates a new UDS Payload
-    pub fn new(sid: UDSCommand, args: &[u8], need_response: bool) -> Self {
+    pub fn new(sid: UdsCommand, args: &[u8], need_response: bool) -> Self {
         let mut b: Vec<u8> = Vec::with_capacity(args.len() + 1);
         b.push(sid.into());
         b.extend_from_slice(args);
@@ -109,7 +118,7 @@ impl UdsCmd {
     }
 
     /// Returns the UDS Service ID of the command
-    pub fn get_uds_sid(&self) -> UDSCommand {
+    pub fn get_uds_sid(&self) -> UdsCommandByte {
         self.bytes[0].into()
     }
 }
@@ -202,7 +211,9 @@ impl UdsDiagnosticServer {
                 if let Ok(cmd) = rx_cmd.try_recv() {
                     event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
                     // We have an incoming command
-                    if cmd.get_uds_sid() == UDSCommand::DiagnosticSessionControl {
+                    if let UdsCommandByte::Standard(UdsCommand::DiagnosticSessionControl) =
+                        cmd.get_uds_sid()
+                    {
                         // Session change! Handle this differently
                         match helpers::perform_cmd(
                             setting.send_id,
@@ -270,7 +281,7 @@ impl UdsDiagnosticServer {
                         >= setting.tester_present_interval_ms
                 {
                     // Send tester present message
-                    let cmd = UdsCmd::new(UDSCommand::TesterPresent, &[0x00], true);
+                    let cmd = UdsCmd::new(UdsCommand::TesterPresent, &[0x00], true);
                     let addr = match setting.global_tp_id {
                         0 => setting.send_id,
                         x => x,
@@ -323,7 +334,7 @@ impl UdsDiagnosticServer {
     }
 }
 
-impl DiagnosticServer<UDSCommand> for UdsDiagnosticServer {
+impl DiagnosticServer<UdsCommand> for UdsDiagnosticServer {
     fn is_server_running(&self) -> bool {
         self.server_running.load(Ordering::Relaxed)
     }
@@ -339,7 +350,7 @@ impl DiagnosticServer<UDSCommand> for UdsDiagnosticServer {
     /// then the full ECU response is returned. The response will begin with the sid + 0x40
     fn execute_command_with_response(
         &mut self,
-        sid: UDSCommand,
+        sid: UdsCommand,
         args: &[u8],
     ) -> DiagServerResult<Vec<u8>> {
         let cmd = UdsCmd::new(sid, args, true);
@@ -373,7 +384,7 @@ impl DiagnosticServer<UDSCommand> for UdsDiagnosticServer {
     /// ## Parameters
     /// * sid - The Service ID of the command
     /// * args - The arguments for the service
-    fn execute_command(&mut self, sid: UDSCommand, args: &[u8]) -> DiagServerResult<()> {
+    fn execute_command(&mut self, sid: UdsCommand, args: &[u8]) -> DiagServerResult<()> {
         let cmd = UdsCmd::new(sid, args, false);
         self.exec_command(cmd).map(|_| ())
     }
@@ -419,7 +430,7 @@ impl DiagnosticServer<UDSCommand> for UdsDiagnosticServer {
 
 /// Returns the [UDSError] from a matching input byte.
 /// The error byte provided MUST come from [DiagError::ECUError]
-pub fn get_description_of_ecu_error(error: u8) -> UDSError {
+pub fn get_description_of_ecu_error(error: u8) -> UdsErrorByte {
     error.into()
 }
 
