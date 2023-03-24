@@ -3,7 +3,7 @@
 //!
 //! Currently, only default seed/key (0x01/0x02) are supported
 
-use super::{UDSCommand, UdsDiagnosticServer};
+use super::{UdsCommand, UdsDiagnosticServer};
 use crate::{DiagServerResult, DiagnosticServer};
 
 pub use auto_uds::SecurityOperation;
@@ -20,7 +20,7 @@ impl UdsDiagnosticServer {
     /// Returns the security key's seed
     pub fn request_seed(&mut self) -> DiagServerResult<Vec<u8>> {
         let mut resp = self.execute_command_with_response(
-            UDSCommand::SecurityAccess,
+            UdsCommand::SecurityAccess,
             &[SecurityOperation::RequestSeed.into()],
         )?;
         resp.drain(0..2); // Remove SID and PID, so just seed value left
@@ -38,7 +38,7 @@ impl UdsDiagnosticServer {
         let mut payload = Vec::with_capacity(key.len() + 1);
         payload.push(SecurityOperation::SendKey.into());
         payload.extend_from_slice(key);
-        self.execute_command_with_response(UDSCommand::SecurityAccess, &payload)
+        self.execute_command_with_response(UdsCommand::SecurityAccess, &payload)
             .map(|_| ())
     }
 }

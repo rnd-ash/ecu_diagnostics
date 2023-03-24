@@ -1,6 +1,6 @@
 //! Provides methods to control normal ECU communication
 
-use crate::uds::{UDSCommand, UdsDiagnosticServer};
+use crate::uds::{UdsCommand, UdsDiagnosticServer};
 use crate::DiagnosticServer;
 
 pub use auto_uds::{
@@ -26,7 +26,7 @@ impl UdsDiagnosticServer {
         let communication_type = encode_communication_type(communication_type, subnet);
 
         self.execute_command_with_response(
-            UDSCommand::CommunicationControl,
+            UdsCommand::CommunicationControl,
             &[level, communication_type],
         )
         .map(|_| ())

@@ -1,6 +1,6 @@
 //!  Provides methods to clear diagnostic trouble codes from the ECU
 
-use super::{UDSCommand, UdsDiagnosticServer};
+use super::{UdsCommand, UdsDiagnosticServer};
 use crate::{DiagServerResult, DiagnosticServer};
 
 impl UdsDiagnosticServer {
@@ -11,7 +11,7 @@ impl UdsDiagnosticServer {
     /// * dtc_mask - Mask of DTCs to clear. Only the lower 3 bytes are used (from 0x00000000 - 0x00FFFFFF)
     pub fn clear_diagnostic_information(&mut self, dtc_mask: u32) -> DiagServerResult<()> {
         self.execute_command_with_response(
-            UDSCommand::ClearDiagnosticInformation,
+            UdsCommand::ClearDiagnosticInformation,
             &[
                 (dtc_mask >> 16) as u8,
                 (dtc_mask >> 8) as u8,
