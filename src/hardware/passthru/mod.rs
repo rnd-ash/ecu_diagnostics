@@ -271,7 +271,8 @@ pub struct PassthruDevice {
     device_idx: Option<u32>,
     can_channel: bool,
     isotp_channel: bool,
-    software_mode: bool
+    software_mode: bool,
+    connected_ok: bool,
 }
 
 impl PassthruDevice {
@@ -287,7 +288,8 @@ impl PassthruDevice {
             device_idx: Some(idx),
             can_channel: false,
             isotp_channel: false,
-            software_mode: false
+            software_mode: false,
+            connected_ok: true
         };
         if let Ok(version) = ret.drv.get_version(idx) {
             // Set new version information from the device!
@@ -302,15 +304,21 @@ impl PassthruDevice {
         X,
         T: FnOnce(u32, PassthruDrv) -> lib_funcs::PassthruResult<X>,
     >(
-        &self,
+        &mut self,
         f: T,
     ) -> HardwareResult<X> {
         match self.device_idx {
             Some(idx) => match f(idx, self.drv.clone()) {
-                Ok(res) => Ok(res),
+                Ok(res) => {
+                    self.connected_ok = true;
+                    Ok(res)
+                },
                 Err(e) => {
                     log::warn!("Function failed with status {:?}, status 0x{:02X}", e, e as u32);
-                    if e == PassthruError::ERR_FAILED {
+                    if e == PassthruError::ERR_DEVICE_NOT_CONNECTED {
+                        self.connected_ok = false;
+                        Err(e.into())
+                    } else if e == PassthruError::ERR_FAILED {
                         // Err failed, query the adapter for error!
                         if let Ok(reason) = self.drv.get_last_error() {
                             log::warn!("Function generic failure reason: {}", reason);
@@ -465,6 +473,10 @@ impl super::Hardware for PassthruDevice {
 
     fn get_info(&self) -> &HardwareInfo {
         &self.info
+    }
+
+    fn is_connected(&self) -> bool {
+        self.connected_ok
     }
 }
 

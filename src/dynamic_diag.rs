@@ -2,17 +2,13 @@
 //!
 
 use std::{
-    borrow::{BorrowMut, Borrow},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock, mpsc}, time::Instant,
 };
 
 use crate::{
     channel::IsoTPSettings,
-    dtc::DTC,
     hardware::Hardware,
-    kwp2000::{self, Kwp2000DiagnosticServer, Kwp2000ServerOptions, Kwp2000VoidHandler},
-    uds::{UDSSessionType, UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler},
-    DiagError, DiagServerResult, DiagnosticServer,
+    DiagError, DiagServerResult, helpers
 };
 
 /// Dynamic diagnostic session
@@ -22,17 +18,100 @@ use crate::{
 /// This also contains some useful wrappers for basic functions such as
 /// reading and clearing error codes.
 #[derive(Debug)]
-pub struct DynamicDiagSession {
-    session: DynamicSessionType,
+pub struct DynamicDiagSession<P> where P : DiagProtocol {
+    current_session_mode: Arc<RwLock<DiagSessionMode>>,
+    protocol: P,
+    sender: mpsc::Sender<DiagTxPayload>,
+    receiver: mpsc::Receiver<DiagServerResult<DiagServerRx>>
 }
 
-#[derive(Debug)]
-enum DynamicSessionType {
-    Kwp(Kwp2000DiagnosticServer),
-    Uds(UdsDiagnosticServer),
+#[derive(Debug, Copy, Clone)]
+pub enum DiagServerRx {
+    EcuResponse(Vec<u8>),
+    EcuError(u8),
+    EcuWaiting,
+    SendState(DiagServerResult<()>)
 }
 
-impl DynamicDiagSession {
+#[derive(Debug, Copy, Clone)]
+#[repr(C)]
+/// Basic diagnostic server options
+pub struct DiagServerBasicOptions {
+    /// ECU Send ID
+    pub send_id: u32,
+    /// ECU Receive ID
+    pub recv_id: u32,
+    /// Read timeout in ms
+    pub read_timeout_ms: u32,
+    /// Write timeout in ms
+    pub write_timeout_ms: u32
+}
+
+
+#[derive(Debug, Copy, Clone)]
+#[repr(C)]
+/// Advanced diagnostic server options
+pub struct DiagServerAdvancedOptions {
+    /// Optional global address to send tester-present messages to
+    /// Set to 0 if not in use
+    pub global_tp_id: u32,
+    /// Tester present minimum send interval in ms.
+    pub tester_present_interval_ms: u32,
+    /// Configures if the diagnostic server will poll for a response from tester present.
+    pub tester_present_require_response: bool,
+    /// Session control uses global_tp_id if specified
+    /// If `global_tp_id` is set to 0, then this value is ignored.
+    /// 
+    /// IMPORTANT: This can set your ENTIRE vehicle network into diagnostic
+    /// session mode, so be very careful doing this!
+    pub global_session_control: bool,
+    /// Cooldown period in MS after receiving a response from an ECU before sending a request.
+    /// This is useful for some slower ECUs
+    pub command_cooldown_ms: u128
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DiagSessionMode {
+    /// Session mode ID
+    id: u8,
+    /// Tester present required?
+    tp_require: bool,
+    /// Alias for its name (For logging only)
+    name: &'static str
+}
+
+pub trait DiagSID: From<u8> {
+
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DiagAction {
+    SetSessionMode(DiagSessionMode),
+    Other { sid: dyn DiagSID, data: Vec<u8> }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DiagTxPayload {
+    pub action: DiagAction,
+    pub response_require: bool
+}
+
+pub trait DiagProtocol {
+    /// Returns the alias to the ECU 'default' diagnostic session mode
+    /// Returns None if there is no session type control in the protocol
+    /// (For example basic OBD2)
+    fn get_basic_session_mode() -> Option<DiagSessionMode>;
+    /// Name of the diagnostic protocol
+    fn get_protocol_name() -> &'static str;
+    /// Process a byte array into a command
+    fn process_req_payload(payload: &[u8]) -> DiagAction;
+    /// Generate the tester present message (If required)
+    fn create_tp_msg(response_required: bool) -> DiagAction;
+    /// Processes the ECU response, and checks to see if it is a positive or negative response
+    fn process_ecu_response(r: &[u8]) -> DiagServerRx;
+}
+
+impl<P> DynamicDiagSession<P> where P: DiagProtocol {
     /// Creates a new dynamic session.
     /// This will first try with KWP2000, then if that fails,
     /// will try with UDS. If both server creations fail,
@@ -45,220 +124,93 @@ impl DynamicDiagSession {
     pub fn new_over_iso_tp<C>(
         hw_device: Arc<Mutex<C>>,
         channel_cfg: IsoTPSettings,
-        tx_id: u32,
-        rx_id: u32,
+        basic_opts: DiagServerBasicOptions,
+        advanced_opts: Option<DiagServerAdvancedOptions>
     ) -> DiagServerResult<Self>
     where
-        C: Hardware + 'static,
+        C: Hardware + 'static
     {
         let mut last_err: Option<DiagError>; // Setting up last recorded error
 
         // Create iso tp channel using provided HW interface. If this fails, we cannot setup KWP or UDS session!
         let mut iso_tp_channel = Hardware::create_iso_tp_channel(hw_device.clone())?;
+        let requested_session_mode = P::get_basic_session_mode();
+        let mut current_session_mode = P::get_basic_session_mode();
+        if requested_session_mode.is_none() && advanced_opts.is_some() {
+            log::warn!("Session mode is None but advanced opts was specified. Ignoring advanced opts");
+        }
+        let session_control = current_session_mode.is_some() && advanced_opts.is_some();
+        std::thread::spawn(|| {
+            let mut last_tp_time = Instant::now();
+            let mut waiting_for_response = false;
+            loop {
+                // We are waiting for a response from the ECU (ReponsePending)
+                
 
-        // Firstly, try KWP2000
-        match Kwp2000DiagnosticServer::new_over_iso_tp(
-            Kwp2000ServerOptions {
-                send_id: tx_id,
-                recv_id: rx_id,
-                read_timeout_ms: 1500,
-                write_timeout_ms: 1500,
-                global_tp_id: 0x00,
-                tester_present_interval_ms: 2000,
-                tester_present_require_response: true,
-                global_session_control: false,
-                command_cooldown_ms: 0
-            },
-            iso_tp_channel,
-            channel_cfg,
-            Kwp2000VoidHandler {},
-        ) {
-            Ok(mut kwp) => {
-                if kwp
-                    .set_diagnostic_session_mode(kwp2000::SessionType::ExtendedDiagnostics)
-                    .is_ok()
-                {
-                    // KWP accepted! The ECU supports KWP2000!
-                    // Return the ECU back to normal mode
-                    kwp.set_diagnostic_session_mode(kwp2000::SessionType::Normal);
-                    return Ok(Self {
-                        session: DynamicSessionType::Kwp(kwp),
-                    });
-                } else {
-                    last_err = Some(DiagError::NotSupported)
+
+                // Logic for handling session control TP present requests
+                if session_control {
+                    let c_mode = current_session_mode.unwrap();
+                    let advanced_opts = advanced_opts.unwrap();
+                    if c_mode.tp_require && last_tp_time.elapsed() >= advanced_opts.tester_present_interval_ms {
+                        let tx_payload = P::create_tp_msg(advanced_opts.tester_present_require_response);
+                        
+                    }
                 }
             }
-            Err(e) => {
-                last_err = Some(e);
+        });
+    }
+
+    pub fn send_byte_array(&self, p: &[u8]) -> DiagServerResult<()> {
+        self.internal_send_byte_array(p, false)
+    }
+
+    fn internal_send_byte_array(&self, p: &[u8], resp_require: bool) -> DiagServerResult<()> {
+        let parsed = P::process_req_payload(p);
+        self.clear_rx_queue();
+        self.sender.send(DiagTxPayload { action: parsed, response_require: false });
+        loop {
+            if let DiagServerRx::SendState(res) = self.receiver.recv().unwrap() {
+                return res
             }
         }
+    }
 
-        iso_tp_channel = Hardware::create_iso_tp_channel(hw_device)?;
-        match UdsDiagnosticServer::new_over_iso_tp(
-            UdsServerOptions {
-                send_id: tx_id,
-                recv_id: rx_id,
-                read_timeout_ms: 1500,
-                write_timeout_ms: 1500,
-                global_tp_id: 0x00,
-                tester_present_interval_ms: 2000,
-                tester_present_require_response: true,
-            },
-            iso_tp_channel,
-            channel_cfg,
-            UdsVoidHandler {},
-        ) {
-            Ok(mut uds) => {
-                if uds.set_session_mode(UDSSessionType::Extended).is_ok() {
-                    // UDS accepted! The ECU supports UDS!
-                    // Return the ECU back to normal mode
-                    uds.set_session_mode(UDSSessionType::Default);
-                    return Ok(Self {
-                        session: DynamicSessionType::Uds(uds),
-                    });
-                } else {
-                    last_err = Some(DiagError::NotSupported)
-                }
+    /// Send bytes to the ECU and await its response
+    /// ## Params
+    /// * p - Raw byte array to send
+    /// * on_ecu_waiting_hook - Callback to call when the ECU responds with ResponsePending. Can be used to update a programs state
+    /// such that the user is aware the ECU is just processing the request
+    pub fn send_byte_array_with_response<F: FnMut()>(&self, p: &[u8], on_ecu_waiting_hook: Option<F>) -> DiagServerResult<Vec<u8>> {
+        self.internal_send_byte_array(p, true)?;
+        loop {
+            match self.receiver.recv().unwrap() {
+                Ok(r) => {
+                    match r {
+                        DiagServerRx::EcuResponse(r) => {
+                            return Ok(r)
+                        },
+                        DiagServerRx::EcuError(e) => {
+                            return Err(DiagError::ECUError { code: e, def: None })
+                        },
+                        DiagServerRx::EcuWaiting => {
+                            if let Some(mut waiting_hook) = on_ecu_waiting_hook {
+                                (waiting_hook)()
+                            }
+                        },
+                        DiagServerRx::SendState(s) => {
+                            log::error!("Multiple send states received!?. Result was {:?}", s)
+                        },
+                    }
+                },
+                Err(e) => return Err(e),
             }
-            Err(e) => {
-                last_err = Some(e);
-            }
-        }
-        Err(last_err.unwrap())
-    }
-
-    /// Returns a reference to KWP2000 session. None is returned if server type is not KWP2000
-    pub fn as_kwp_session(&'_ mut self) -> Option<&'_ mut Kwp2000DiagnosticServer> {
-        if let DynamicSessionType::Kwp(kwp) = self.session.borrow_mut() {
-            Some(kwp)
-        } else {
-            None
         }
     }
 
-    /// Performs operation with Kwp 2000 diagnostic server.
-    /// If the type of the server is not KWP2000, then nothing happens, and DiagError::NotSupported
-    pub fn with_kwp<T, F: Fn(&mut Kwp2000DiagnosticServer) -> DiagServerResult<T>>(
-        &'_ mut self,
-        f: F,
-    ) -> DiagServerResult<T> {
-        if let DynamicSessionType::Kwp(kwp) = self.session.borrow_mut() {
-            f(kwp)
-        } else {
-            Err(DiagError::NotSupported)
-        }
+    fn clear_rx_queue(&self) {
+        while self.receiver.try_recv().is_ok(){}
     }
+    
 
-    /// Performs operation with UDS diagnostic server.
-    /// If the type of the server is not UDS, then nothing happens, and DiagError::NotSupported
-    pub fn with_uds<T, F: Fn(&mut UdsDiagnosticServer) -> DiagServerResult<T>>(
-        &'_ mut self,
-        f: F,
-    ) -> DiagServerResult<T> {
-        if let DynamicSessionType::Uds(uds) = self.session.borrow_mut() {
-            f(uds)
-        } else {
-            Err(DiagError::NotSupported)
-        }
-    }
-
-    /// Returns a reference to UDS session. None is returned if server type is not UDS
-    pub fn as_uds_session(&'_ mut self) -> Option<&'_ mut UdsDiagnosticServer> {
-        if let DynamicSessionType::Uds(uds) = self.session.borrow_mut() {
-            Some(uds)
-        } else {
-            None
-        }
-    }
-
-    /// Puts the ECU into an extended diagnostic session
-    pub fn enter_extended_diagnostic_mode(&mut self) -> DiagServerResult<()> {
-        match self.session.borrow_mut() {
-            DynamicSessionType::Kwp(k) => {
-                k.set_diagnostic_session_mode(kwp2000::SessionType::ExtendedDiagnostics)
-            }
-            DynamicSessionType::Uds(u) => u.set_session_mode(UDSSessionType::Extended),
-        }
-    }
-
-    /// Puts the ECU into a default diagnostic session. This is how the ECU normally operates
-    pub fn enter_default_diagnostic_mode(&mut self) -> DiagServerResult<()> {
-        match self.session.borrow_mut() {
-            DynamicSessionType::Kwp(k) => {
-                k.set_diagnostic_session_mode(kwp2000::SessionType::Normal)
-            }
-            DynamicSessionType::Uds(u) => u.set_session_mode(UDSSessionType::Default),
-        }
-    }
-
-    /// Reads all diagnostic trouble codes from the ECU
-    pub fn read_all_dtcs(&mut self) -> DiagServerResult<Vec<DTC>> {
-        match self.session.borrow_mut() {
-            DynamicSessionType::Kwp(k) => k.read_stored_dtcs(kwp2000::DTCRange::All),
-            DynamicSessionType::Uds(u) => u.get_dtcs_by_status_mask(0xFF),
-        }
-    }
-
-    /// Attempts to clear all DTCs stored on the ECU
-    pub fn clear_all_dtcs(&mut self) -> DiagServerResult<()> {
-        match self.session.borrow_mut() {
-            DynamicSessionType::Kwp(k) => k.clear_dtc_range(kwp2000::ClearDTCRange::AllDTCs),
-            DynamicSessionType::Uds(u) => u.clear_diagnostic_information(0x00FFFFFF),
-        }
-    }
-
-    /// Attempts to send a payload of bytes to the ECU, and return its full response
-    pub fn send_bytes_with_response(&mut self, payload: &[u8]) -> DiagServerResult<Vec<u8>> {
-        match self.session.borrow_mut() {
-            DynamicSessionType::Kwp(k) => k.send_byte_array_with_response(payload),
-            DynamicSessionType::Uds(u) => u.send_byte_array_with_response(payload),
-        }
-    }
-
-    /// Attempts to send a payload of bytes to the ECU, and don't poll for a response
-    pub fn send_bytes(&mut self, payload: &[u8]) -> DiagServerResult<()> {
-        match self.session.borrow_mut() {
-            DynamicSessionType::Kwp(k) => k.send_byte_array(payload),
-            DynamicSessionType::Uds(u) => u.send_byte_array(payload),
-        }
-    }
-
-    /// Sets read and write timeouts
-    pub fn set_rw_timeout(&mut self, read_timeout_ms: u32, write_timeout_ms: u32) {
-        match self.session.borrow_mut() {
-            DynamicSessionType::Kwp(k) => k.set_rw_timeout(read_timeout_ms, write_timeout_ms),
-            DynamicSessionType::Uds(u) => u.set_rw_timeout(read_timeout_ms, write_timeout_ms),
-        }
-    }
-
-    /// Get command response read timeout
-    pub fn get_read_timeout(&self) -> u32 {
-        match self.session.borrow() {
-            DynamicSessionType::Kwp(k) => k.get_read_timeout(),
-            DynamicSessionType::Uds(u) => u.get_read_timeout(),
-        }
-    }
-    /// Gets command write timeout
-    pub fn get_write_timeout(&self) -> u32 {
-        match self.session.borrow() {
-            DynamicSessionType::Kwp(k) => k.get_write_timeout(),
-            DynamicSessionType::Uds(u) => u.get_write_timeout(),
-        }
-    }
-}
-
-impl From<Kwp2000DiagnosticServer> for DynamicDiagSession {
-    fn from(s: Kwp2000DiagnosticServer) -> Self {
-        Self {
-            session: DynamicSessionType::Kwp(s),
-        }
-    }
-}
-
-impl From<UdsDiagnosticServer> for DynamicDiagSession {
-    fn from(s: UdsDiagnosticServer) -> Self {
-        Self {
-            session: DynamicSessionType::Uds(s),
-        }
-    }
 }

@@ -2,7 +2,7 @@
 
 use std::{
     sync::{Arc, Mutex},
-    time::Instant,
+    time::Instant, path::PathBuf,
 };
 
 use socketcan_isotp::{ExtendedId, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId, FlowControlOptions};
@@ -88,6 +88,10 @@ impl Hardware for SocketCanDevice {
 
     fn is_can_channel_open(&self) -> bool {
         self.canbus_active
+    }
+
+    fn is_connected(&self) -> bool {
+        PathBuf::from(format!("/sys/class/net/{}", self.info.name)).exists()
     }
 }
 

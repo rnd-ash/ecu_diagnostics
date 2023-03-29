@@ -1,6 +1,6 @@
 //! This service requests the ECU to perform a reset
 
-use crate::{DiagServerResult, DiagnosticServer};
+use crate::{DiagServerResult, DiagnosticServer, dynamic_diag::DynamicDiagSession};
 
 use super::{KWP2000Command, Kwp2000DiagnosticServer};
 
@@ -33,7 +33,7 @@ impl From<ResetMode> for u8 {
     }
 }
 
-impl Kwp2000DiagnosticServer {
+impl DynamicDiagSession {
     /// Performs an ECU Reset operation
     ///
     /// ## Params

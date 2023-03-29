@@ -50,6 +50,9 @@ pub trait Hardware {
 
     /// Returns the information of the hardware
     fn get_info(&self) -> &HardwareInfo;
+
+    /// Returns if the hardware is currently connected
+    fn is_connected(&self) -> bool;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

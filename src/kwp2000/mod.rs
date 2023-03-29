@@ -12,18 +12,8 @@
 //!
 //! based on KWP2000 v2.2 (05/08/02)
 
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Arc, RwLock,
-    },
-    time::Instant,
-};
-
 use crate::{
-    channel::{IsoTPChannel, IsoTPSettings},
-    helpers, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, DiagnosticServer,
-    ServerEvent, ServerEventHandler,
+    dynamic_diag::{self, DiagSessionMode, DiagSID, DiagServerRx},
 };
 
 mod clear_diagnostic_information;
@@ -118,6 +108,10 @@ pub enum KWP2000Command {
     ResponseOnEvent,
     /// Custom KWP2000 SID not part of the official specification
     CustomSid(u8),
+}
+
+impl DiagSID for KWP2000Command {
+
 }
 
 impl From<u8> for KWP2000Command {
@@ -278,456 +272,43 @@ impl From<u8> for KWP2000Error {
     }
 }
 
-#[derive(Clone)]
-/// Kwp2000 message payload
-pub struct Kwp2000Cmd {
-    bytes: Vec<u8>,
-    response_required: bool,
-}
-
-impl std::fmt::Debug for Kwp2000Cmd {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Kwp2000Cmd")
-            .field("Cmd", &self.get_kwp_sid())
-            .field("Args", &self.get_payload())
-            .field("response_required", &self.response_required)
-            .finish()
-    }
-}
-
-impl Kwp2000Cmd {
-    /// Creates a new KWP2000 Payload
-    pub fn new(sid: KWP2000Command, args: &[u8], need_response: bool) -> Self {
-        let mut b: Vec<u8> = Vec::with_capacity(args.len() + 1);
-        b.push(u8::from(sid));
-        b.extend_from_slice(args);
-        Self {
-            bytes: b,
-            response_required: need_response,
-        }
-    }
-
-    pub(crate) fn from_raw(s: &[u8], response_required: bool) -> Self {
-        Self {
-            bytes: s.to_vec(),
-            response_required,
-        }
-    }
-
-    /// Returns the KWP2000 Service ID of the command
-    pub fn get_kwp_sid(&self) -> KWP2000Command {
-        self.bytes[0].into()
-    }
-}
-
-impl BaseServerPayload for Kwp2000Cmd {
-    fn get_payload(&self) -> &[u8] {
-        &self.bytes[1..]
-    }
-
-    fn get_sid_byte(&self) -> u8 {
-        self.bytes[0]
-    }
-
-    fn to_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    fn requires_response(&self) -> bool {
-        self.response_required
-    }
-}
-
-/// Base handler for KWP2000
-#[derive(Debug, Copy, Clone)]
-pub struct Kwp2000VoidHandler;
-
-impl ServerEventHandler<SessionType> for Kwp2000VoidHandler {
-    #[inline(always)]
-    fn on_event(&mut self, _e: ServerEvent<SessionType>) {}
-}
-
-#[derive(Debug, Copy, Clone)]
-#[repr(C)]
-/// KWP2000 server options
-pub struct Kwp2000ServerOptions {
-    /// ECU Send ID
-    pub send_id: u32,
-    /// ECU Receive ID
-    pub recv_id: u32,
-    /// Read timeout in ms
-    pub read_timeout_ms: u32,
-    /// Write timeout in ms
-    pub write_timeout_ms: u32,
-    /// Optional global address to send tester-present messages to
-    /// Set to 0 if not in use
-    pub global_tp_id: u32,
-    /// Tester present minimum send interval in ms
-    pub tester_present_interval_ms: u32,
-    /// Configures if the diagnostic server will poll for a response from tester present.
-    pub tester_present_require_response: bool,
-    /// Session control uses global_tp_id if specified
-    /// If `global_tp_id` is set to 0, then this value is ignored.
-    /// 
-    /// IMPORTANT: This can set your ENTIRE vehicle network into diagnostic
-    /// session mode, so be very careful doing this!
-    pub global_session_control: bool,
-    /// Cooldown period in MS after receiving a response from an ECU before sending a request.
-    /// This is useful for some slower ECUs
-    pub command_cooldown_ms: u128
-}
-
-impl BaseServerSettings for Kwp2000ServerOptions {
-    fn get_write_timeout_ms(&self) -> u32 {
-        self.write_timeout_ms
-    }
-
-    fn get_read_timeout_ms(&self) -> u32 {
-        self.read_timeout_ms
-    }
-}
-
 #[derive(Debug)]
-/// Kwp2000 Diagnostic server
-pub struct Kwp2000DiagnosticServer {
-    server_running: Arc<AtomicBool>,
-    settings: Arc<RwLock<Kwp2000ServerOptions>>,
-    tx: mpsc::Sender<Kwp2000Cmd>,
-    rx: mpsc::Receiver<DiagServerResult<Vec<u8>>>,
-    repeat_count: u32,
-    repeat_interval: std::time::Duration,
+pub struct Kwp2000Protocol {
 }
 
-impl Kwp2000DiagnosticServer {
-    /// Creates a new KWP2000 over an ISO-TP connection with the ECU
-    ///
-    /// On startup, this server will configure the channel with the necessary settings provided in both
-    /// settings and channel_cfg
-    ///
-    /// ## Parameters
-    /// * settings - KWP2000 Server settings
-    /// * channel - ISO-TP communication channel with the ECU
-    /// * channel_cfg - The settings to use for the ISO-TP channel
-    /// * event_handler - Handler for logging events happening within the server. If you don't want
-    /// to create your own handler, use [Kwp2000VoidHandler]
-    pub fn new_over_iso_tp<C, E>(
-        setting: Kwp2000ServerOptions,
-        mut server_channel: C,
-        channel_cfg: IsoTPSettings,
-        mut event_handler: E,
-    ) -> DiagServerResult<Self>
-    where
-        C: IsoTPChannel + 'static,
-        E: ServerEventHandler<SessionType> + 'static,
-    {
-        server_channel.set_iso_tp_cfg(channel_cfg)?;
-        server_channel.set_ids(setting.send_id, setting.recv_id)?;
-        server_channel.open()?;
+impl Kwp2000Protocol {
+}
 
-        let settings_ref = Arc::new(RwLock::new(setting));
-
-        let is_running = Arc::new(AtomicBool::new(true));
-        let is_running_t = is_running.clone();
-
-        let (tx_cmd, rx_cmd) = mpsc::channel::<Kwp2000Cmd>();
-        let (tx_res, rx_res) = mpsc::channel::<DiagServerResult<Vec<u8>>>();
-
-        let settings_ref_c = settings_ref.clone();
-        std::thread::spawn(move || {
-            let mut send_tester_present = false;
-            let mut last_tester_present_time: Instant = Instant::now();
-
-            event_handler.on_event(ServerEvent::ServerStart);
-            log::debug!("server start");
-            let mut last_cmd_time = Instant::now();
-            loop {
-                if !is_running_t.load(Ordering::Relaxed) {
-                    log::debug!("server exit");
-                    break;
-                }
-                if last_cmd_time.elapsed().as_millis() > setting.command_cooldown_ms {
-                    if let Ok(mut cmd) = rx_cmd.try_recv() {
-                        event_handler.on_event(ServerEvent::Request(cmd.to_bytes()));
-                        // We have an incoming command
-                        log::debug!("Sending {:02X?} to ECU", cmd.to_bytes());
-                        if cmd.get_kwp_sid() == KWP2000Command::StartDiagnosticSession {
-                            let mut send_id = setting.send_id;
-                            // Session change! Handle this differently
-
-                            // In this case, we have to broadcast the session control messages
-                            // onto the GLOBAL ID, which puts the entire CAN network
-                            // into diagnostic session mode.
-                            //
-                            // NOTE: We won't get a response from the target ECU in this case.
-                            if setting.global_session_control && setting.global_tp_id != 0 {
-                                cmd.response_required = false;
-                                send_id = setting.global_tp_id;
-                            }
-                            match helpers::perform_cmd(
-                                send_id,
-                                &cmd,
-                                &settings_ref_c.read().unwrap().clone(),
-                                &mut server_channel,
-                                0x21,
-                                lookup_kwp_nrc,
-                            ) {
-                                Ok(res) => {
-                                    // Set server session type
-                                    if cmd.bytes[1] == u8::from(SessionType::Passive)
-                                        || cmd.bytes[1] == u8::from(SessionType::Normal)
-                                    {
-                                        // Default session, disable tester present
-                                        send_tester_present = false;
-                                    } else {
-                                        // Enable tester present and refresh the delay
-                                        send_tester_present = true;
-                                        last_tester_present_time = Instant::now();
-                                    }
-                                    // Send response to client
-                                    if tx_res.send(Ok(res)).is_err() {
-                                        // Terminate! Something has gone wrong and data can no longer be sent to client
-                                        is_running_t.store(false, Ordering::Relaxed);
-                                        event_handler.on_event(ServerEvent::CriticalError {
-                                            desc: "Channel Tx SendError occurred".into(),
-                                        })
-                                    }
-                                }
-                                Err(e) => {
-                                    if tx_res.send(Err(e)).is_err() {
-                                        // Terminate! Something has gone wrong and data can no longer be sent to client
-                                        is_running_t.store(false, Ordering::Relaxed);
-                                        event_handler.on_event(ServerEvent::CriticalError {
-                                            desc: "Channel Tx SendError occurred".into(),
-                                        })
-                                    }
-                                }
-                            }
-                        } else if cmd.get_kwp_sid() == KWP2000Command::ECUReset {
-                            // After successful reset we have to go back to default diag mode! (NO Tester present)
-                            match helpers::perform_cmd(
-                                setting.send_id,
-                                &cmd,
-                                &settings_ref_c.read().unwrap().clone(),
-                                &mut server_channel,
-                                0x21,
-                                lookup_kwp_nrc,
-                            ) {
-                                Ok(res) => {
-                                    send_tester_present = false;
-                                    // Send response to client
-                                    if tx_res.send(Ok(res)).is_err() {
-                                        // Terminate! Something has gone wrong and data can no longer be sent to client
-                                        is_running_t.store(false, Ordering::Relaxed);
-                                        event_handler.on_event(ServerEvent::CriticalError {
-                                            desc: "Channel Tx SendError occurred".into(),
-                                        })
-                                    }
-                                }
-                                Err(e) => {
-                                    if tx_res.send(Err(e)).is_err() {
-                                        // Terminate! Something has gone wrong and data can no longer be sent to client
-                                        is_running_t.store(false, Ordering::Relaxed);
-                                        event_handler.on_event(ServerEvent::CriticalError {
-                                            desc: "Channel Tx SendError occurred".into(),
-                                        })
-                                    }
-                                }
-                            }
-                        } else {
-                            // Generic command just perform it
-                            let res = helpers::perform_cmd(
-                                setting.send_id,
-                                &cmd,
-                                &settings_ref_c.read().unwrap().clone(),
-                                &mut server_channel,
-                                0x21,
-                                lookup_kwp_nrc,
-                            );
-                            event_handler.on_event(ServerEvent::Response(&res));
-                            //event_handler.on_event(&res);
-                            if tx_res.send(res).is_err() {
-                                // Terminate! Something has gone wrong and data can no longer be sent to client
-                                is_running_t.store(false, Ordering::Relaxed);
-                                event_handler.on_event(ServerEvent::CriticalError {
-                                    desc: "Channel Tx SendError occurred".into(),
-                                })
-                            }
-                        }
-                        last_cmd_time = Instant::now();
-                    }
-                }
-
-                // Deal with tester present
-                if send_tester_present
-                    && last_tester_present_time.elapsed().as_millis() as u32
-                        >= setting.tester_present_interval_ms
-                {
-                    // Send tester present message
-                    let arg = if setting.tester_present_require_response {
-                        0x01
-                    } else {
-                        0x02
-                    };
-
-                    let cmd = Kwp2000Cmd::new(
-                        KWP2000Command::TesterPresent,
-                        &[arg],
-                        setting.tester_present_require_response,
-                    );
-                    let addr = match setting.global_tp_id {
-                        0 => setting.send_id,
-                        x => x,
-                    };
-
-                    if let Err(e) = helpers::perform_cmd(
-                        addr,
-                        &cmd,
-                        &settings_ref_c.read().unwrap().clone(),
-                        &mut server_channel,
-                        0x21,
-                        lookup_kwp_nrc,
-                    ) {
-                        event_handler.on_event(ServerEvent::TesterPresentError(e))
-                    }
-                    last_tester_present_time = Instant::now();
-                }
-
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-            // Goodbye server
-            event_handler.on_event(ServerEvent::ServerExit);
-            // Close ISOTP channel
-            if let Err(e) = server_channel.close() {
-                event_handler.on_event(ServerEvent::InterfaceCloseOnExitError(e))
-            }
-        });
-
-        Ok(Self {
-            server_running: is_running,
-            tx: tx_cmd,
-            rx: rx_res,
-            settings: settings_ref,
-            repeat_count: 3,
-            repeat_interval: std::time::Duration::from_millis(1000),
-        })
-    }
-
-    /// Returns the current settings used by the KWP2000 Server
-    pub fn get_settings(&self) -> Kwp2000ServerOptions {
-        self.settings.read().unwrap().clone()
-    }
-
-    /// Internal command for sending KWP2000 payload to the ECU
-    fn exec_command(&mut self, cmd: Kwp2000Cmd) -> DiagServerResult<Vec<u8>> {
-        match self.tx.send(cmd) {
-            Ok(_) => self.rx.recv().unwrap_or(Err(DiagError::ServerNotRunning)),
-            Err(_) => Err(DiagError::ServerNotRunning), // Server must have crashed!
+impl dynamic_diag::DiagProtocol for Kwp2000Protocol {
+    fn get_basic_session_mode(&self) -> DiagSessionMode {
+        DiagSessionMode {
+            id: 0x81,
+            tp_require: false,
+            name: "Default",
         }
     }
-}
 
-impl DiagnosticServer<KWP2000Command> for Kwp2000DiagnosticServer {
-    /// Send a command to the ECU, and receive its response
-    ///
-    /// ## Parameters
-    /// * sid - The Service ID of the command
-    /// * args - The arguments for the service
-    ///
-    /// ## Returns
-    /// If the function is successful, and the ECU responds with an OK response (Containing data),
-    /// then the full ECU response is returned. The response will begin with the sid + 0x40
-    fn execute_command_with_response(
-        &mut self,
-        sid: KWP2000Command,
-        args: &[u8],
-    ) -> DiagServerResult<Vec<u8>> {
-        let cmd = Kwp2000Cmd::new(sid, args, true);
+    fn get_protocol_name(&self) -> &'static str {
+        "KWP2000"
+    }
 
-        if self.repeat_count == 0 {
-            self.exec_command(cmd)
+    fn process_req_payload(payload: &[u8]) -> dynamic_diag::DiagAction {
+        todo!()
+    }
+
+    fn create_tp_msg(response_required: bool) -> dynamic_diag::DiagAction {
+        todo!()
+    }
+
+    fn process_ecu_response(r: &[u8]) -> DiagServerRx {
+        if r[0] == 0x7F {
+            if r[1] == 0x78 {
+                DiagServerRx::EcuWaiting
+            } else {
+                DiagServerRx::EcuError(r[1])
+            }
         } else {
-            let mut last_err: Option<DiagError> = None;
-            for _ in 0..self.repeat_count {
-                let start = Instant::now();
-                match self.exec_command(cmd.clone()) {
-                    Ok(resp) => return Ok(resp),
-                    Err(e) => {
-                        if let DiagError::ECUError { code, def } = e {
-                            return Err(DiagError::ECUError { code, def }); // ECU Error. Sending again won't help.
-                        }
-                        last_err = Some(e); // Other error. Sleep and then try again
-                        if let Some(sleep_time) = self.repeat_interval.checked_sub(start.elapsed())
-                        {
-                            std::thread::sleep(sleep_time)
-                        }
-                    }
-                }
-            }
-            Err(last_err.unwrap())
+            DiagServerRx::EcuResponse(r.to_vec())
         }
-    }
-
-    /// Send a command to the ECU, but don't receive a response
-    ///
-    /// ## Parameters
-    /// * sid - The Service ID of the command
-    /// * args - The arguments for the service
-    fn execute_command(&mut self, sid: KWP2000Command, args: &[u8]) -> DiagServerResult<()> {
-        let cmd = Kwp2000Cmd::new(sid, args, false);
-        self.exec_command(cmd).map(|_| ())
-    }
-
-    /// Sends an arbitrary byte array to the ECU, and does not query response from the ECU
-    fn send_byte_array(&mut self, arr: &[u8]) -> DiagServerResult<()> {
-        let cmd = Kwp2000Cmd::from_raw(arr, false);
-        self.exec_command(cmd).map(|_| ())
-    }
-
-    /// Sends an arbitrary byte array to the ECU, and polls for the ECU's response
-    fn send_byte_array_with_response(&mut self, arr: &[u8]) -> DiagServerResult<Vec<u8>> {
-        let cmd = Kwp2000Cmd::from_raw(arr, true);
-        self.exec_command(cmd)
-    }
-
-    /// Sets the command retry counter
-    fn set_repeat_count(&mut self, count: u32) {
-        self.repeat_count = count
-    }
-
-    /// Sets the command retry interval
-    fn set_repeat_interval_count(&mut self, interval_ms: u32) {
-        self.repeat_interval = std::time::Duration::from_millis(interval_ms as u64)
-    }
-
-    /// Returns true if the internal KWP2000 Server is running
-    fn is_server_running(&self) -> bool {
-        self.server_running.load(Ordering::Relaxed)
-    }
-
-    /// Sets read and write timeouts
-    fn set_rw_timeout(&mut self, read_timeout_ms: u32, write_timeout_ms: u32) {
-        let mut lock = self.settings.write().unwrap();
-        lock.read_timeout_ms = read_timeout_ms;
-        lock.write_timeout_ms = write_timeout_ms;
-    }
-
-    /// Get command response read timeout
-    fn get_read_timeout(&self) -> u32 {
-        self.settings.read().unwrap().read_timeout_ms
-    }
-    /// Gets command write timeout
-    fn get_write_timeout(&self) -> u32 {
-        self.settings.read().unwrap().write_timeout_ms
-    }
-}
-
-/// Returns the KWP2000 error from a given error code
-pub fn get_description_of_ecu_error(error: u8) -> KWP2000Error {
-    error.into()
-}
-
-impl Drop for Kwp2000DiagnosticServer {
-    fn drop(&mut self) {
-        self.server_running.store(false, Ordering::Relaxed); // Stop server
     }
 }

@@ -3,7 +3,7 @@
 use std::time::{Duration, Instant};
 
 use crate::{
-    channel::PayloadChannel, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult,
+    channel::PayloadChannel, BaseServerPayload, BaseServerSettings, DiagError, DiagServerResult, dynamic_diag::{DiagTxPayload, DiagServerBasicOptions, DiagProtocol},
 };
 
 /// Checks if the response payload matches the request ServiceID.
@@ -27,17 +27,14 @@ pub(crate) fn check_pos_response_id(sid: u8, resp: Vec<u8>) -> DiagServerResult<
 }
 
 pub(crate) fn perform_cmd<
-    P: BaseServerPayload,
     T: BaseServerSettings,
     C: PayloadChannel,
-    L: FnOnce(u8) -> String,
+    P: DiagProtocol
 >(
     addr: u32,
-    cmd: &P,
-    settings: &T,
-    channel: &mut C,
-    busy_repeat_byte: u8,
-    lookup_func: L,
+    cmd: DiagTxPayload,
+    settings: &DiagServerBasicOptions,
+    channel: &mut C
 ) -> DiagServerResult<Vec<u8>> {
     // Clear IO buffers
     channel.clear_tx_buffer()?;
@@ -60,7 +57,7 @@ pub(crate) fn perform_cmd<
         return Err(DiagError::EmptyResponse);
     }
     if res[0] == 0x7F {
-        if res[2] == busy_repeat_byte {
+        if res[2] == P:: {
             log::warn!("ECU Responded with busy_repeat_request! Retrying in 500ms");
             std::thread::sleep(std::time::Duration::from_millis(500));
             return perform_cmd(addr, cmd, settings, channel, busy_repeat_byte, lookup_func);
