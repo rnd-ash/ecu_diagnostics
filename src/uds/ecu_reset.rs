@@ -12,7 +12,7 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn ecu_hard_reset(&mut self) -> DiagServerResult<()> {
-        self.execute_command_with_response(ResetEcu, &[ResetType::HardReset.into()])
+        self.execute_command_with_response(ECUReset, &[ResetType::HardReset.into()])
             .map(|_| ())
     }
 
@@ -21,7 +21,7 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn ecu_key_off_on_reset(&mut self) -> DiagServerResult<()> {
-        self.execute_command_with_response(ResetEcu, &[ResetType::KeyOffReset.into()])
+        self.execute_command_with_response(ECUReset, &[ResetType::KeyOffReset.into()])
             .map(|_| ())
     }
 
@@ -30,7 +30,7 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn ecu_soft_reset(&mut self) -> DiagServerResult<()> {
-        self.execute_command_with_response(ResetEcu, &[ResetType::SoftReset.into()])
+        self.execute_command_with_response(ECUReset, &[ResetType::SoftReset.into()])
             .map(|_| ())
     }
 
@@ -43,7 +43,7 @@ impl UdsDiagnosticServer {
     /// If successful, this function will return the minimum time in seconds that the ECU will remain in the power-down sequence
     pub fn enable_rapid_power_shutdown(&mut self) -> DiagServerResult<u8> {
         let res = self.execute_command_with_response(
-            ResetEcu,
+            ECUReset,
             &[ResetType::EnableRapidPowerShutDown.into()],
         )?;
         match res.get(2) {
@@ -61,7 +61,7 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn disable_rapid_power_shutdown(&mut self) -> DiagServerResult<()> {
-        self.execute_command_with_response(ResetEcu, &[ResetType::DisableRapidPowerShutDown.into()])
+        self.execute_command_with_response(ECUReset, &[ResetType::DisableRapidPowerShutDown.into()])
             .map(|_| ())
     }
 }
