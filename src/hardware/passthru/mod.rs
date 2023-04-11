@@ -799,13 +799,19 @@ impl PayloadChannel for PassthruIsoTpChannel {
         }
     }
 
-    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+    fn write_bytes(&mut self, addr: u32, ext_id: Option<u8>, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         let mut write_msg = PASSTHRU_MSG {
             protocol_id: Protocol::ISO15765 as u32,
             data_size: 4 + buffer.len() as u32, // First 4 bytes are CAN ID
             ..Default::default()
         };
+
+        let mut ext_addresses = self.cfg.extended_addresses;
+        if let Some(id) = ext_id {
+            log::warn!("extended_addresses was specified byt ext_id also was. ext_id overriding");
+            ext_addresses = Some((id, 0));
+        }
 
         let mut tx_flags = 0u32;
         if self.cfg.can_use_ext_addr {
@@ -814,11 +820,11 @@ impl PayloadChannel for PassthruIsoTpChannel {
         if self.cfg.pad_frame {
             tx_flags |= TxFlag::ISO15765_FRAME_PAD.bits();
         }
-        if self.cfg.extended_addresses.is_some() {
+        if ext_addresses.is_some() {
             tx_flags |= TxFlag::ISO15765_EXT_ADDR.bits();
         }
         let mut offset = 0;
-        if let Some((tx, rx)) = self.cfg.extended_addresses {
+        if let Some((tx, rx)) = ext_addresses {
             offset = 1;
             write_msg.data[0] = tx;
         }

@@ -164,16 +164,18 @@ pub trait PayloadChannel: Send + Sync {
     /// to the message where necessary.
     ///
     /// ## Parameters
-    /// * Target address of the message
+    /// * addr - Target address of the message
+    /// * ext_id - Optional extended address of the message
     /// * buffer - The buffer of bytes to write to the channel
     /// * timeout_ms - Timeout for writing bytes. If a value of 0 is used, it tells the channel to write without checking if
     /// data was actually written.
-    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()>;
+    fn write_bytes(&mut self, addr: u32, ext_id: Option<u8>, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()>;
 
     /// Attempts to write bytes to the channel, then listen for the channels response
     ///
     /// ## Parameters
     /// * Target address of the message
+    /// * ext_id - Optional extended address of the message
     /// * buffer - The buffer of bytes to write to the channel as the request
     /// * write_timeout_ms - Timeout for writing bytes. If a value of 0 is used, it tells the channel to write without checking if
     /// data was actually written.
@@ -182,11 +184,12 @@ pub trait PayloadChannel: Send + Sync {
     fn read_write_bytes(
         &mut self,
         addr: u32,
+        ext_id: Option<u8>, 
         buffer: &[u8],
         write_timeout_ms: u32,
         read_timeout_ms: u32,
     ) -> ChannelResult<Vec<u8>> {
-        self.write_bytes(addr, buffer, write_timeout_ms)?;
+        self.write_bytes(addr, ext_id, buffer, write_timeout_ms)?;
         self.read_bytes(read_timeout_ms)
     }
 
@@ -263,8 +266,8 @@ impl<T: PayloadChannel + ?Sized> PayloadChannel for Box<T> {
         T::read_bytes(self, timeout_ms)
     }
 
-    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
-        T::write_bytes(self, addr, buffer, timeout_ms)
+    fn write_bytes(&mut self, addr: u32, ext_id: Option<u8>, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+        T::write_bytes(self, addr, ext_id, buffer, timeout_ms)
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
@@ -331,8 +334,8 @@ impl<T: PayloadChannel + ?Sized> PayloadChannel for Arc<Mutex<T>> {
         T::read_bytes(self.lock()?.borrow_mut(), timeout_ms)
     }
 
-    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
-        T::write_bytes(self.lock()?.borrow_mut(), addr, buffer, timeout_ms)
+    fn write_bytes(&mut self, addr: u32, ext_id: Option<u8>, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+        T::write_bytes(self.lock()?.borrow_mut(), addr, ext_id, buffer, timeout_ms)
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {

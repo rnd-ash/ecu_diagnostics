@@ -15,7 +15,7 @@ use super::{PassthruDevice, PassthruCanChannel};
 enum ChannelMessage<T, X> {
     ClearRx,
     ClearTx,
-    SendData(T),
+    SendData{ext_id: Option<u8>, d: T},
     SetConfig(X),
     SetFilter(u32, u32), // Only for ISOTP
     Open,
@@ -135,7 +135,7 @@ impl PtCombiChannel {
                             isotp_tx = None; 
                             tx_isotp_send_res.send(Ok(()))
                         }, // Todo clear Tx buffer,
-                        ChannelMessage::SendData((addr, data)) => {
+                        ChannelMessage::SendData { ext_id, d: (addr, data) } => {
                             if iso_tp_cfg.is_none() || iso_tp_filter.is_none() {
                                 tx_isotp_send_res.send(Err(ChannelError::ConfigurationError))
                             } else if channel.is_none() {
@@ -493,7 +493,7 @@ impl PacketChannel<CanFrame> for PtCombiChannel {
         let _guard = self.can_mutex.lock()?;
         while self.can_tx_res_queue.try_recv().is_ok(){}
         for p in packets {
-            self.can_tx_queue.send(ChannelMessage::SendData(p))?;
+            self.can_tx_queue.send(ChannelMessage::SendData { ext_id: None,  d: p })?;
             if timeout_ms != 0 {
                 match self.isotp_tx_res_queue.recv_timeout(Duration::from_millis(timeout_ms as u64)) {
                     Ok(m) => {
@@ -576,11 +576,11 @@ impl PayloadChannel for PtCombiChannel {
         Err(ChannelError::BufferEmpty)
     }
 
-    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+    fn write_bytes(&mut self, addr: u32, ext_id: Option<u8>, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
         log::debug!("ISO-TP WriteBytes called");
         let _guard = self.isotp_mutex.lock()?;
         while self.isotp_tx_res_queue.try_recv().is_ok(){}
-        self.isotp_tx_queue.send(ChannelMessage::SendData((addr, buffer.to_vec())))?;
+        self.isotp_tx_queue.send(ChannelMessage::SendData{ ext_id, d: (addr, buffer.to_vec()) })?;
         if timeout_ms == 0 {
             Ok(())
         } else {
