@@ -1,8 +1,7 @@
 //! Provides methods to manipulate the ECUs diagnostic session mode
 
-use crate::{DiagServerResult, DiagnosticServer, dynamic_diag::{DiagSessionMode, DynamicDiagSession}};
+use crate::{dynamic_diag::{DiagSessionMode, DynamicDiagSession}, DiagServerResult};
 
-use super::{KWP2000Command, Kwp2000DiagnosticServer, Kwp2000Protocol};
 
 /// KWP2000 diagnostic session type
 ///
@@ -37,35 +36,74 @@ pub enum KwpSessionType {
     /// Extended diagnostics mode. Every service is available here
     ExtendedDiagnostics,
     /// Custom diagnostic mode not in the KWP2000 specification
-    Custom { id: u8, name: &'static str, tp_required: bool },
+    Custom { id: u8 },
 }
 
 impl From<KwpSessionType> for DiagSessionMode {
     fn from(x: KwpSessionType) -> Self {
         match x {
+            KwpSessionType::Normal => DiagSessionMode {
+                id: 0x81,
+                tp_require: false,
+                name: "Normal",
+            },
+            KwpSessionType::Reprogramming => DiagSessionMode {
+                id: 0x85,
+                tp_require: true,
+                name: "Reprogramming",
+            },
+            KwpSessionType::Standby => DiagSessionMode {
+                id: 0x89,
+                tp_require: true,
+                name: "Standby",
+            },
+            KwpSessionType::Passive => DiagSessionMode {
+                id: 0x90,
+                tp_require: false,
+                name: "Passive",
+            },
+            KwpSessionType::ExtendedDiagnostics => DiagSessionMode {
+                id: 0x92,
+                tp_require: true,
+                name: "ExtendedDiagnostics",
+            },
+            KwpSessionType::Custom { id: c} => DiagSessionMode {
+                id: c,
+                tp_require: true,
+                name: "Custom",
+            },
+        }
+    }
+}
+
+impl From<u8> for KwpSessionType {
+    fn from(value: u8) -> Self {
+        match value {
+            0x81 => Self::Normal,
+            0x85 => Self::Reprogramming,
+            0x89 => Self::Standby,
+            0x90 => Self::Passive,
+            0x92 => Self::ExtendedDiagnostics,
+            x => Self::Custom { id: x }
+        }
+    }
+}
+
+impl Into<u8> for KwpSessionType {
+    fn into(self) -> u8 {
+        match self {
             KwpSessionType::Normal => 0x81,
             KwpSessionType::Reprogramming => 0x85,
             KwpSessionType::Standby => 0x89,
             KwpSessionType::Passive => 0x90,
             KwpSessionType::ExtendedDiagnostics => 0x92,
-            KwpSessionType::Custom(c) => c,
+            KwpSessionType::Custom { id } => id,
         }
     }
 }
 
-impl DynamicDiagSession<Kwp2000Protocol> {
-    /// Sets the ECU into a diagnostic mode
-    ///
-    /// ## Parameters
-    /// * server - The KWP2000 Diagnostic server
-    /// * mode - The [KwpSessionType] to put the ECU into
-    
-    pub fn set_diag_session_mode(&self, mode: Kwp) {
-
-    }
-
-    pub fn set_diagnostic_session_mode(&mut self, mode: KwpSessionType) -> DiagServerResult<()> {
-        self.execute_command_with_response(KWP2000Command::StartDiagnosticSession, &[mode.into()])
-            .map(|_| ())
+impl DynamicDiagSession {
+    pub fn kwp_set_session(&mut self, mode: KwpSessionType) -> DiagServerResult<()> {
+        self.send_byte_array_with_response(&[0x10, mode.into()], ||{}).map(|_|())
     }
 }

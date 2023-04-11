@@ -1,14 +1,14 @@
-#![deny(
-    missing_docs,
-    missing_debug_implementations,
-    missing_copy_implementations,
-    trivial_casts,
-    trivial_numeric_casts,
-    unstable_features,
-    unused_imports,
-    unused_import_braces,
-    unused_qualifications
-)]
+//#![deny(
+//    missing_docs,
+//    missing_debug_implementations,
+//    missing_copy_implementations,
+//    trivial_casts,
+//    trivial_numeric_casts,
+//    unstable_features,
+//    unused_imports,
+//    unused_import_braces,
+//    unused_qualifications
+//)]
 
 //! A crate which provides the most common ECU diagnostic protocols used by modern ECUs in vehicles,
 //! as well as common hardware APIs for accessing and using diagnostic adapters
@@ -67,10 +67,8 @@ pub mod dtc;
 pub mod dynamic_diag;
 pub mod hardware;
 pub mod kwp2000;
-pub mod obd2;
-pub mod uds;
-
-mod helpers;
+//pub mod obd2;
+//pub mod uds;
 
 /// Diagnostic server result
 pub type DiagServerResult<T> = Result<T, DiagError>;
