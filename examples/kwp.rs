@@ -1,10 +1,18 @@
 use std::time::Duration;
 
-use ecu_diagnostics::{hardware::{HardwareScanner, self}, channel::{self, IsoTPSettings}, kwp2000::Kwp2000Protocol, dynamic_diag::{DiagServerBasicOptions, DiagServerAdvancedOptions}};
+use ecu_diagnostics::{hardware::{HardwareScanner, self}, channel::{self, IsoTPSettings}, kwp2000::{Kwp2000Protocol, KwpSessionType}, dynamic_diag::{DiagServerBasicOptions, DiagServerAdvancedOptions}};
 use socketcan_isotp::{IsoTpOptions, IsoTpSocket};
 
 extern crate ecu_diagnostics;
 
+fn ecu_waiting_hook_1() {
+    println!("ECU is processing our request");
+}
+
+fn ecu_waiting_hook_2(counter: &mut u32) {
+    println!("ECU is processing our request. We have waited {counter} times");
+    *counter += 1;
+}
 
 fn main() {
     let dev = ecu_diagnostics::hardware::socketcan::SocketCanScanner::new();
@@ -12,7 +20,7 @@ fn main() {
     
     let protocol = Kwp2000Protocol{};
 
-    let diag_server = 
+    let mut diag_server = 
     ecu_diagnostics::dynamic_diag::DynamicDiagSession::new_over_iso_tp(
         protocol, 
         d, 
@@ -41,6 +49,10 @@ fn main() {
             }
         )
     ).unwrap();
+
+    // Register hook for when ECU responsds with RequestCorrectlyReceivedResponsePending
+    diag_server.register_waiting_hook(ecu_waiting_hook_1);
+    // Set diag session mode
     let res = diag_server.kwp_set_session(KwpSessionType::ExtendedDiagnostics);
     println!("{:?}", res);
     loop {

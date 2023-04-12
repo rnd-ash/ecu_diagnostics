@@ -1,10 +1,10 @@
 //! This service requests blocks of data from the ECU.
 
-use crate::{DiagError, DiagServerResult, DiagnosticServer};
+use crate::{DiagError, DiagServerResult, DiagnosticServer, dynamic_diag::DynamicDiagSession};
 
-use super::{KWP2000Command, Kwp2000DiagnosticServer};
+use super::{KWP2000Command};
 
-impl Kwp2000DiagnosticServer {
+impl DynamicDiagSession {
     /// Reads ECU data using a given identifier
     ///
     /// # Parameters
@@ -13,10 +13,10 @@ impl Kwp2000DiagnosticServer {
     /// ## Returns
     /// If successful, this function returns the raw data stored at this identifier,
     /// without the identifier ID on the response itself.
-    pub fn read_data_by_identifier(&mut self, identifier: u16) -> DiagServerResult<Vec<u8>> {
-        let mut res = self.execute_command_with_response(
+    pub fn kwp_read_data_by_identifier(&mut self, identifier: u16) -> DiagServerResult<Vec<u8>> {
+        let mut res = self.send_command_with_response(
             KWP2000Command::ReadDataByIdentifier,
-            &[(identifier >> 8) as u8, identifier as u8],
+            &[(identifier >> 8) as u8, identifier as u8]
         )?;
         // Now check identifier in response message was same as our request identifier, if so, strip it
         // from the response message

@@ -104,6 +104,6 @@ impl Into<u8> for KwpSessionType {
 
 impl DynamicDiagSession {
     pub fn kwp_set_session(&mut self, mode: KwpSessionType) -> DiagServerResult<()> {
-        self.send_byte_array_with_response(&[0x10, mode.into()], ||{}).map(|_|())
+        self.send_byte_array_with_response(&[0x10, mode.into()]).map(|_|())
     }
 }

@@ -1,6 +1,8 @@
 //! Routine management wrapper for KWP2000
 
-use crate::{DiagError, DiagServerResult, DiagnosticServer};
+use crate::{DiagError, DiagServerResult, DiagnosticServer, dynamic_diag::DynamicDiagSession};
+
+use super::start_diagnostic_session::KwpSessionType;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Routine Identifier
@@ -82,7 +84,7 @@ impl RoutineID {
 #[derive(Debug)]
 /// KWP2000 Routine execution wrapper
 pub struct KwpRoutineManager<'a> {
-    server: &'a mut super::Kwp2000DiagnosticServer,
+    server: &'a mut DynamicDiagSession,
     r_id: RoutineID,
 }
 
@@ -101,14 +103,14 @@ impl<'a> KwpRoutineManager<'a> {
     /// into extended diagnostic session mode.
     pub fn new(
         rid: RoutineID,
-        server: &'a mut super::Kwp2000DiagnosticServer,
+        server: &'a mut DynamicDiagSession,
     ) -> DiagServerResult<Self> {
         let x: u8 = rid.as_start_byte();
         if x == 0x00 || x == 0xE2 || x == 0xFF || (0xEA..=0xF9).contains(&x) {
             return Err(DiagError::ParameterInvalid); // Unsupported by the spec, might have undefined behavior. Ignore!
         }
         // We have to be in extended mode for routine management to work!
-        server.set_diagnostic_session_mode(super::SessionType::ExtendedDiagnostics)?;
+        server.kwp_set_session(KwpSessionType::ExtendedDiagnostics)?;
         Ok(Self { server, r_id: rid })
     }
 
@@ -117,7 +119,7 @@ impl<'a> KwpRoutineManager<'a> {
         let mut p: Vec<u8> = vec![self.r_id.as_start_byte()];
         p.extend_from_slice(entry_options);
         self.server
-            .execute_command_with_response(
+            .send_command_with_response(
                 crate::kwp2000::KWP2000Command::StartRoutineByLocalIdentifier,
                 &p,
             )
@@ -130,7 +132,7 @@ impl<'a> KwpRoutineManager<'a> {
         let mut p: Vec<u8> = vec![self.r_id.as_start_byte()];
         p.extend_from_slice(exit_options);
         self.server
-            .execute_command_with_response(
+            .send_command_with_response(
                 crate::kwp2000::KWP2000Command::StopRoutineByLocalIdentifier,
                 &p,
             )
@@ -141,7 +143,7 @@ impl<'a> KwpRoutineManager<'a> {
     /// it is best practice to check the [RoutineExitStatus] to see if the routine exited with
     /// [RoutineExitStatus::NormalExitWithResults] first.
     pub fn request_routine_results(&mut self) -> DiagServerResult<Vec<u8>> {
-        self.server.execute_command_with_response(
+        self.server.send_command_with_response(
             crate::kwp2000::KWP2000Command::RequestRoutineResultsByLocalIdentifier,
             &[self.r_id.as_result_byte()],
         )

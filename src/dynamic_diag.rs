@@ -1,6 +1,6 @@
 //! Dynamic diagnostic session helper
 //!
-use std::{sync::mpsc::Sender, os::unix::thread, time::Duration};
+use std::{sync::{mpsc::Sender, atomic::{AtomicBool, Ordering}}, os::unix::thread, time::Duration};
 #[allow(missing_docs)]
 
 use std::{
@@ -19,10 +19,20 @@ use crate::{
 ///
 /// This also contains some useful wrappers for basic functions such as
 /// reading and clearing error codes.
-#[derive(Debug)]
 pub struct DynamicDiagSession {
     sender: mpsc::Sender<DiagTxPayload>,
-    receiver: mpsc::Receiver<DiagServerRx>
+    receiver: mpsc::Receiver<DiagServerRx>,
+    waiting_hook: Box<dyn FnMut()>,
+    connected: Arc<AtomicBool>
+}
+
+impl std::fmt::Debug for DynamicDiagSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DynamicDiagSession")
+            .field("sender", &self.sender)
+            .field("receiver", &self.receiver)
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -163,7 +173,7 @@ impl DynamicDiagSession {
         hw_device: Arc<Mutex<C>>,
         channel_cfg: IsoTPSettings,
         basic_opts: DiagServerBasicOptions,
-        advanced_opts: Option<DiagServerAdvancedOptions>
+        advanced_opts: Option<DiagServerAdvancedOptions>,
     ) -> DiagServerResult<Self>
     where
         C: Hardware + 'static,
@@ -185,11 +195,13 @@ impl DynamicDiagSession {
         let session_control = current_session_mode.is_some() && advanced_opts.is_some();
         let (tx_req, rx_req) = mpsc::channel::<DiagTxPayload>();
         let (mut tx_resp, rx_resp) = mpsc::channel::<DiagServerRx>();
+        let is_connected = Arc::new(AtomicBool::new(true));
+        let is_connected_inner = is_connected.clone();
         std::thread::spawn(move || {
             let mut last_tp_time = Instant::now();
             loop {
                 // Incomming ECU request
-                if let Ok(req) = rx_req.try_recv() {
+                if let Ok(req) = rx_req.recv_timeout(Duration::from_millis(100)) {
                     let mut tx_addr = basic_opts.send_id;
                     match P::process_req_payload(&req.payload) {
                         DiagAction::SetSessionMode(mode) => {
@@ -213,7 +225,8 @@ impl DynamicDiagSession {
                                 Some(&mut tx_resp), 
                                 basic_opts, 
                                 0, 
-                                &mut iso_tp_channel
+                                &mut iso_tp_channel,
+                                &is_connected_inner
                             );
                             if res.is_ok() {
                                 // Send OK! We can set diag mode in the server side
@@ -232,41 +245,42 @@ impl DynamicDiagSession {
                                 Some(&mut tx_resp), 
                                 basic_opts, 
                                 0, 
-                                &mut iso_tp_channel
+                                &mut iso_tp_channel,
+                                &is_connected_inner
                             );
                             tx_resp.send(resp);
                         },
                     }
-                }
-                
-
-
-                // Logic for handling session control TP present requests
-                if session_control {
-                    let c_mode = current_session_mode.unwrap();
-                    let aops = advanced_opts.unwrap();
-                    if c_mode.tp_require && last_tp_time.elapsed().as_millis() as u32 >= aops.tester_present_interval_ms {
-                        let tx_payload = P::create_tp_msg(aops.tester_present_require_response);
-                        let tx_addr = if aops.global_tp_id != 0 {
-                            aops.global_tp_id
-                        } else {
-                            basic_opts.send_id
-                        };
-                        if send_recv_ecu_req(
-                            &protocol, 
-                            tx_addr, 
-                            aops.tp_ext_id, 
-                            &tx_payload.to_bytes(), 
-                            aops.tester_present_require_response, 
-                            None, 
-                            basic_opts, 
-                            0, 
-                            &mut iso_tp_channel
-                        ).is_err() {
-                            log::warn!("Tester present send failure. Assuming default diag session state");
-                            current_session_mode = P::get_basic_session_mode();
-                        } else {
-                            last_tp_time = Instant::now(); // OK, reset the timer
+                } else {
+                    // Nothing to process, so sleep and/or tester present processing
+                    // Logic for handling session control TP present requests
+                    if session_control {
+                        let c_mode = current_session_mode.unwrap();
+                        let aops = advanced_opts.unwrap();
+                        if c_mode.tp_require && last_tp_time.elapsed().as_millis() as u32 >= aops.tester_present_interval_ms {
+                            let tx_payload = P::create_tp_msg(aops.tester_present_require_response);
+                            let tx_addr = if aops.global_tp_id != 0 {
+                                aops.global_tp_id
+                            } else {
+                                basic_opts.send_id
+                            };
+                            if send_recv_ecu_req(
+                                &protocol, 
+                                tx_addr, 
+                                aops.tp_ext_id, 
+                                &tx_payload.to_bytes(), 
+                                aops.tester_present_require_response, 
+                                None, 
+                                basic_opts, 
+                                0, 
+                                &mut iso_tp_channel,
+                                &is_connected_inner
+                            ).is_err() {
+                                log::warn!("Tester present send failure. Assuming default diag session state");
+                                current_session_mode = P::get_basic_session_mode();
+                            } else {
+                                last_tp_time = Instant::now(); // OK, reset the timer
+                            }
                         }
                     }
                 }
@@ -275,9 +289,22 @@ impl DynamicDiagSession {
         Ok(Self {
             sender: tx_req,
             receiver: rx_resp,
+            waiting_hook: Box::new(||{}),
+            connected: is_connected
         })
     }
 
+    pub fn register_waiting_hook(&mut self, hook: fn()) {
+        self.waiting_hook = Box::new(hook)
+    }
+
+    /// Send a command
+    pub fn send_command<T: Into<u8>>(&self, cmd: T, args: &[u8]) -> DiagServerResult<()> {
+        let mut r = vec![cmd.into()];
+        r.extend_from_slice(args);
+        self.internal_send_byte_array(&r, false)
+    }
+    
     /// Send a byte array
     pub fn send_byte_array(&self, p: &[u8]) -> DiagServerResult<()> {
         self.internal_send_byte_array(p, false)
@@ -293,12 +320,19 @@ impl DynamicDiagSession {
         }
     }
 
+    /// Send a command to the ECU and await its response
+    pub fn send_command_with_response<T: Into<u8>>(&mut self, cmd: T, args: &[u8]) -> DiagServerResult<Vec<u8>> {
+        let mut r = vec![cmd.into()];
+        r.extend_from_slice(args);
+        self.send_byte_array_with_response(&r)
+    }
+
     /// Send bytes to the ECU and await its response
     /// ## Params
     /// * p - Raw byte array to send
     /// * on_ecu_waiting_hook - Callback to call when the ECU responds with ResponsePending. Can be used to update a programs state
     /// such that the user is aware the ECU is just processing the request
-    pub fn send_byte_array_with_response<F: FnMut()>(&self, p: &[u8], mut on_ecu_waiting_hook: F) -> DiagServerResult<Vec<u8>> {
+    pub fn send_byte_array_with_response(&mut self, p: &[u8]) -> DiagServerResult<Vec<u8>> {
         self.internal_send_byte_array(p, true)?;
         loop {
             match self.receiver.recv().unwrap() {
@@ -309,7 +343,7 @@ impl DynamicDiagSession {
                     return Err(DiagError::ECUError { code: b, def: Some(desc) })
                 },
                 DiagServerRx::EcuBusy => {
-                    (on_ecu_waiting_hook)()
+                    (self.waiting_hook)()
                 },
                 DiagServerRx::SendState(s) => {
                     log::error!("Multiple send states received!?. Result was {:?}", s)
@@ -319,6 +353,12 @@ impl DynamicDiagSession {
                 }
             }
         }
+    }
+
+    /// Returns true only if a hardware failure has resulted in the ECU
+    /// disconnecting from the diagnostic server.
+    pub fn is_ecu_connected(&self) -> bool {
+        self.connected.load(Ordering::Relaxed)
     }
 
     fn clear_rx_queue(&self) {
@@ -336,7 +376,8 @@ fn send_recv_ecu_req<P, NRC>(
     tx_resp: Option<&mut Sender<DiagServerRx>>,
     basic_opts: DiagServerBasicOptions,
     cooldown: u32,
-    channel: &mut Box<dyn IsoTPChannel>
+    channel: &mut Box<dyn IsoTPChannel>,
+    connect_state: &AtomicBool
 ) -> DiagServerRx
 where
     P: DiagProtocol<NRC>,
@@ -358,11 +399,13 @@ where
                     // Now poll for the ECU's response
                     match channel.read_bytes(basic_opts.read_timeout_ms).map_err(|e| e.into()) {
                         Err(e) => {
+                            connect_state.store(false, Ordering::Relaxed);
                             // Final error
                             return DiagServerRx::RecvError(e)
                         },
                         Ok(bytes) => {
                             let parsed_response = P::process_ecu_response(&bytes);
+                            connect_state.store(true, Ordering::Relaxed);
                             return match parsed_response {
                                 Ok(pos_result) => {
                                     DiagServerRx::EcuResponse(pos_result)
@@ -371,11 +414,11 @@ where
                                     if nrc_data.is_ecu_busy() {
                                         // ECU waiting, so poll again for the response
                                         // to do that, call this function again with no payload
-                                        return send_recv_ecu_req(protocol, tx_addr, ext_id, &[], needs_response, tx_resp, basic_opts, cooldown, channel)
+                                        return send_recv_ecu_req(protocol, tx_addr, ext_id, &[], needs_response, tx_resp, basic_opts, cooldown, channel, connect_state)
                                     } else if nrc_data.is_repeat_request() {
                                         // ECU wants us to ask again, so we wait a little bit, then call ourselves again
                                         std::thread::sleep(Duration::from_millis(cooldown.into()));
-                                        return send_recv_ecu_req(protocol, tx_addr, ext_id, payload, needs_response, tx_resp, basic_opts, cooldown, channel)
+                                        return send_recv_ecu_req(protocol, tx_addr, ext_id, payload, needs_response, tx_resp, basic_opts, cooldown, channel, connect_state)
                                     } else {
                                         // Unhandled NRC
                                         DiagServerRx::EcuError {b: code, desc: nrc_data.desc()}
@@ -386,11 +429,13 @@ where
                     }
                 } else {
                     // Final state. We are done!
+                    connect_state.store(true, Ordering::Relaxed);
                     return DiagServerRx::SendState(Ok(()))
                 }
             },
             Err(e) => {
                 // Final error here at send state :(
+                connect_state.store(false, Ordering::Relaxed);
                 return DiagServerRx::SendState(Err(e.into()));
             },
         }
