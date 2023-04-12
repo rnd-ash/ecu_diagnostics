@@ -51,7 +51,7 @@ fn main() {
     ).unwrap();
 
     // Register hook for when ECU responsds with RequestCorrectlyReceivedResponsePending
-    diag_server.register_waiting_hook(ecu_waiting_hook_1);
+    diag_server.register_waiting_hook(|| { ecu_waiting_hook_1() });
     // Set diag session mode
     let res = diag_server.kwp_set_session(KwpSessionType::ExtendedDiagnostics);
     println!("{:?}", res);

@@ -206,9 +206,9 @@ impl dynamic_diag::DiagProtocol<KWP2000Error> for Kwp2000Protocol {
     }
 
     fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, KWP2000Error)> {
-        if r[0] == 0x7F {
-            let e = KWP2000Error::from(r[1]);
-            Err((r[1], e))
+        if r[0] == 0x7F { // [7F, SID, NRC]
+            let e = KWP2000Error::from(r[2]);
+            Err((r[2], e))
         } else {
             Ok(r.to_vec())
         }

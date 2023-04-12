@@ -294,7 +294,7 @@ impl DynamicDiagSession {
         })
     }
 
-    pub fn register_waiting_hook(&mut self, hook: fn()) {
+    pub fn register_waiting_hook<F: FnMut() + 'static>(&mut self, hook: F) {
         self.waiting_hook = Box::new(hook)
     }
 
