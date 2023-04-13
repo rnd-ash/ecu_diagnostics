@@ -34,29 +34,54 @@ pub use security_access::*;
 
 pub use auto_uds::{UdsError};
 
-pub struct UDSErrorWrapper(UdsError);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum UDSErrorTy {
+    Error(UdsError),
+    Unknown(u8)
+}
+
+pub struct UDSErrorWrapper(UDSErrorTy);
 
 impl From<u8> for UDSErrorWrapper {
     fn from(value: u8) -> Self {
-        Self(UdsError::from(value))
+        if let Ok(e) = UdsError::try_from(value) {
+            Self(UDSErrorTy::Error(e))
+        } else {
+            Self(UDSErrorTy::Unknown(value))
+        }
     }
 }
 
 impl EcuNRC for UDSErrorWrapper {
     fn desc(&self) -> String {
-        format!("{:?}", self.0)
+        match self.0 {
+            UDSErrorTy::Error(e) =>  format!("{:?}", e),
+            UDSErrorTy::Unknown(b) => format!("Unknown error code 0x{:02X?}", b),
+        }
     }
 
     fn is_ecu_busy(&self) -> bool {
-        self.0 == UdsError::RequestCorrectlyReceivedResponsePending
+        if let UDSErrorTy::Error(e) = self.0 {
+            e == UdsError::RequestCorrectlyReceivedResponsePending
+        } else {
+            false
+        }
     }
 
     fn is_wrong_diag_mode(&self) -> bool {
-        self.0 == UdsError::ServiceNotSupportedInActiveSession
+        if let UDSErrorTy::Error(e) = self.0 {
+            e == UdsError::ServiceNotSupportedInActiveSession
+        } else {
+            false
+        }
     }
 
     fn is_repeat_request(&self) -> bool {
-        self.0 == UdsError::BusyRepeatRequest
+        if let UDSErrorTy::Error(e) = self.0 {
+            e == UdsError::BusyRepeatRequest
+        } else {
+            false
+        }
     }
 }
 
@@ -93,8 +118,8 @@ impl DiagProtocol<UDSErrorWrapper> for UDSProtocol {
                     id: payload[1],
                     tp_require: true,
                     name: format!("Unknown (0x{:02X?})", payload[1])
-                });
-                DiagAction::SetSessionMode(*mode)
+                }).clone();
+                DiagAction::SetSessionMode(mode)
             },
             x => DiagAction::Other { sid: x, data: payload[1..].to_vec() }
         }

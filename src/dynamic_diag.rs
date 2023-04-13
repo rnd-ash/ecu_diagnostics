@@ -259,7 +259,7 @@ impl DynamicDiagSession {
                     // Nothing to process, so sleep and/or tester present processing
                     // Logic for handling session control TP present requests
                     if session_control {
-                        let c_mode = current_session_mode.unwrap();
+                        let c_mode = current_session_mode.clone().unwrap();
                         let aops = advanced_opts.unwrap();
                         if c_mode.tp_require && last_tp_time.elapsed().as_millis() as u32 >= aops.tester_present_interval_ms {
                             let tx_payload = P::create_tp_msg(aops.tester_present_require_response);
