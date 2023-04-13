@@ -55,6 +55,9 @@ enum class DiagServerResult {
   Todo = 100,
 };
 
+/// ISO-TP configuration options (ISO15765-2)
+struct IsoTPSettings;
+
 /// Callback handler payload
 struct CallbackPayload {
   /// Target send address
@@ -83,110 +86,12 @@ struct BaseChannelCallbackHandler {
   CallbackHandlerResult (*set_ids_callback)(uint32_t send, uint32_t recv);
 };
 
-/// ISO-TP configuration options (ISO15765-2)
-struct IsoTPSettings {
-  /// ISO-TP Block size
-  ///
-  /// This value indicates the number of CAN Frames to send in multi-frame messages,
-  /// before sending or receiving a flow control message.
-  ///
-  /// A value of 0 indicates send everything without flow control messages.
-  ///
-  /// NOTE: This value might be overridden by the device's implementation of ISO-TP
-  uint8_t block_size;
-  /// Minimum separation time between Tx/Rx CAN Frames.
-  ///
-  /// 3 ranges are accepted for this value:
-  /// * 0x00 - Send without delay (ECU/Adapter will send frames as fast as the physical bus allows).
-  /// * 0x01-0x7F - Send with delay of 1-127 milliseconds between can frames
-  /// * 0xF1-0xF9 - Send with delay of 100-900 microseconds between can frames
-  ///
-  /// NOTE: This value might be overridden by the device's implementation of ISO-TP
-  uint8_t st_min;
-  /// Use extended ISO-TP addressing
-  bool extended_addressing;
-  /// Pad frames over ISO-TP if data size is less than 8.
-  bool pad_frame;
-  /// Baud rate of the CAN Network
-  uint32_t can_speed;
-  /// Does the CAN Network support extended addressing (29bit) or standard addressing (11bit)
-  bool can_use_ext_addr;
-};
-
 /// Callback handler for [IsoTPChannel]
 struct IsoTpChannelCallbackHandler {
   /// Base handler
   BaseChannelCallbackHandler base;
   /// Callback when [IsoTPChannel::set_iso_tp_cfg] is called
   CallbackHandlerResult (*set_iso_tp_cfg_callback)(IsoTPSettings cfg);
-};
-
-/// UDS server options
-struct UdsServerOptions {
-  /// ECU Send ID
-  uint32_t send_id;
-  /// ECU Receive ID
-  uint32_t recv_id;
-  /// Read timeout in ms
-  uint32_t read_timeout_ms;
-  /// Write timeout in ms
-  uint32_t write_timeout_ms;
-  /// Optional global address to send tester-present messages to
-  /// Set to 0 if not in use
-  uint32_t global_tp_id;
-  /// Tester present minimum send interval in ms
-  uint32_t tester_present_interval_ms;
-  /// Configures if the diagnostic server will poll for a response from tester present.
-  bool tester_present_require_response;
-};
-
-/// UDS Command Service IDs
-union UDSCommand {
-  enum class Tag : uint8_t {
-    /// Diagnostic session control. See [diagnostic_session_control]
-    DiagnosticSessionControl,
-    /// ECU Reset. See [ecu_reset]
-    ECUReset,
-    /// Security access. See [security_access]
-    SecurityAccess,
-    /// Controls communication functionality of the ECU
-    CommunicationControl,
-    /// Tester present command.
-    TesterPresent,
-    AccessTimingParameters,
-    SecuredDataTransmission,
-    ControlDTCSettings,
-    ResponseOnEvent,
-    LinkControl,
-    ReadDataByIdentifier,
-    ReadMemoryByAddress,
-    ReadScalingDataByIdentifier,
-    ReadDataByPeriodicIdentifier,
-    DynamicallyDefineDataIdentifier,
-    WriteDataByIdentifier,
-    WriteMemoryByAddress,
-    ClearDiagnosticInformation,
-    /// Reading and querying diagnostic trouble codes
-    /// stored on the ECU. See [read_dtc_information]
-    ReadDTCInformation,
-    InputOutputControlByIdentifier,
-    RoutineControl,
-    RequestDownload,
-    RequestUpload,
-    TransferData,
-    RequestTransferExit,
-    Other,
-  };
-
-  struct Other_Body {
-    Tag tag;
-    uint8_t _0;
-  };
-
-  struct {
-    Tag tag;
-  };
-  Other_Body other;
 };
 
 /// Payload to send to the UDS server
