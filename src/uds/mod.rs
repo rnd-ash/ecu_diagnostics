@@ -23,6 +23,7 @@ mod scaling_data;
 mod security_access;
 
 pub use access_timing_parameter::*;
+use auto_uds::UdsCommand;
 pub use clear_diagnostic_information::*;
 pub use communication_control::*;
 pub use diagnostic_session_control::*;
@@ -93,7 +94,7 @@ impl DiagProtocol<UDSErrorWrapper> for UDSProtocol {
     }
 
     fn create_tp_msg(response_required: bool) -> crate::dynamic_diag::DiagPayload {
-        DiagPayload::new(auto_uds::Command::TesterPresent.into(), &[if response_required {0x00} else {0x80}])
+        DiagPayload::new(UdsCommand::TesterPresent.into(), &[if response_required {0x00} else {0x80}])
     }
 
     fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, UDSErrorWrapper)> {

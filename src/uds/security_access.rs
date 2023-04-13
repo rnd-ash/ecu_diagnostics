@@ -6,6 +6,7 @@
 use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
 
 pub use auto_uds::SecurityOperation;
+use auto_uds::UdsCommand;
 
 impl DynamicDiagSession {
     /// Requests a seed from the ECU for security access.
@@ -19,7 +20,7 @@ impl DynamicDiagSession {
     /// Returns the security key's seed
     pub fn uds_request_seed(&mut self) -> DiagServerResult<Vec<u8>> {
         let mut resp = self.send_command_with_response(
-            auto_uds::Command::SecurityAccess,
+            UdsCommand::SecurityAccess,
             &[SecurityOperation::RequestSeed.into()],
         )?;
         resp.drain(0..2); // Remove SID and PID, so just seed value left
@@ -37,7 +38,7 @@ impl DynamicDiagSession {
         let mut payload = Vec::with_capacity(key.len() + 1);
         payload.push(SecurityOperation::SendKey.into());
         payload.extend_from_slice(key);
-        self.send_command_with_response(auto_uds::Command::SecurityAccess, &payload)
+        self.send_command_with_response(UdsCommand::SecurityAccess, &payload)
             .map(|_| ())
     }
 }

@@ -3,6 +3,7 @@
 use crate::{DiagError, DiagServerResult, DiagnosticServer, dynamic_diag::{DynamicDiagSession, EcuNRC}};
 
 pub use auto_uds::ResetType;
+use auto_uds::UdsCommand;
 
 use super::UDSErrorWrapper;
 
@@ -12,7 +13,7 @@ impl DynamicDiagSession {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn uds_ecu_hard_reset(&mut self) -> DiagServerResult<()> {
-        self.send_command_with_response(auto_uds::Command::ECUReset, &[ResetType::HardReset.into()])
+        self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::HardReset.into()])
             .map(|_| ())
     }
 
@@ -21,7 +22,7 @@ impl DynamicDiagSession {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn uds_ecu_key_off_on_reset(&mut self) -> DiagServerResult<()> {
-        self.send_command_with_response(auto_uds::Command::ECUReset, &[ResetType::KeyOffReset.into()])
+        self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::KeyOffReset.into()])
             .map(|_| ())
     }
 
@@ -30,7 +31,7 @@ impl DynamicDiagSession {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn uds_ecu_soft_reset(&mut self) -> DiagServerResult<()> {
-        self.send_command_with_response(auto_uds::Command::ECUReset, &[ResetType::SoftReset.into()])
+        self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::SoftReset.into()])
             .map(|_| ())
     }
 
@@ -43,7 +44,7 @@ impl DynamicDiagSession {
     /// If successful, this function will return the minimum time in seconds that the ECU will remain in the power-down sequence
     pub fn uds_enable_rapid_power_shutdown(&mut self) -> DiagServerResult<u8> {
         let res = self.send_command_with_response(
-            auto_uds::Command::ECUReset,
+            UdsCommand::ECUReset,
             &[ResetType::EnableRapidPowerShutDown.into()],
         )?;
         match res.get(2) {
@@ -62,7 +63,7 @@ impl DynamicDiagSession {
     /// * server - The UDS Diagnostic server
     pub fn uds_disable_rapid_power_shutdown(&mut self) -> DiagServerResult<()> {
         self.send_command_with_response(
-            auto_uds::Command::ECUReset,
+            UdsCommand::ECUReset,
             &[ResetType::DisableRapidPowerShutDown.into()],
         )
         .map(|_| ())

@@ -1,6 +1,7 @@
 //! Provides methods to control normal ECU communication
 
 
+use auto_uds::UdsCommand;
 pub use auto_uds::{
     encode_communication_type, CommunicationLevel, CommunicationType as EcuCommunicationType,
     Subnet,
@@ -26,7 +27,7 @@ impl DynamicDiagSession {
         let communication_type = encode_communication_type(communication_type, subnet);
 
         self.send_command_with_response(
-            auto_uds::Command::CommunicationControl,
+            UdsCommand::CommunicationControl,
             &[level, communication_type],
         )
         .map(|_| ())
