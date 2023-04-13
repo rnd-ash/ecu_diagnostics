@@ -7,12 +7,13 @@ extern crate alloc;
 extern crate ecu_diagnostics;
 
 use alloc::vec::Vec;
+use core::convert::TryInto;
 
-use ecu_diagnostics::{DiagnosticServer, hardware::HardwareError};
 pub use ecu_diagnostics::{
     channel::{ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, PayloadChannel},
+    hardware::HardwareError,
     uds::{UDSCommand, UdsDiagnosticServer, UdsServerOptions, UdsVoidHandler},
-    DiagError,
+    DiagError, DiagnosticServer,
 };
 
 #[repr(C)]
@@ -61,18 +62,18 @@ impl From<CallbackHandlerResult> for ChannelError {
             }
             CallbackHandlerResult::ReadTimeout => ChannelError::ReadTimeout,
             CallbackHandlerResult::WriteTimeout => ChannelError::WriteTimeout,
-            CallbackHandlerResult::CallbackAlreadyExists => ChannelError::HardwareError(
-                HardwareError::APIError {
+            CallbackHandlerResult::CallbackAlreadyExists => {
+                ChannelError::HardwareError(HardwareError::APIError {
                     code: 99,
                     desc: "Callback already exists".into(),
-                }
-            ),
-            CallbackHandlerResult::APIError => ChannelError::HardwareError(
-                HardwareError::APIError {
+                })
+            }
+            CallbackHandlerResult::APIError => {
+                ChannelError::HardwareError(HardwareError::APIError {
                     code: 99,
                     desc: "Unknown error".into(),
-                }
-            )
+                })
+            }
         }
     }
 }
@@ -271,7 +272,7 @@ impl From<DiagError> for DiagServerResult {
     fn from(x: DiagError) -> Self {
         match x {
             DiagError::NotSupported => DiagServerResult::NotSupported,
-            DiagError::ECUError {code, def} => {
+            DiagError::ECUError { code, def } => {
                 unsafe { ECU_ERROR = code };
                 DiagServerResult::ECUError
             }
@@ -283,6 +284,7 @@ impl From<DiagError> for DiagServerResult {
             DiagError::ChannelError(_) => DiagServerResult::HandlerError,
             DiagError::ParameterInvalid => DiagServerResult::ParameterInvalid,
             DiagError::HardwareError(_) => DiagServerResult::HardwareError,
+            DiagError::MismatchedResponse(_) => DiagServerResult::Todo,
         }
     }
 }
@@ -366,7 +368,7 @@ pub extern "C" fn send_payload_uds(
                     &core::slice::from_raw_parts(payload.args_ptr, payload.args_len as usize)
                 }) {
                     Ok(mut resp) => {
-                        payload.sid = (resp[0] - 0x40).into();
+                        payload.sid = (resp[0] - 0x40).try_into().unwrap();
                         let len = resp.len() as u32;
                         let resp_ptr = resp.as_mut_ptr();
                         core::mem::forget(resp); // Forget the response array, its up to the caller to deallocate this

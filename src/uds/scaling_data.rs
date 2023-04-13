@@ -1,5 +1,14 @@
 ///! Functions and data for ReadScalingDataById UDS Service
-pub use auto_uds::{ScalingByteExtension, ScalingByteHigh};
+
+/// FIXME: Use ScalingExtension instead
+/// Note: `#[deprecated]` doesn't work here due to https://github.com/rust-lang/rust/issues/30827
+pub use auto_uds::ScalingExtension as ScalingByteExtension;
+
+/// FIXME: Use ScalingType instead
+/// Note: `#[deprecated]` doesn't work here due to https://github.com/rust-lang/rust/issues/30827
+pub use auto_uds::ScalingType as ScalingByteHigh;
+
+pub use auto_uds::{ScalingExtension, ScalingType};
 
 /// Represents Scaling data structure returned from ECU
 #[derive(Debug, Clone)]
@@ -9,7 +18,7 @@ pub struct ScalingData {
     c1: f32,
     c2: f32,
     mapping_byte: u8,
-    byte_ext: Vec<ScalingByteExtension>,
+    byte_ext: Vec<ScalingExtension>,
 }
 
 impl ScalingData {
@@ -20,7 +29,7 @@ impl ScalingData {
         c1: i32,
         c2: i32,
         mapping_byte: u8,
-        byte_ext: &[ScalingByteExtension],
+        byte_ext: &[ScalingExtension],
     ) -> Self {
         Self {
             x: x as f32,
@@ -34,7 +43,7 @@ impl ScalingData {
 
     /// Returns the list of scaling data presentation of the scaling data.
     /// Note that there can be more than one! (EG: Having a prefix and postfix scaling byte)
-    pub fn get_scaling_byte(&self) -> &[ScalingByteExtension] {
+    pub fn get_scaling_byte(&self) -> &[ScalingExtension] {
         &self.byte_ext
     }
 

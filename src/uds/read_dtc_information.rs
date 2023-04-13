@@ -23,7 +23,7 @@ impl DynamicDiagSession {
         let resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportNumberOfDTCByStatusMask as u8,
+                DtcSubFunction::ReportNumberOfDtcByStatusMask as u8,
                 status_mask,
             ],
         )?;
@@ -88,7 +88,7 @@ impl DynamicDiagSession {
         let mut resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportMirrorMemoryDTCByStatusMask as u8,
+                DtcSubFunction::ReportMirrorMemoryDtcByStatusMask as u8,
                 status_mask,
             ],
         )?;
@@ -139,7 +139,7 @@ impl DynamicDiagSession {
         let resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportNumberOfMirrorMemoryDTCByStatusMask as u8,
+                DtcSubFunction::ReportNumberOfMirrorMemoryDtcByStatusMask as u8,
                 status_mask,
             ],
         )?;
@@ -169,7 +169,7 @@ impl DynamicDiagSession {
         let resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportNumberOfEmissionsRelatedOBDDTCByStatusMask as u8,
+                DtcSubFunction::ReportNumberOfEmissionsRelatedObdDtcByStatusMask as u8,
                 status_mask,
             ],
         )?;
@@ -193,7 +193,7 @@ impl DynamicDiagSession {
         let mut resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportEmissionsRelatedOBDDTCByStatusMask as u8,
+                DtcSubFunction::ReportEmissionsRelatedObdDtcByStatusMask as u8,
                 status_mask,
             ],
         )?;
@@ -238,7 +238,7 @@ impl DynamicDiagSession {
         let resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportDTCSnapshotRecordByDTCNumber as u8,
+                DtcSubFunction::ReportDtcSnapshotRecordByDtcNumber as u8,
                 (dtc_mask_record >> 16) as u8,
                 (dtc_mask_record >> 8) as u8,
                 dtc_mask_record as u8,
@@ -271,7 +271,7 @@ impl DynamicDiagSession {
         let resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportDTCSnapshotRecordByRecordNumber as u8,
+                DtcSubFunction::ReportDtcSnapshotRecordByRecordNumber as u8,
                 snapshot_record_number,
             ],
         )?;
@@ -294,7 +294,7 @@ impl DynamicDiagSession {
         self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportDTCExtendedDataRecordByDTCNumber as u8,
+                DtcSubFunction::ReportDtcExtendedDataRecordByDtcNumber as u8,
                 (dtc >> 16) as u8, // High byte
                 (dtc >> 8) as u8,  // Mid byte
                 dtc as u8,         // Low byte
@@ -316,7 +316,7 @@ impl DynamicDiagSession {
         self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportMirrorMemoryDTCExtendedDataRecordByDTCNumber as u8,
+                DtcSubFunction::ReportMirrorMemoryDtcExtendedDataRecordByDtcNumber as u8,
                 (dtc >> 16) as u8, // High byte
                 (dtc >> 8) as u8,  // Mid byte
                 dtc as u8,         // Low byte
@@ -334,7 +334,7 @@ impl DynamicDiagSession {
         let resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportNumberOfDTCBySeverityMaskRecord as u8,
+                DtcSubFunction::ReportNumberOfDtcBySeverityMaskRecord as u8,
                 severity_mask,
                 status_mask,
             ],
@@ -354,7 +354,7 @@ impl DynamicDiagSession {
         let resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportDTCBySeverityMaskRecord as u8,
+                DtcSubFunction::ReportDtcBySeverityMaskRecord as u8,
                 severity_mask,
                 status_mask,
             ],
@@ -370,7 +370,7 @@ impl DynamicDiagSession {
         let resp = self.send_command_with_response(
             auto_uds::Command::ReadDTCInformation,
             &[
-                DtcSubFunction::ReportSeverityInformationOfDTC as u8,
+                DtcSubFunction::ReportSeverityInformationOfDtc as u8,
                 (dtc >> 16) as u8,
                 (dtc >> 8) as u8,
                 dtc as u8,
@@ -451,7 +451,7 @@ impl DynamicDiagSession {
             &[DtcSubFunction::ReportMostRecentTestFailedDTC as u8],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ReportMostRecentTestFailedDTC ECU Response was: {:02X?}",
+            "ReportMostRecentTestFailedDtc ECU Response was: {:02X?}",
             resp
         )))
     }
@@ -463,7 +463,7 @@ impl DynamicDiagSession {
             &[DtcSubFunction::ReportMostRecentConfirmedDTC as u8],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ReportMostRecentConfirmedDTC ECU Response was: {:02X?}",
+            "ReportMostRecentConfirmedDtc ECU Response was: {:02X?}",
             resp
         )))
     }
@@ -506,7 +506,7 @@ impl DynamicDiagSession {
             &[DtcSubFunction::ReportDTCWithPermanentStatus as u8],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ReportDTCWithPermanentStatus ECU Response was: {:02X?}",
+            "ReportDtcWithPermanentStatus ECU Response was: {:02X?}",
             resp
         )))
     }
