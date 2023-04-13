@@ -1,24 +1,24 @@
 use std::time::Duration;
 
-use ecu_diagnostics::{hardware::{HardwareScanner, self}, channel::{self, IsoTPSettings}, kwp2000::{Kwp2000Protocol, KwpSessionType}, dynamic_diag::{DiagServerBasicOptions, DiagServerAdvancedOptions}};
+use ecu_diagnostics::{hardware::{HardwareScanner, self}, channel::{self, IsoTPSettings}, kwp2000::{Kwp2000Protocol, KwpSessionType}, dynamic_diag::{DiagServerBasicOptions, DiagServerAdvancedOptions, TimeoutConfig}};
 use socketcan_isotp::{IsoTpOptions, IsoTpSocket};
 
 extern crate ecu_diagnostics;
 
-fn ecu_waiting_hook_1() {
+fn ecu_waiting_hook() {
     println!("ECU is processing our request");
 }
 
-fn ecu_waiting_hook_2(counter: &mut u32) {
-    println!("ECU is processing our request. We have waited {counter} times");
-    *counter += 1;
+fn tx_ok_hook() {
+    println!("Data was sent OK!");
 }
 
 fn main() {
+    env_logger::init();
     let dev = ecu_diagnostics::hardware::socketcan::SocketCanScanner::new();
     let d = dev.open_device_by_name("can0").unwrap();
     
-    let protocol = Kwp2000Protocol{};
+    let protocol = Kwp2000Protocol::new();
 
     let mut diag_server = 
     ecu_diagnostics::dynamic_diag::DynamicDiagSession::new_over_iso_tp(
@@ -35,8 +35,10 @@ fn main() {
         DiagServerBasicOptions { // Basic server options
             send_id: 0x07E1,
             recv_id: 0x07E9,
-            read_timeout_ms: 2500,
-            write_timeout_ms: 2500,
+            timeout_cfg: TimeoutConfig {
+                read_timeout_ms: 2500,
+                write_timeout_ms: 2500,
+            }
         }, 
         Some(
             DiagServerAdvancedOptions { // Advanced server options
@@ -51,7 +53,8 @@ fn main() {
     ).unwrap();
 
     // Register hook for when ECU responsds with RequestCorrectlyReceivedResponsePending
-    diag_server.register_waiting_hook(|| { ecu_waiting_hook_1() });
+    diag_server.register_waiting_hook(|| { ecu_waiting_hook() });
+    diag_server.register_send_complete_hook(|| { tx_ok_hook() });
     // Set diag session mode
     let res = diag_server.kwp_set_session(KwpSessionType::ExtendedDiagnostics);
     println!("{:?}", res);
