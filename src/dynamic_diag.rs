@@ -239,7 +239,7 @@ impl DynamicDiagSession {
                                     tx_addr = adv.global_tp_id;
                                     ext_id = adv.tp_ext_id;
                                     needs_response = false;
-                                } else {
+                                } else if adv.global_session_control && adv.global_tp_id == 0 {
                                     log::warn!("Global session control is enabled but global TP ID is not specified");
                                 }
                             }
