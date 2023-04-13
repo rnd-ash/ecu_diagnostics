@@ -39,43 +39,6 @@ pub enum KwpSessionType {
     Custom { id: u8 },
 }
 
-impl From<KwpSessionType> for DiagSessionMode {
-    fn from(x: KwpSessionType) -> Self {
-        match x {
-            KwpSessionType::Normal => DiagSessionMode {
-                id: 0x81,
-                tp_require: false,
-                name: "Normal",
-            },
-            KwpSessionType::Reprogramming => DiagSessionMode {
-                id: 0x85,
-                tp_require: true,
-                name: "Reprogramming",
-            },
-            KwpSessionType::Standby => DiagSessionMode {
-                id: 0x89,
-                tp_require: true,
-                name: "Standby",
-            },
-            KwpSessionType::Passive => DiagSessionMode {
-                id: 0x90,
-                tp_require: false,
-                name: "Passive",
-            },
-            KwpSessionType::ExtendedDiagnostics => DiagSessionMode {
-                id: 0x92,
-                tp_require: true,
-                name: "ExtendedDiagnostics",
-            },
-            KwpSessionType::Custom { id: c} => DiagSessionMode {
-                id: c,
-                tp_require: true,
-                name: "Custom",
-            },
-        }
-    }
-}
-
 impl From<u8> for KwpSessionType {
     fn from(value: u8) -> Self {
         match value {

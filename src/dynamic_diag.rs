@@ -1,6 +1,6 @@
 //! Dynamic diagnostic session helper
 //!
-use std::{sync::{mpsc::Sender, atomic::{AtomicBool, Ordering}}, os::unix::thread, time::Duration};
+use std::{sync::{mpsc::Sender, atomic::{AtomicBool, Ordering}}, os::unix::thread, time::Duration, collections::HashMap};
 #[allow(missing_docs)]
 
 use std::{
@@ -105,14 +105,14 @@ pub struct DiagServerAdvancedOptions {
     pub command_cooldown_ms: u128
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DiagSessionMode {
     /// Session mode ID
     pub id: u8,
     /// Tester present required?
     pub tp_require: bool,
     /// Alias for its name (For logging only)
-    pub name: &'static str
+    pub name: String
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -152,16 +152,20 @@ pub trait DiagProtocol<NRC> : Send + Sync where NRC: EcuNRC {
     /// Returns the alias to the ECU 'default' diagnostic session mode
     /// Returns None if there is no session type control in the protocol
     /// (For example basic OBD2)
-    fn get_basic_session_mode() -> Option<DiagSessionMode>;
+    fn get_basic_session_mode(&self) -> Option<DiagSessionMode>;
     /// Name of the diagnostic protocol
-    fn get_protocol_name() -> &'static str;
+    fn get_protocol_name(&self) -> &'static str;
     /// Process a byte array into a command
-    fn process_req_payload(payload: &[u8]) -> DiagAction;
+    fn process_req_payload(&self, payload: &[u8]) -> DiagAction;
     /// Generate the tester present message (If required)
     fn create_tp_msg(response_required: bool) -> DiagPayload;
     /// Processes the ECU response, and checks to see if it is a positive or negative response,
     /// this includes checking to see if the ECU is in a waiting state
     fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, NRC)>;
+    /// Gets a hashmap of available diagnostic session modes
+    fn get_diagnostic_session_list(&self) -> HashMap<u8, DiagSessionMode>;
+    /// Registers a new custom diagnostic session mode
+    fn register_session_type(&mut self, session: DiagSessionMode);
 }
 
 impl DynamicDiagSession {
@@ -187,8 +191,8 @@ impl DynamicDiagSession {
         iso_tp_channel.set_iso_tp_cfg(channel_cfg)?;
         iso_tp_channel.set_ids(basic_opts.send_id, basic_opts.recv_id)?;
         iso_tp_channel.open()?;
-        let requested_session_mode = P::get_basic_session_mode();
-        let mut current_session_mode = P::get_basic_session_mode();
+        let requested_session_mode = protocol.get_basic_session_mode();
+        let mut current_session_mode = protocol.get_basic_session_mode();
         if requested_session_mode.is_none() && advanced_opts.is_some() {
             log::warn!("Session mode is None but advanced opts was specified. Ignoring advanced opts");
         }
@@ -203,7 +207,7 @@ impl DynamicDiagSession {
                 // Incomming ECU request
                 if let Ok(req) = rx_req.recv_timeout(Duration::from_millis(100)) {
                     let mut tx_addr = basic_opts.send_id;
-                    match P::process_req_payload(&req.payload) {
+                    match protocol.process_req_payload(&req.payload) {
                         DiagAction::SetSessionMode(mode) => {
                             let mut needs_response = true;
                             let mut ext_id = None;
@@ -277,7 +281,7 @@ impl DynamicDiagSession {
                                 &is_connected_inner
                             ).is_err() {
                                 log::warn!("Tester present send failure. Assuming default diag session state");
-                                current_session_mode = P::get_basic_session_mode();
+                                current_session_mode = protocol.get_basic_session_mode();
                             } else {
                                 last_tp_time = Instant::now(); // OK, reset the timer
                             }

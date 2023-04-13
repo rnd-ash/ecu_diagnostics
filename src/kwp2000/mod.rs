@@ -12,6 +12,8 @@
 //!
 //! based on KWP2000 v2.2 (05/08/02)
 
+use std::collections::HashMap;
+
 use crate::{
     dynamic_diag::{self, DiagSessionMode, DiagAction, EcuNRC, DiagPayload},
 };
@@ -186,14 +188,54 @@ impl From<KWP2000Command> for u8 {
 
 
 #[derive(Debug)]
-pub struct Kwp2000Protocol {}
+pub struct Kwp2000Protocol {
+    session_modes: HashMap<u8, DiagSessionMode>
+}
+
+impl Kwp2000Protocol {
+    pub fn new() -> Kwp2000Protocol {
+        let mut session_modes = HashMap::new();
+        session_modes.insert(0x81, DiagSessionMode {
+            id: 0x81,
+            tp_require: false,
+            name: "Normal".into(),
+        });
+        session_modes.insert(0x85, DiagSessionMode {
+            id: 0x85,
+            tp_require: true,
+            name: "Reprogramming".into(),
+        });
+        session_modes.insert(0x89, DiagSessionMode {
+            id: 0x89,
+            tp_require: true,
+            name: "Standby".into(),
+        });
+        session_modes.insert(0x90, DiagSessionMode {
+            id: 0x90,
+            tp_require: false,
+            name: "Passive".into(),
+        });
+        session_modes.insert(0x92, DiagSessionMode {
+            id: 0x92,
+            tp_require: true,
+            name: "ExtendedDiagnostics".into(),
+        });
+        Kwp2000Protocol {
+            session_modes
+        }
+    }
+}
 
 impl dynamic_diag::DiagProtocol<KWP2000Error> for Kwp2000Protocol {
-    
-
-    fn process_req_payload(payload: &[u8]) -> DiagAction {
+    fn process_req_payload(&self, payload: &[u8]) -> DiagAction {
         match KWP2000Command::from(payload[0]) {
-            KWP2000Command::StartDiagnosticSession => DiagAction::SetSessionMode(KwpSessionType::from(payload[1]).into()),
+            KWP2000Command::StartDiagnosticSession => DiagAction::SetSessionMode(
+                self.session_modes.get(&payload[1]).unwrap_or(&DiagSessionMode {
+                    id: payload[1],
+                    tp_require: true,
+                    name: format!("Unkown(0x{:02X?})", payload[1]),
+                }).clone()
+            ),
             _ => DiagAction::Other { sid: payload[0], data: payload[1..].to_vec() }
         }
     }
@@ -214,15 +256,19 @@ impl dynamic_diag::DiagProtocol<KWP2000Error> for Kwp2000Protocol {
         }
     }
 
-    fn get_basic_session_mode() -> Option<DiagSessionMode> {
-        Some(DiagSessionMode {
-            id: 0x81,
-            tp_require: false,
-            name: "Default",
-        })
+    fn get_basic_session_mode(&self) -> Option<DiagSessionMode> {
+        self.session_modes.get(&0x81).cloned()
     }
 
-    fn get_protocol_name() -> &'static str {
+    fn get_protocol_name(&self) -> &'static str {
         "KWP2000(CAN)"
+    }
+
+    fn get_diagnostic_session_list(&self) -> HashMap<u8, DiagSessionMode> {
+        self.session_modes.clone()
+    }
+
+    fn register_session_type(&mut self, session: DiagSessionMode) {
+        self.session_modes.insert(session.id, session);
     }
 }

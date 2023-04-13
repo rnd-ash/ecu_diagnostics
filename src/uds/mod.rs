@@ -8,7 +8,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc, RwLock,
     },
-    time::Instant,
+    time::Instant, collections::HashMap, fmt::format,
 };
 
 use crate::{dynamic_diag::{DiagProtocol, EcuNRC, DiagSessionMode, DiagAction, DiagPayload}};
@@ -60,34 +60,41 @@ impl EcuNRC for UDSErrorWrapper {
     }
 }
 
-pub struct UDSProtocol{}
+pub struct UDSProtocol{
+    session_modes: HashMap<u8, DiagSessionMode>
+}
+
+impl UDSProtocol {
+    pub fn new() -> Self {
+        let mut session_modes = HashMap::new();
+        session_modes.insert(0x01, DiagSessionMode { id: 0x01, tp_require: false, name: "Default".into() });
+        session_modes.insert(0x02, DiagSessionMode { id: 0x02, tp_require: true, name: "Programming".into() });
+        session_modes.insert(0x03, DiagSessionMode { id: 0x03, tp_require: true, name: "Extended".into() });
+        session_modes.insert(0x04, DiagSessionMode { id: 0x04, tp_require: true, name: "SafetySystem".into() });
+        Self {
+            session_modes
+        }
+    }
+}
 
 impl DiagProtocol<UDSErrorWrapper> for UDSProtocol {
-    fn get_basic_session_mode() -> Option<crate::dynamic_diag::DiagSessionMode> {
-        Some(
-            DiagSessionMode {
-                id: auto_uds::UdsSessionType::Default.into(),
-                tp_require: false,
-                name: "Default",
-            }
-        )
+    fn get_basic_session_mode(&self) -> Option<crate::dynamic_diag::DiagSessionMode> {
+        self.session_modes.get(&UDSSessionType::Default.into()).cloned()
     }
 
-    fn get_protocol_name() -> &'static str {
+    fn get_protocol_name(&self) -> &'static str {
         "UDS"
     }
 
-    fn process_req_payload(payload: &[u8]) -> crate::dynamic_diag::DiagAction {
+    fn process_req_payload(&self, payload: &[u8]) -> crate::dynamic_diag::DiagAction {
         match payload[0] {
             0x10 => {
-                let mode = match payload[1] {
-                    0x01 => UDSSessionType::Default,
-                    0x02 => UDSSessionType::Programming,
-                    0x03 => UDSSessionType::Extended,
-                    0x04 => UDSSessionType::SafetySystem,
-                    x => UDSSessionType::Other(x)
-                };
-                DiagAction::SetSessionMode(mode.into())
+                let mode = self.session_modes.get(&payload[1]).unwrap_or(&DiagSessionMode {
+                    id: payload[1],
+                    tp_require: true,
+                    name: format!("Unknown (0x{:02X?})", payload[1])
+                });
+                DiagAction::SetSessionMode(*mode)
             },
             x => DiagAction::Other { sid: x, data: payload[1..].to_vec() }
         }
@@ -103,5 +110,13 @@ impl DiagProtocol<UDSErrorWrapper> for UDSProtocol {
         } else {
             Ok(r.to_vec())
         }
+    }
+
+    fn get_diagnostic_session_list(&self) -> std::collections::HashMap<u8, DiagSessionMode> {
+        todo!()
+    }
+
+    fn register_session_type(&mut self, session: DiagSessionMode) {
+        todo!()
     }
 }
