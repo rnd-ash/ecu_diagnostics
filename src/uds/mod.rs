@@ -138,10 +138,10 @@ impl DiagProtocol<UDSErrorWrapper> for UDSProtocol {
     }
 
     fn get_diagnostic_session_list(&self) -> std::collections::HashMap<u8, DiagSessionMode> {
-        todo!()
+        self.session_modes.clone()
     }
 
     fn register_session_type(&mut self, session: DiagSessionMode) {
-        todo!()
+        self.session_modes.insert(session.id, session);
     }
 }

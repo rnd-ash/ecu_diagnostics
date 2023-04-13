@@ -13,28 +13,6 @@ use crate::{
     DiagError, DiagServerResult
 };
 
-/// Dynamic diagnostic session
-///
-/// This is used if a target ECU has an unknown diagnostic protocol.
-///
-/// This also contains some useful wrappers for basic functions such as
-/// reading and clearing error codes.
-pub struct DynamicDiagSession {
-    sender: mpsc::Sender<DiagTxPayload>,
-    receiver: mpsc::Receiver<DiagServerRx>,
-    waiting_hook: Box<dyn FnMut()>,
-    connected: Arc<AtomicBool>
-}
-
-impl std::fmt::Debug for DynamicDiagSession {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DynamicDiagSession")
-            .field("sender", &self.sender)
-            .field("receiver", &self.receiver)
-            .finish()
-    }
-}
-
 #[derive(Debug)]
 pub enum DiagServerRx {
     EcuResponse(Vec<u8>),
@@ -168,6 +146,30 @@ pub trait DiagProtocol<NRC> : Send + Sync where NRC: EcuNRC {
     fn register_session_type(&mut self, session: DiagSessionMode);
 }
 
+/// Dynamic diagnostic session
+///
+/// This is used if a target ECU has an unknown diagnostic protocol.
+///
+/// This also contains some useful wrappers for basic functions such as
+/// reading and clearing error codes.
+pub struct DynamicDiagSession {
+    sender: mpsc::Sender<DiagTxPayload>,
+    receiver: mpsc::Receiver<DiagServerRx>,
+    waiting_hook: Box<dyn FnMut()>,
+    on_send_complete_hook: Box<dyn FnMut()>,
+    connected: Arc<AtomicBool>,
+    current_diag_mode: Arc<RwLock<Option<DiagSessionMode>>>
+}
+
+impl std::fmt::Debug for DynamicDiagSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DynamicDiagSession")
+            .field("sender", &self.sender)
+            .field("receiver", &self.receiver)
+            .finish()
+    }
+}
+
 impl DynamicDiagSession {
     /// Creates a new diagnostic server with a given protocol and NRC format
     /// over an ISO-TP connection
@@ -184,13 +186,12 @@ impl DynamicDiagSession {
         P: DiagProtocol<NRC> + 'static,
         NRC: EcuNRC
     {
-        let mut last_err: Option<DiagError>; // Setting up last recorded error
-
         // Create iso tp channel using provided HW interface. If this fails, we cannot setup KWP or UDS session!
         let mut iso_tp_channel = Hardware::create_iso_tp_channel(hw_device.clone())?;
         iso_tp_channel.set_iso_tp_cfg(channel_cfg)?;
         iso_tp_channel.set_ids(basic_opts.send_id, basic_opts.recv_id)?;
         iso_tp_channel.open()?;
+
         let requested_session_mode = protocol.get_basic_session_mode();
         let mut current_session_mode = protocol.get_basic_session_mode();
         if requested_session_mode.is_none() && advanced_opts.is_some() {
@@ -201,6 +202,9 @@ impl DynamicDiagSession {
         let (mut tx_resp, rx_resp) = mpsc::channel::<DiagServerRx>();
         let is_connected = Arc::new(AtomicBool::new(true));
         let is_connected_inner = is_connected.clone();
+
+        let noti_session_mode = Arc::new(RwLock::new(current_session_mode.clone()));
+        let noti_session_mode_t = noti_session_mode.clone();
         std::thread::spawn(move || {
             let mut last_tp_time = Instant::now();
             loop {
@@ -235,11 +239,12 @@ impl DynamicDiagSession {
                             if res.is_ok() {
                                 // Send OK! We can set diag mode in the server side
                                 current_session_mode = Some(mode);
+                                *noti_session_mode_t.write().unwrap() = current_session_mode.clone();
                                 last_tp_time = Instant::now();
                             }
                             tx_resp.send(res);
                         },
-                        DiagAction::Other { sid, data } => {
+                        _ => {
                             let resp = send_recv_ecu_req(
                                 &protocol, 
                                 tx_addr, 
@@ -282,6 +287,7 @@ impl DynamicDiagSession {
                             ).is_err() {
                                 log::warn!("Tester present send failure. Assuming default diag session state");
                                 current_session_mode = protocol.get_basic_session_mode();
+                                *noti_session_mode_t.write().unwrap() = current_session_mode.clone();
                             } else {
                                 last_tp_time = Instant::now(); // OK, reset the timer
                             }
@@ -294,12 +300,10 @@ impl DynamicDiagSession {
             sender: tx_req,
             receiver: rx_resp,
             waiting_hook: Box::new(||{}),
-            connected: is_connected
+            on_send_complete_hook: Box::new(||{}),
+            connected: is_connected,
+            current_diag_mode: noti_session_mode
         })
-    }
-
-    pub fn register_waiting_hook<F: FnMut() + 'static>(&mut self, hook: F) {
-        self.waiting_hook = Box::new(hook)
     }
 
     /// Send a command
@@ -338,6 +342,7 @@ impl DynamicDiagSession {
     /// such that the user is aware the ECU is just processing the request
     pub fn send_byte_array_with_response(&mut self, p: &[u8]) -> DiagServerResult<Vec<u8>> {
         self.internal_send_byte_array(p, true)?;
+        (self.on_send_complete_hook)();
         loop {
             match self.receiver.recv().unwrap() {
                 DiagServerRx::EcuResponse(r) => {
@@ -363,6 +368,19 @@ impl DynamicDiagSession {
     /// disconnecting from the diagnostic server.
     pub fn is_ecu_connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
+    }
+
+
+    pub fn register_waiting_hook<F: FnMut() + 'static>(&mut self, hook: F) {
+        self.waiting_hook = Box::new(hook)
+    }
+
+    pub fn register_send_complete_hook<F: FnMut() + 'static>(&mut self, hook: F) {
+        self.on_send_complete_hook = Box::new(hook)
+    }
+
+    pub fn get_current_diag_mode(&self) -> Option<DiagSessionMode> {
+        self.current_diag_mode.read().unwrap().clone()
     }
 
     fn clear_rx_queue(&self) {
