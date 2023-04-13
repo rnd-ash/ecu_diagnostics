@@ -23,7 +23,7 @@ mod scaling_data;
 mod security_access;
 
 pub use access_timing_parameter::*;
-use auto_uds::UdsCommand;
+use auto_uds::{UdsCommand, ByteWrapper};
 pub use clear_diagnostic_information::*;
 pub use communication_control::*;
 pub use diagnostic_session_control::*;
@@ -34,51 +34,33 @@ pub use security_access::*;
 
 pub use auto_uds::{UdsError};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum UDSErrorTy {
-    Error(UdsError),
-    Unknown(u8)
-}
-
-pub struct UDSErrorWrapper(UDSErrorTy);
-
-impl From<u8> for UDSErrorWrapper {
-    fn from(value: u8) -> Self {
-        if let Ok(e) = UdsError::try_from(value) {
-            Self(UDSErrorTy::Error(e))
-        } else {
-            Self(UDSErrorTy::Unknown(value))
-        }
-    }
-}
-
-impl EcuNRC for UDSErrorWrapper {
+impl EcuNRC for ByteWrapper<UdsError> {
     fn desc(&self) -> String {
-        match self.0 {
-            UDSErrorTy::Error(e) =>  format!("{:?}", e),
-            UDSErrorTy::Unknown(b) => format!("Unknown error code 0x{:02X?}", b),
+        match self {
+            ByteWrapper::Standard(e) =>  format!("{:?}", e),
+            ByteWrapper::NonStandard(b) => format!("Unknown error code 0x{:02X?}", b),
         }
     }
 
     fn is_ecu_busy(&self) -> bool {
-        if let UDSErrorTy::Error(e) = self.0 {
-            e == UdsError::RequestCorrectlyReceivedResponsePending
+        if let ByteWrapper::Standard(e) = self {
+            *e == UdsError::RequestCorrectlyReceivedResponsePending
         } else {
             false
         }
     }
 
     fn is_wrong_diag_mode(&self) -> bool {
-        if let UDSErrorTy::Error(e) = self.0 {
-            e == UdsError::ServiceNotSupportedInActiveSession
+        if let ByteWrapper::Standard(e) = self {
+            *e == UdsError::ServiceNotSupportedInActiveSession
         } else {
             false
         }
     }
 
     fn is_repeat_request(&self) -> bool {
-        if let UDSErrorTy::Error(e) = self.0 {
-            e == UdsError::BusyRepeatRequest
+        if let ByteWrapper::Standard(e) = self {
+            *e == UdsError::BusyRepeatRequest
         } else {
             false
         }
@@ -102,7 +84,7 @@ impl UDSProtocol {
     }
 }
 
-impl DiagProtocol<UDSErrorWrapper> for UDSProtocol {
+impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
     fn get_basic_session_mode(&self) -> Option<crate::dynamic_diag::DiagSessionMode> {
         self.session_modes.get(&UDSSessionType::Default.into()).cloned()
     }
@@ -129,9 +111,9 @@ impl DiagProtocol<UDSErrorWrapper> for UDSProtocol {
         DiagPayload::new(UdsCommand::TesterPresent.into(), &[if response_required {0x00} else {0x80}])
     }
 
-    fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, UDSErrorWrapper)> {
+    fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, ByteWrapper<UdsError>)> {
         if r[0] == 0x7F { // [7F, SID, NRC]
-            Err((r[2], UDSErrorWrapper::from(r[2])))
+            Err((r[2], ByteWrapper::from(r[2])))
         } else {
             Ok(r.to_vec())
         }
