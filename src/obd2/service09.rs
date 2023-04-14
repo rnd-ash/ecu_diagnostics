@@ -1,12 +1,15 @@
 //! OBD2 service 09 (Request vehicle information)
 
-use crate::obd2::{decode_pid_response, OBD2Cmd, OBD2Command, OBD2DiagnosticServer};
+use crate::dynamic_diag::DynamicDiagSession;
+use crate::obd2::{decode_pid_response};
 use crate::{DiagError, DiagServerResult};
+
+use super::OBD2Command;
 
 #[derive(Debug)]
 /// Service 09 wrapper for OBD
 pub struct Service09<'a> {
-    server: &'a mut OBD2DiagnosticServer,
+    server: &'a mut DynamicDiagSession,
     support_list: Vec<bool>,
 }
 
@@ -35,12 +38,12 @@ pub enum Service09Pid {
     Unknown(u8),
 }
 
-impl OBD2DiagnosticServer {
+impl DynamicDiagSession {
     /// Initializes the service 09 wrapper. Automatically query's the ECU
     /// on init for supported PIDs
-    pub fn init_service_09(&mut self) -> DiagServerResult<Service09> {
+    pub fn obd_init_service_09(&mut self) -> DiagServerResult<Service09> {
         // Query supported pids
-        let pid_support_list = self.exec_command(OBD2Cmd::new(OBD2Command::Service09, &[0x00]))?;
+        let pid_support_list = self.send_command_with_response(OBD2Command::Service09, &[0x00])?;
         Ok(Service09 {
             server: self,
             support_list: decode_pid_response(&pid_support_list[2..]),
@@ -79,7 +82,7 @@ impl<'a> Service09<'a> {
         }
         let resp = self
             .server
-            .exec_command(OBD2Cmd::new(OBD2Command::Service09, &[0x02]))?;
+            .send_command_with_response(OBD2Command::Service09, &[0x02])?;
         Ok(
             String::from_utf8_lossy(resp.get(3..).ok_or(DiagError::InvalidResponseLength)?)
                 .into_owned(),
@@ -93,7 +96,7 @@ impl<'a> Service09<'a> {
         }
         let mut resp = self
             .server
-            .exec_command(OBD2Cmd::new(OBD2Command::Service09, &[0x04]))?;
+            .send_command_with_response(OBD2Command::Service09, &[0x04])?;
         resp.drain(0..3);
         return Ok(resp
             .chunks(16)
@@ -108,51 +111,11 @@ impl<'a> Service09<'a> {
         }
         let mut resp = self
             .server
-            .exec_command(OBD2Cmd::new(OBD2Command::Service09, &[0x06]))?;
+            .send_command_with_response(OBD2Command::Service09, &[0x06])?;
         resp.drain(0..3);
         return Ok(resp
             .chunks(4)
             .map(|c| format!("{:02X}{:02X}{:02X}{:02X}", c[0], c[1], c[2], c[3]))
             .collect());
-    }
-}
-
-#[cfg(test)]
-pub mod service_09_test {
-    use crate::channel::IsoTPSettings;
-    use crate::hardware::socketcan::SocketCanScanner;
-    use crate::hardware::Hardware;
-    use crate::hardware::HardwareScanner;
-    use crate::obd2::{OBD2DiagnosticServer, Obd2ServerOptions};
-
-    #[test]
-    #[ignore] // Requires ECU to be present and SocketCAN interface!
-    pub fn test_init() {
-        let scan = SocketCanScanner::new().open_device_by_name("can0").unwrap();
-        let socket = Hardware::create_iso_tp_channel(scan).unwrap();
-        let mut obd = OBD2DiagnosticServer::new_over_iso_tp(
-            Obd2ServerOptions {
-                send_id: 0x07E0,
-                recv_id: 0x07E8,
-                read_timeout_ms: 500,
-                write_timeout_ms: 500,
-            },
-            socket,
-            IsoTPSettings {
-                block_size: 8,
-                st_min: 20,
-                extended_addresses: None,
-                pad_frame: true,
-                can_speed: 500_000,
-                can_use_ext_addr: false,
-            },
-        )
-        .unwrap();
-
-        let mut s_09 = obd.init_service_09().unwrap();
-        println!("Supported Service_09 Pids: {:?}", s_09.get_supported_sids());
-        println!("VIN: {}", s_09.read_vin().unwrap());
-        println!("CID(s): {:?}", s_09.read_calibration_id().unwrap());
-        println!("CVN(s): {:?}", s_09.read_cvn().unwrap());
     }
 }

@@ -67,7 +67,7 @@ pub mod dtc;
 pub mod dynamic_diag;
 pub mod hardware;
 pub mod kwp2000;
-//pub mod obd2;
+pub mod obd2;
 pub mod uds;
 
 /// Diagnostic server result

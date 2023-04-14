@@ -1,5 +1,6 @@
+use crate::dynamic_diag::DynamicDiagSession;
 use crate::obd2::{
-    CommandedSecondaryAirStatus, Distance, FuelSystemStatus, OBD2DiagnosticServer, OBDStandard,
+    CommandedSecondaryAirStatus, Distance, FuelSystemStatus, OBDStandard,
     ObdEnumValue, ObdUnitType, ObdValue, Pressure, Speed, Temperature, Time,
 };
 use crate::{DiagError, DiagServerResult, DiagnosticServer};
@@ -346,7 +347,7 @@ impl From<DataPid> for u8 {
 impl DataPid {
     fn request_ecu(
         &self,
-        server: &mut OBD2DiagnosticServer,
+        server: &mut DynamicDiagSession,
         ff: Option<u16>,
         min_length: usize,
     ) -> DiagServerResult<Vec<u8>> {
@@ -363,7 +364,7 @@ impl DataPid {
     }
 
     /// For value = A*100/255
-    fn get_percentage_1_byte(&self, server: &mut OBD2DiagnosticServer, ff: Option<u16>, name: &str) -> DiagServerResult<Vec<ObdValue>> {
+    fn get_percentage_1_byte(&self, server: &mut DynamicDiagSession, ff: Option<u16>, name: &str) -> DiagServerResult<Vec<ObdValue>> {
         Ok(vec![
             ObdValue::new(
                 name,
@@ -377,7 +378,7 @@ impl DataPid {
     /// Returns parsed value after request the ECU for the PID
     pub(crate) fn get_value(
         &self,
-        server: &mut OBD2DiagnosticServer,
+        server: &mut DynamicDiagSession,
         ff: Option<u16>,
     ) -> DiagServerResult<Vec<ObdValue>> {
         match self {
