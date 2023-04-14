@@ -16,7 +16,7 @@ mod scaling_data;
 mod security_access;
 
 pub use access_timing_parameter::*;
-use auto_uds::{UdsCommand, ByteWrapper};
+use auto_uds::{UdsCommand, ByteWrapper, UdsErrorByte};
 pub use clear_diagnostic_information::*;
 pub use communication_control::*;
 pub use diagnostic_session_control::*;
@@ -27,7 +27,7 @@ pub use security_access::*;
 
 pub use auto_uds::UdsError;
 
-impl EcuNRC for ByteWrapper<UdsError> {
+impl EcuNRC for UdsErrorByte {
     fn desc(&self) -> String {
         match self {
             ByteWrapper::Standard(e) =>  format!("{:?}", e),
@@ -107,9 +107,9 @@ impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
         DiagPayload::new(UdsCommand::TesterPresent.into(), &[if response_required {0x00} else {0x80}])
     }
 
-    fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, ByteWrapper<UdsError>)> {
+    fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, UdsErrorByte)> {
         if r[0] == 0x7F { // [7F, SID, NRC]
-            Err((r[2], ByteWrapper::from(r[2])))
+            Err((r[2], UdsErrorByte::from(r[2])))
         } else {
             Ok(r.to_vec())
         }
