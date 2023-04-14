@@ -3,7 +3,7 @@
 use crate::{DiagError, DiagServerResult, dynamic_diag::{DynamicDiagSession, EcuNRC}};
 
 pub use auto_uds::ResetType;
-use auto_uds::{UdsCommand, ByteWrapper};
+use auto_uds::{UdsCommand, ByteWrapper, UdsError};
 
 impl DynamicDiagSession {
     /// Asks the ECU to perform a hard reset. See [ResetType::HardReset] for more details
@@ -48,7 +48,7 @@ impl DynamicDiagSession {
         match res.get(2) {
             Some(&time) if time == 0xFF => Err(DiagError::ECUError {
                 code: 0x10,
-                def: Some(ByteWrapper::from(0x10).desc())
+                def: Some(ByteWrapper::from(UdsError::GeneralReject as u8).desc())
             }), // General reject
             Some(&time) => Ok(time),
             None => Err(DiagError::InvalidResponseLength),
