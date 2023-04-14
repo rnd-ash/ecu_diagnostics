@@ -36,27 +36,16 @@ impl EcuNRC for UdsErrorByte {
     }
 
     fn is_ecu_busy(&self) -> bool {
-        if let ByteWrapper::Standard(e) = self {
-            *e == UdsError::RequestCorrectlyReceivedResponsePending
-        } else {
-            false
-        }
+        matches!(self, UdsErrorByte::Standard(UdsError::RequestCorrectlyReceivedResponsePending))
+        
     }
 
     fn is_wrong_diag_mode(&self) -> bool {
-        if let ByteWrapper::Standard(e) = self {
-            *e == UdsError::ServiceNotSupportedInActiveSession
-        } else {
-            false
-        }
+        matches!(self, UdsErrorByte::Standard(UdsError::ServiceNotSupportedInActiveSession))
     }
 
     fn is_repeat_request(&self) -> bool {
-        if let ByteWrapper::Standard(e) = self {
-            *e == UdsError::BusyRepeatRequest
-        } else {
-            false
-        }
+        matches!(self, UdsErrorByte::Standard(UdsError::BusyRepeatRequest))
     }
 }
 
