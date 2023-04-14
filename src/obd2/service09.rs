@@ -1,7 +1,7 @@
 //! OBD2 service 09 (Request vehicle information)
 
 use crate::dynamic_diag::DynamicDiagSession;
-use crate::obd2::{decode_pid_response};
+use crate::obd2::decode_pid_response;
 use crate::{DiagError, DiagServerResult};
 
 use super::OBD2Command;

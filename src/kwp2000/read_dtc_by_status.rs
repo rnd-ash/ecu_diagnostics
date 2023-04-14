@@ -2,7 +2,7 @@
 
 use crate::{
     dtc::{DTCFormatType, DTCStatus, DTC},
-    DiagError, {DiagServerResult, DiagnosticServer}, dynamic_diag::DynamicDiagSession,
+    DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession,
 };
 
 use super::{KWP2000Command, KWP2000Error};

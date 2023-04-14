@@ -1,6 +1,6 @@
 //! Routine management wrapper for KWP2000
 
-use crate::{DiagError, DiagServerResult, DiagnosticServer, dynamic_diag::DynamicDiagSession};
+use crate::{DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession};
 
 use super::start_diagnostic_session::KwpSessionType;
 
@@ -122,8 +122,8 @@ impl<'a> KwpRoutineManager<'a> {
             .send_command_with_response(
                 crate::kwp2000::KWP2000Command::StartRoutineByLocalIdentifier,
                 &p,
-            )
-            .map(|_| ())
+            )?;
+            Ok(())
     }
 
     /// Attempts to stop the routine. Note that some routines automatically exit themselves

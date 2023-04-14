@@ -158,7 +158,7 @@ struct PassthruInfo {
 impl PassthruInfo {
     #[cfg(unix)]
     pub fn new(path: &Path) -> HardwareResult<Self> {
-        return if let Ok(s) = std::fs::read_to_string(&path) {
+        return if let Ok(s) = std::fs::read_to_string(path) {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(s.as_str()) {
                 let lib = json["FUNCTION_LIB"]
                     .as_str()
@@ -582,8 +582,8 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         self.device
             .lock()?
             .safe_passthru_op(|_, device| device.write_messages(channel_id, &mut msgs, timeout_ms))
-            .map_err(|e| e.into())
-            .map(|_| ())
+            .map_err(ChannelError::HardwareError)?;
+        Ok(())
     }
 
     fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<CanFrame>> {
@@ -842,8 +842,8 @@ impl PayloadChannel for PassthruIsoTpChannel {
             .safe_passthru_op(|_, device| {
                 device.write_messages(channel_id, &mut [write_msg], timeout_ms)
             })
-            .map_err(ChannelError::HardwareError)
-            .map(|_| ())
+            .map_err(ChannelError::HardwareError)?;
+        Ok(())
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
@@ -877,7 +877,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
     }
 }
 
-impl<'a> IsoTPChannel for PassthruIsoTpChannel {
+impl IsoTPChannel for PassthruIsoTpChannel {
     fn set_iso_tp_cfg(&mut self, cfg: IsoTPSettings) -> ChannelResult<()> {
         self.cfg_complete = true;
         self.cfg = cfg;
@@ -885,7 +885,7 @@ impl<'a> IsoTPChannel for PassthruIsoTpChannel {
     }
 }
 
-impl<'a> Drop for PassthruIsoTpChannel {
+impl Drop for PassthruIsoTpChannel {
     #[allow(unused_must_use)]
     fn drop(&mut self) {
         log::debug!("Drop called for IsoTPChannel");
@@ -922,7 +922,7 @@ impl From<PassthruError> for HardwareError {
     fn from(err: PassthruError) -> Self {
         HardwareError::APIError {
             code: err as u32,
-            desc: err.to_string().into(),
+            desc: err.to_string(),
         }
     }
 }

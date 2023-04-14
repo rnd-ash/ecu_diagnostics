@@ -2,7 +2,7 @@
 
 use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
 
-use super::{KWP2000Command};
+use super::KWP2000Command;
 
 impl DynamicDiagSession {
     /// Reads the contents of RAM memory on the ECU given a 3 byte address, and 1 byte size.

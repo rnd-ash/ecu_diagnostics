@@ -1,9 +1,9 @@
 //!  Provides methods to reset the ECU in order to simulate power cycling and resetting memory regions
 //! 
-use crate::{DiagError, DiagServerResult, DiagnosticServer, dynamic_diag::{DynamicDiagSession, EcuNRC}};
+use crate::{DiagError, DiagServerResult, dynamic_diag::{DynamicDiagSession, EcuNRC}};
 
 pub use auto_uds::ResetType;
-use auto_uds::{UdsCommand, ByteWrapper, UdsError};
+use auto_uds::{UdsCommand, ByteWrapper};
 
 impl DynamicDiagSession {
     /// Asks the ECU to perform a hard reset. See [ResetType::HardReset] for more details
@@ -11,8 +11,8 @@ impl DynamicDiagSession {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn uds_ecu_hard_reset(&mut self) -> DiagServerResult<()> {
-        self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::HardReset.into()])
-            .map(|_| ())
+        self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::HardReset.into()])?;
+        Ok(())
     }
 
     /// Asks the ECU to perform a key off/on reset. See [ResetType::KeyOffReset] for more details
@@ -20,8 +20,8 @@ impl DynamicDiagSession {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn uds_ecu_key_off_on_reset(&mut self) -> DiagServerResult<()> {
-        self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::KeyOffReset.into()])
-            .map(|_| ())
+        self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::KeyOffReset.into()])?;
+        Ok(())
     }
 
     /// Asks the ECU to perform a soft reset. See [ResetType::SoftReset] for more details
@@ -29,8 +29,8 @@ impl DynamicDiagSession {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     pub fn uds_ecu_soft_reset(&mut self) -> DiagServerResult<()> {
-        self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::SoftReset.into()])
-            .map(|_| ())
+        self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::SoftReset.into()])?;
+        Ok(())
     }
 
     /// Asks the ECU to enable rapid power shutdown mode. See [ResetType::EnableRapidPowerShutDown] for more details
@@ -63,7 +63,7 @@ impl DynamicDiagSession {
         self.send_command_with_response(
             UdsCommand::ECUReset,
             &[ResetType::DisableRapidPowerShutDown.into()],
-        )
-        .map(|_| ())
+        )?;
+        Ok(())
     }
 }

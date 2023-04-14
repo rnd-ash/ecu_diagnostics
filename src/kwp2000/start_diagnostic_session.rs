@@ -1,6 +1,6 @@
 //! Provides methods to manipulate the ECUs diagnostic session mode
 
-use crate::{dynamic_diag::{DiagSessionMode, DynamicDiagSession}, DiagServerResult};
+use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
 
 
 /// KWP2000 diagnostic session type
@@ -36,7 +36,7 @@ pub enum KwpSessionType {
     /// Extended diagnostics mode. Every service is available here
     ExtendedDiagnostics,
     /// Custom diagnostic mode not in the KWP2000 specification
-    Custom { id: u8 },
+    Custom(u8),
 }
 
 impl From<u8> for KwpSessionType {
@@ -47,26 +47,28 @@ impl From<u8> for KwpSessionType {
             0x89 => Self::Standby,
             0x90 => Self::Passive,
             0x92 => Self::ExtendedDiagnostics,
-            x => Self::Custom { id: x }
+            x => Self::Custom(x)
         }
     }
 }
 
-impl Into<u8> for KwpSessionType {
-    fn into(self) -> u8 {
-        match self {
+impl From<KwpSessionType> for u8 {
+    fn from(val: KwpSessionType) -> u8 {
+        match val {
             KwpSessionType::Normal => 0x81,
             KwpSessionType::Reprogramming => 0x85,
             KwpSessionType::Standby => 0x89,
             KwpSessionType::Passive => 0x90,
             KwpSessionType::ExtendedDiagnostics => 0x92,
-            KwpSessionType::Custom { id } => id,
+            KwpSessionType::Custom(x) => x,
         }
     }
 }
 
 impl DynamicDiagSession {
+    /// Set KWP session mode
     pub fn kwp_set_session(&mut self, mode: KwpSessionType) -> DiagServerResult<()> {
-        self.send_byte_array_with_response(&[0x10, mode.into()]).map(|_|())
+        self.send_byte_array_with_response(&[0x10, mode.into()])?;
+        Ok(())
     }
 }

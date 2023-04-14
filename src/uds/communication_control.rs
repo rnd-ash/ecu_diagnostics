@@ -29,7 +29,7 @@ impl DynamicDiagSession {
         self.send_command_with_response(
             UdsCommand::CommunicationControl,
             &[level, communication_type],
-        )
-        .map(|_| ())
+        )?;
+        Ok(())
     }
 }

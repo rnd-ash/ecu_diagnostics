@@ -3,14 +3,7 @@
 //! Theoretically, this module should be compliant with any ECU which implements
 //! UDS (Typically any ECU produced after 2006 supports this)
 
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Arc, RwLock,
-    },
-    time::Instant, collections::HashMap, fmt::format,
-};
-
+use std::collections::HashMap;
 use crate::{dynamic_diag::{DiagProtocol, EcuNRC, DiagSessionMode, DiagAction, DiagPayload}};
 
 mod access_timing_parameter;
@@ -32,7 +25,7 @@ pub use read_dtc_information::*;
 pub use scaling_data::*;
 pub use security_access::*;
 
-pub use auto_uds::{UdsError};
+pub use auto_uds::UdsError;
 
 impl EcuNRC for ByteWrapper<UdsError> {
     fn desc(&self) -> String {
@@ -67,12 +60,15 @@ impl EcuNRC for ByteWrapper<UdsError> {
     }
 }
 
+#[derive(Debug, Clone)]
+/// UDS diagnostic protocol
 pub struct UDSProtocol{
     session_modes: HashMap<u8, DiagSessionMode>
 }
 
-impl UDSProtocol {
-    pub fn new() -> Self {
+impl Default for UDSProtocol {
+    /// Creates a new UDS protocol, and enables standard session types
+    fn default() -> Self {
         let mut session_modes = HashMap::new();
         session_modes.insert(0x01, DiagSessionMode { id: 0x01, tp_require: false, name: "Default".into() });
         session_modes.insert(0x02, DiagSessionMode { id: 0x02, tp_require: true, name: "Programming".into() });
@@ -85,7 +81,7 @@ impl UDSProtocol {
 }
 
 impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
-    fn get_basic_session_mode(&self) -> Option<crate::dynamic_diag::DiagSessionMode> {
+    fn get_basic_session_mode(&self) -> Option<DiagSessionMode> {
         self.session_modes.get(&UDSSessionType::Default.into()).cloned()
     }
 
@@ -93,7 +89,7 @@ impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
         "UDS"
     }
 
-    fn process_req_payload(&self, payload: &[u8]) -> crate::dynamic_diag::DiagAction {
+    fn process_req_payload(&self, payload: &[u8]) -> DiagAction {
         match payload[0] {
             0x10 => {
                 let mode = self.session_modes.get(&payload[1]).unwrap_or(&DiagSessionMode {
@@ -107,7 +103,7 @@ impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
         }
     }
 
-    fn create_tp_msg(response_required: bool) -> crate::dynamic_diag::DiagPayload {
+    fn create_tp_msg(response_required: bool) -> DiagPayload {
         DiagPayload::new(UdsCommand::TesterPresent.into(), &[if response_required {0x00} else {0x80}])
     }
 
@@ -119,7 +115,7 @@ impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
         }
     }
 
-    fn get_diagnostic_session_list(&self) -> std::collections::HashMap<u8, DiagSessionMode> {
+    fn get_diagnostic_session_list(&self) -> HashMap<u8, DiagSessionMode> {
         self.session_modes.clone()
     }
 

@@ -1,8 +1,8 @@
 //! This service requests the ECU to perform a reset
 
-use crate::{DiagServerResult, DiagnosticServer, dynamic_diag::DynamicDiagSession};
+use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
 
-use super::{KWP2000Command};
+use super::KWP2000Command;
 
 /// ECU Reset types
 ///
@@ -39,7 +39,7 @@ impl DynamicDiagSession {
     /// ## Params
     /// * mode - [ResetMode] to send to the ECU
     pub fn kwp_reset_ecu(&mut self, mode: ResetMode) -> DiagServerResult<()> {
-        self.send_command_with_response(KWP2000Command::ECUReset, &[mode.into()])
-            .map(|_| ())
+        self.send_command_with_response(KWP2000Command::ECUReset, &[mode.into()])?;
+        Ok(())
     }
 }

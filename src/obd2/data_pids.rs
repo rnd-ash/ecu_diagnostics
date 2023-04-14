@@ -3,7 +3,7 @@ use crate::obd2::{
     CommandedSecondaryAirStatus, Distance, FuelSystemStatus, OBDStandard,
     ObdEnumValue, ObdUnitType, ObdValue, Pressure, Speed, Temperature, Time,
 };
-use crate::{DiagError, DiagServerResult, DiagnosticServer};
+use crate::{DiagError, DiagServerResult};
 use strum_macros::EnumString;
 
 use super::FuelTypeCoding;
@@ -360,7 +360,7 @@ impl DataPid {
         if r.len() < min_length {
             return Err(DiagError::InvalidResponseLength);
         }
-        return Ok(r);
+        Ok(r)
     }
 
     /// For value = A*100/255
@@ -376,6 +376,7 @@ impl DataPid {
     }
 
     /// Returns parsed value after request the ECU for the PID
+    #[allow(clippy::excessive_precision)]
     pub(crate) fn get_value(
         &self,
         server: &mut DynamicDiagSession,
@@ -666,7 +667,7 @@ impl DataPid {
                     ObdValue::new(
                         "Oxygen sensor 2 voltage",
                         ObdUnitType::Volts(
-                            ((r[2] as u32) << 8 | r[3] as u32) as f32 * 0.0001220703125,
+                            ((r[2] as u32) << 8 | r[3] as u32) as f32 * 0.000_1220703125,
                         ),
                     ),
                 ])

@@ -15,10 +15,10 @@
 use std::collections::HashMap;
 
 use crate::{
-    dynamic_diag::{self, DiagSessionMode, DiagAction, EcuNRC, DiagPayload},
+    dynamic_diag::{self, DiagSessionMode, DiagAction, DiagPayload},
 };
 
-pub mod error;
+mod error;
 mod start_diagnostic_session;
 mod clear_diagnostic_information;
 mod ecu_reset;
@@ -33,6 +33,7 @@ mod read_status_of_dtc;
 mod routine;
 mod security_access;
 
+pub use error::*;
 pub use start_diagnostic_session::*;
 pub use clear_diagnostic_information::*;
 pub use ecu_reset::*;
@@ -187,13 +188,15 @@ impl From<KWP2000Command> for u8 {
 
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+/// KWP2000 diagnostic protocol
 pub struct Kwp2000Protocol {
     session_modes: HashMap<u8, DiagSessionMode>
 }
 
-impl Kwp2000Protocol {
-    pub fn new() -> Kwp2000Protocol {
+impl Default for Kwp2000Protocol {
+    /// Creates a new KWP2000 protocol with standard session types
+    fn default() -> Kwp2000Protocol {
         let mut session_modes = HashMap::new();
         session_modes.insert(0x81, DiagSessionMode {
             id: 0x81,
@@ -249,8 +252,7 @@ impl dynamic_diag::DiagProtocol<KWP2000Error> for Kwp2000Protocol {
 
     fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, KWP2000Error)> {
         if r[0] == 0x7F { // [7F, SID, NRC]
-            let e = KWP2000Error::from(r[2]);
-            Err((r[2], e))
+            Err((r[2], KWP2000Error::from(r[2])))
         } else {
             Ok(r.to_vec())
         }

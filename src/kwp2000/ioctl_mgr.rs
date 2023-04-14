@@ -11,7 +11,7 @@ use super::{KWP2000Command, start_diagnostic_session::KwpSessionType};
 /// USE WITH CAUTION!
 #[derive(Debug)]
 pub struct KwpIOCTLManager<'a> {
-    server: &'a mut super::dynamic_diag::DynamicDiagSession,
+    server: &'a mut DynamicDiagSession,
     identifier: u8,
 }
 
@@ -40,8 +40,8 @@ impl<'a> KwpIOCTLManager<'a> {
             .send_command_with_response(
                 KWP2000Command::InputOutputControlByLocalIdentifier,
                 &[self.identifier, 0x00]
-            )
-            .map(|_| ())
+            )?;
+            Ok(())
     }
 
     /// Asks the ECU to report the current state of the identifier.
@@ -58,8 +58,8 @@ impl<'a> KwpIOCTLManager<'a> {
             .send_command_with_response(
                 KWP2000Command::InputOutputControlByLocalIdentifier,
                 &[self.identifier, 0x04]
-            )
-            .map(|_| ())
+            )?;
+            Ok(())
     }
 
     /// Asks the ECU to freeze the current state of the identifier
@@ -68,8 +68,8 @@ impl<'a> KwpIOCTLManager<'a> {
             .send_command_with_response(
                 KWP2000Command::InputOutputControlByLocalIdentifier,
                 &[self.identifier, 0x05]
-            )
-            .map(|_| ())
+            )?;
+            Ok(())
     }
 
     /// Actuates the component at the provided identifier. This is a short term actuation.
@@ -79,8 +79,8 @@ impl<'a> KwpIOCTLManager<'a> {
         let mut a = vec![self.identifier, 0x07];
         a.extend_from_slice(args);
         self.server
-            .send_command_with_response(KWP2000Command::InputOutputControlByLocalIdentifier, &a)
-            .map(|_| ())
+            .send_command_with_response(KWP2000Command::InputOutputControlByLocalIdentifier, &a)?;
+        Ok(())
     }
 
     /// Adjusts the component's value. This is an optional command and is NOT supported by all ECUs.
@@ -90,7 +90,7 @@ impl<'a> KwpIOCTLManager<'a> {
         let mut a = vec![self.identifier, 0x08];
         a.extend_from_slice(args);
         self.server
-            .send_command_with_response(KWP2000Command::InputOutputControlByLocalIdentifier, &a)
-            .map(|_| ())
+            .send_command_with_response(KWP2000Command::InputOutputControlByLocalIdentifier, &a)?;
+        Ok(())
     }
 }

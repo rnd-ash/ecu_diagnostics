@@ -38,7 +38,7 @@ impl DynamicDiagSession {
         let mut payload = Vec::with_capacity(key.len() + 1);
         payload.push(SecurityOperation::SendKey.into());
         payload.extend_from_slice(key);
-        self.send_command_with_response(UdsCommand::SecurityAccess, &payload)
-            .map(|_| ())
+        self.send_command_with_response(UdsCommand::SecurityAccess, &payload)?;
+        Ok(())
     }
 }

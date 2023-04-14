@@ -67,7 +67,7 @@ struct IsoTpPayload {
 unsafe impl Sync for PtCombiChannel{}
 unsafe impl Send for PtCombiChannel{}
 
-fn parse_packet<'a>(cf: &'a CanFrame, iso_tp_ext: bool) -> (u32, &'a[u8]) {
+fn parse_packet(cf: &CanFrame, iso_tp_ext: bool) -> (u32, &[u8]) {
     let data = cf.get_data();
     match iso_tp_ext {
         true => ((cf.get_address()) | data[0] as u32, &data[1..]),
@@ -110,7 +110,7 @@ impl PtCombiChannel {
         let handle = std::thread::spawn(move|| {
             let mut channel : Option<PassthruCanChannel> = None;
             let mut iso_tp_cfg: Option<IsoTPSettings> = None;
-            let mut can_cfg: Option<(u32, bool)> = None;
+            let can_cfg: Option<(u32, bool)> = None;
             let mut iso_tp_filter: Option<(u32, u32)> = None; // Tx, Rx
             let mut isotp_rx: Option<IsoTpPayload> = None;
             let mut isotp_tx: Option<IsoTpPayload> = None;
@@ -123,7 +123,7 @@ impl PtCombiChannel {
             while is_running_t.load(Ordering::Relaxed) {
                 if let Ok(can_req) = rx_can_send.try_recv() {
                     log::debug!("SW ISO-TP CAN Req: {:?}", can_req);
-                    tx_can_send_res.send(Ok(()));
+                    tx_can_send_res.send(Ok(())).unwrap();
                 }
                 if let Ok(isotp_req) = rx_isotp_send.try_recv() {
                     let _send = match isotp_req {
@@ -142,7 +142,7 @@ impl PtCombiChannel {
                                 tx_isotp_send_res.send(Err(ChannelError::NotOpen))
                             } else {
                                 let cfg = iso_tp_cfg.unwrap();
-                                let mut can = channel.as_mut().unwrap();
+                                let can = channel.as_mut().unwrap();
                                 // Send
                                 if (ext_address && data.len() < 6) || (!ext_address && data.len() < 7) {
                                     let mut df: Vec<u8> = Vec::with_capacity(8);
@@ -240,11 +240,10 @@ impl PtCombiChannel {
                         },
                     };
                 }
-                let mut activity = false;
                 if let Some(c) = channel.borrow_mut() {
                     let incomming = c.read_packets(100, 0).unwrap_or_default();
                     if can_cfg.is_some() {
-                        for p in &incomming { tx_can_recv.send(*p); }
+                        for p in &incomming { tx_can_recv.send(*p).unwrap(); }
                     }
                     if let (Some(cfg), Some(filter)) = (iso_tp_cfg, iso_tp_filter)  {
                         for packet in incomming {
@@ -263,7 +262,7 @@ impl PtCombiChannel {
                                     match pci {
                                         0x00 => {
                                             // Single frame
-                                            tx_isotp_recv.send((filter.1, data[1+pci_idx..1+pci_idx+pci_raw as usize].to_vec()));
+                                            tx_isotp_recv.send((filter.1, data[1+pci_idx..1+pci_idx+pci_raw as usize].to_vec())).unwrap();
                                         },
                                         0x10 => {
                                             if isotp_rx.is_some() {
@@ -309,7 +308,7 @@ impl PtCombiChannel {
                                                 rx.data.extend_from_slice(&data[1+pci_idx..1+pci_idx+max_copy]);
                                                 if rx.data.len() >= rx.max_size {
                                                     // Yay, done!
-                                                    tx_isotp_recv.send((filter.1 ,rx.data.clone()));
+                                                    tx_isotp_recv.send((filter.1 ,rx.data.clone())).unwrap();
                                                     isotp_rx = None;
                                                     continue;
                                                 }
@@ -399,10 +398,8 @@ impl PtCombiChannel {
                                     }
                                 }
                             }
-                            if !can_buffer.is_empty() {
-                                if c.write_packets(can_buffer, 100).is_err() {
-                                    send_complete = true; // Destroy!
-                                }
+                            if !can_buffer.is_empty() && c.write_packets(can_buffer, 100).is_err() {
+                                send_complete = true; // Destroy!
                             }
                         }
                         if send_complete {
@@ -422,7 +419,7 @@ impl PtCombiChannel {
             // Teardown
             log::info!("SW ISO-TP closed");
             if let Some(mut c) = channel.take() {
-                c.close();
+                c.close().unwrap();
                 let mut g = dev.lock().unwrap();
                 g.can_channel = false;
                 g.isotp_channel = false;
@@ -496,11 +493,7 @@ impl PacketChannel<CanFrame> for PtCombiChannel {
             self.can_tx_queue.send(ChannelMessage::SendData { ext_id: None,  d: p })?;
             if timeout_ms != 0 {
                 match self.isotp_tx_res_queue.recv_timeout(Duration::from_millis(timeout_ms as u64)) {
-                    Ok(m) => {
-                        if m.is_err() {
-                            return m
-                        }
-                    },
+                    Ok(m) => m?,
                     Err(e) => return Err(e.into())
                 }
             }

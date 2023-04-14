@@ -344,7 +344,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
         // If the buffer is less than 7/6 bytes, we can send it as 1 frame (Usually for global tester present msg)
         // If this is the case, we can simply open a socketCAN channel to send that frame in parallel to the ISO-TP channel already open!
         if addr != self.ids.0 {
-            if (buffer.len() <= 7 && !ext_addresses.is_some())
+            if (buffer.len() <= 7 && ext_addresses.is_none())
                 || (buffer.len() <= 6 && ext_addresses.is_some())
             {
                 let mut data = Vec::new();
@@ -369,31 +369,29 @@ impl PayloadChannel for SocketCanIsoTPChannel {
                 channel.open()?;
                 channel.write_packets(vec![can_frame], timeout_ms)?;
                 drop(channel);
-                return Ok(());
-            } else {
-                return Err(ChannelError::UnsupportedRequest);
-            }
-        } else {
-            if ext_id.is_some() && self.cfg.extended_addresses.is_none() {
-                // Create a temporary channel to send this one packet!
-                let mut c_2 = Hardware::create_iso_tp_channel(self.device.clone())?;
-                let cfg = IsoTPSettings {
-                    extended_addresses: Some((ext_id.unwrap(),0)),
-                    ..self.cfg
-                };
-                c_2.set_iso_tp_cfg(cfg)?;
-                c_2.set_ids(self.ids.0, self.ids.1)?;
-                c_2.open()?;
-                c_2.write_bytes(addr, None, buffer, timeout_ms)?;
-                drop(c_2);
                 Ok(())
             } else {
-                // Easy
-                self.safe_with_iface(|socket| {
-                    socket.write(buffer)?;
-                    Ok(())
-                })
+                Err(ChannelError::UnsupportedRequest)
             }
+        } else if ext_id.is_some() && self.cfg.extended_addresses.is_none() {
+            // Create a temporary channel to send this one packet!
+            let mut c_2 = Hardware::create_iso_tp_channel(self.device.clone())?;
+            let cfg = IsoTPSettings {
+                extended_addresses: Some((ext_id.unwrap(),0)),
+                ..self.cfg
+            };
+            c_2.set_iso_tp_cfg(cfg)?;
+            c_2.set_ids(self.ids.0, self.ids.1)?;
+            c_2.open()?;
+            c_2.write_bytes(addr, None, buffer, timeout_ms)?;
+            drop(c_2);
+            Ok(())
+        } else {
+            // Easy
+            self.safe_with_iface(|socket| {
+                socket.write(buffer)?;
+                Ok(())
+            })
         }
     }
 

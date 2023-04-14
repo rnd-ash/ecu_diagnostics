@@ -1,14 +1,14 @@
-//#![deny(
-//    missing_docs,
-//    missing_debug_implementations,
-//    missing_copy_implementations,
-//    trivial_casts,
-//    trivial_numeric_casts,
-//    unstable_features,
-//    unused_imports,
-//    unused_import_braces,
-//    unused_qualifications
-//)]
+#![deny(
+    missing_docs,
+    missing_debug_implementations,
+    missing_copy_implementations,
+    trivial_casts,
+    trivial_numeric_casts,
+    unstable_features,
+    unused_imports,
+    unused_import_braces,
+    unused_qualifications
+)]
 
 //! A crate which provides the most common ECU diagnostic protocols used by modern ECUs in vehicles,
 //! as well as common hardware APIs for accessing and using diagnostic adapters
@@ -155,99 +155,6 @@ impl From<HardwareError> for DiagError {
     fn from(x: HardwareError) -> Self {
         Self::HardwareError(x)
     }
-}
-
-#[derive(Debug)]
-/// Diagnostic server event
-pub enum ServerEvent<'a, SessionState> {
-    /// The diagnostic server encountered an unrecoverable critical error
-    CriticalError {
-        /// Text description of the error
-        desc: String,
-    },
-    /// The diagnostic server has started
-    ServerStart,
-    /// The diagnostic server has terminated
-    ServerExit,
-    /// The diagnostic server has changed session state
-    DiagModeChange {
-        /// Old session state
-        old: SessionState,
-        /// New session state
-        new: SessionState,
-    },
-    /// Received a request to send a payload to the ECU
-    Request(&'a [u8]),
-    /// Response from the ECU
-    Response(&'a DiagServerResult<Vec<u8>>),
-    /// An error occurred whilst transmitting tester present message
-    /// To the ECU. This might mean that the ECU has exited its session state,
-    /// and a non-default session state should be re-initialized
-    TesterPresentError(DiagError),
-    /// Error occurred whilst trying to terminate the server's channel interface
-    /// when the diagnostic server exited.
-    InterfaceCloseOnExitError(ChannelError),
-}
-
-/// Handler for when [ServerEvent] get broadcast by the diagnostic servers background thread
-pub trait ServerEventHandler<SessionState>: Send + Sync {
-    /// Handle incoming server events
-    fn on_event(&mut self, e: ServerEvent<SessionState>);
-}
-
-/// Base trait for diagnostic servers
-pub trait DiagnosticServer<CommandType> {
-    /// Sends a command to the ECU, and doesn't poll for its response
-    fn execute_command(&mut self, cmd: CommandType, args: &[u8]) -> DiagServerResult<()>;
-    /// Sends a command to the ECU, and polls for its response
-    fn execute_command_with_response(
-        &mut self,
-        cmd: CommandType,
-        args: &[u8],
-    ) -> DiagServerResult<Vec<u8>>;
-    /// Sends an arbitrary byte array to the ECU, and doesn't poll for its response
-    fn send_byte_array(&mut self, bytes: &[u8]) -> DiagServerResult<()>;
-    /// Sends an arbitrary byte array to the ECU, and polls for its response
-    fn send_byte_array_with_response(&mut self, bytes: &[u8]) -> DiagServerResult<Vec<u8>>;
-
-    /// Returns if the diagnostic server is running or not
-    fn is_server_running(&self) -> bool;
-
-    /// Sets the maximum number of retries to send a command to the ECU
-    /// if a failure occurs during transmission of the command to the ECU
-    fn set_repeat_count(&mut self, count: u32);
-
-    /// Sets the minimum interval in milliseconds
-    /// between a command failure and an attempted repeat transmission
-    fn set_repeat_interval_count(&mut self, interval_ms: u32);
-
-    /// Sets read and write timeouts
-    fn set_rw_timeout(&mut self, read_timeout_ms: u32, write_timeout_ms: u32);
-
-    /// Get command response read timeout
-    fn get_read_timeout(&self) -> u32;
-    /// Gets command write timeout
-    fn get_write_timeout(&self) -> u32;
-}
-
-/// Basic diagnostic server settings
-pub trait BaseServerSettings {
-    /// Gets the write timeout for sending messages to the servers channel
-    fn get_write_timeout_ms(&self) -> u32;
-    /// Gets the read timeout for reading response messages from the servers channel
-    fn get_read_timeout_ms(&self) -> u32;
-}
-
-/// Basic diagnostic server payload
-pub trait BaseServerPayload {
-    /// Gets the payload portion of the diagnostic message (Not including the SID)
-    fn get_payload(&self) -> &[u8];
-    /// Gets the SID (Service ID) byte from the payload
-    fn get_sid_byte(&self) -> u8;
-    /// Gets the entire message as a byte array. This is what is sent to the ECU
-    fn to_bytes(&self) -> &[u8];
-    /// Boolean indicating if the diagnostic server should poll the ECU for a response after sending the payload
-    fn requires_response(&self) -> bool;
 }
 
 /// Converts a single byte into a BCD string

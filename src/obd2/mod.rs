@@ -1,7 +1,7 @@
 //! Module for OBD (ISO-9141)
 
 use std::collections::HashMap;
-use crate::dynamic_diag::{DiagProtocol, EcuNRC};
+use crate::dynamic_diag::{DiagProtocol, EcuNRC, DiagSessionMode, DiagAction, DiagPayload};
 
 mod data_pids;
 mod enumerations;
@@ -15,10 +15,6 @@ pub use enumerations::*;
 pub use service01::*;
 pub use service09::*;
 pub use units::*;
-
-// OBD2 does not have a 'session type' like KWP or UDS,
-// so create a dummy marker just to satisfy the <VoidHandler> trait
-struct VoidSessionType;
 
 /// Function to decode PID support response from ECU
 pub(crate) fn decode_pid_response(x: &[u8]) -> Vec<bool> {
@@ -166,10 +162,12 @@ impl EcuNRC for OBD2Error {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// OBD2 diagnostic protocol
 pub struct OBD2Protocol{}
 
 impl DiagProtocol<OBD2Error> for OBD2Protocol {
-    fn get_basic_session_mode(&self) -> Option<crate::dynamic_diag::DiagSessionMode> {
+    fn get_basic_session_mode(&self) -> Option<DiagSessionMode> {
         None
     }
 
@@ -177,12 +175,12 @@ impl DiagProtocol<OBD2Error> for OBD2Protocol {
         "OBD2(CAN)"
     }
 
-    fn process_req_payload(&self, payload: &[u8]) -> crate::dynamic_diag::DiagAction {
-        crate::dynamic_diag::DiagAction::Other { sid: payload[0], data: payload[1..].to_vec() }
+    fn process_req_payload(&self, payload: &[u8]) -> DiagAction {
+        DiagAction::Other { sid: payload[0], data: payload[1..].to_vec() }
     }
 
-    fn create_tp_msg(response_required: bool) -> crate::dynamic_diag::DiagPayload {
-        todo!()
+    fn create_tp_msg(_response_required: bool) -> DiagPayload {
+        DiagPayload::new(0x00, &[]) // Ignored
     }
 
     fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, OBD2Error)> {
@@ -192,10 +190,10 @@ impl DiagProtocol<OBD2Error> for OBD2Protocol {
         }
     }
 
-    fn get_diagnostic_session_list(&self) -> std::collections::HashMap<u8, crate::dynamic_diag::DiagSessionMode> {
+    fn get_diagnostic_session_list(&self) -> HashMap<u8, DiagSessionMode> {
         HashMap::new()
     }
 
-    fn register_session_type(&mut self, session: crate::dynamic_diag::DiagSessionMode) {
+    fn register_session_type(&mut self, _session: DiagSessionMode) {
     }
 }

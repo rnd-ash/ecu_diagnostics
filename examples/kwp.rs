@@ -8,8 +8,8 @@ fn ecu_waiting_hook() {
     println!("Called hook! ECU is processing our request");
 }
 
-fn tx_ok_hook() {
-    println!("Called hook! Data was sent OK!");
+fn tx_ok_hook(data: &[u8]) {
+    println!("This {} long array was sent to the ECU OK!: {:02X?}", data.len(), data);
 }
 
 fn main() {
@@ -17,7 +17,7 @@ fn main() {
     let dev = ecu_diagnostics::hardware::socketcan::SocketCanScanner::new();
     let d = dev.open_device_by_name("can0").unwrap();
     
-    let mut protocol = Kwp2000Protocol::new();
+    let mut protocol = Kwp2000Protocol::default();
     println!("Diagnostic server is {}!", protocol.get_protocol_name());
     // Register a custom diagnostic session with the protocol (Usually OEM specific)
     protocol.register_session_type(DiagSessionMode {
@@ -67,7 +67,7 @@ fn main() {
     diag_server.register_waiting_hook(|| { ecu_waiting_hook() });
     // Register hook for when our requests are sent to the ECU, but we have not got a response. Usually
     // this can be used to just let the program know Tx was OK!
-    diag_server.register_send_complete_hook(|| { tx_ok_hook() });
+    diag_server.register_send_complete_hook(|bytes| { tx_ok_hook(bytes) });
     // Set diag session mode
     let res = diag_server.kwp_set_session(KwpSessionType::ExtendedDiagnostics);
     println!("Into extended diag mode result: {:?}", res);
@@ -77,7 +77,7 @@ fn main() {
     }
 
     // TODO - Emulate this call somehow for the sake of examples
-    let res = diag_server.kwp_set_session(KwpSessionType::Custom { id: 0x93 }); // Same ID as what we registered at the start
+    let res = diag_server.kwp_set_session(KwpSessionType::Custom(0x93)); // Same ID as what we registered at the start
     println!("Into special diag mode result: {:?}", res);
     if let Some(mode) = diag_server.get_current_diag_mode() {
         println!("ECU is currently in '{}' diagnostic mode (0x{:02X?}). Tester present being sent?: {}", mode.name, mode.id, mode.tp_require);

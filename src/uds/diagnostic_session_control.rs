@@ -1,6 +1,6 @@
 //!  Provides methods to manipulate the ECUs diagnostic session mode
 
-use crate::{DiagServerResult, dynamic_diag::{DynamicDiagSession, DiagSessionMode}};
+use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
 
 use auto_uds::UdsCommand;
 pub use auto_uds::UdsSessionType as UDSSessionType;
@@ -11,7 +11,7 @@ impl DynamicDiagSession {
         self.send_command_with_response(
             UdsCommand::DiagnosticSessionControl,
             &[session_mode.into()],
-        )
-        .map(|_| ())
+        )?;
+        Ok(())
     }
 }

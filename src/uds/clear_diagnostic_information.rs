@@ -18,7 +18,7 @@ impl DynamicDiagSession {
                 (dtc_mask >> 8) as u8,
                 dtc_mask as u8,
             ],
-        )
-        .map(|_| ())
+        )?;
+        Ok(())
     }
 }

@@ -3,7 +3,7 @@
 
 use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
 
-use super::{KWP2000Command};
+use super::KWP2000Command;
 
 impl DynamicDiagSession {
     /// Reads the status of a given DTC.

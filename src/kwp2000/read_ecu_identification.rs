@@ -2,8 +2,8 @@
 
 use crate::{
     bcd_decode, bcd_decode_slice,
-    kwp2000::{KWP2000Command},
-    DiagError, DiagServerResult, DiagnosticServer, dynamic_diag::DynamicDiagSession,
+    kwp2000::KWP2000Command,
+    DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

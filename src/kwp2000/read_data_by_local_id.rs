@@ -1,6 +1,6 @@
 //! Read data by Local identifier
 
-use crate::{kwp2000::KWP2000Command, DiagError, DiagServerResult, DiagnosticServer, dynamic_diag::DynamicDiagSession};
+use crate::{kwp2000::KWP2000Command, DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Development data of the ECU. Used by [super::Kwp2000DiagnosticServer::read_ecu_development_data]

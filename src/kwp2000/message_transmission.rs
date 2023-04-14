@@ -2,7 +2,7 @@
 
 use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
 
-use super::{KWP2000Command};
+use super::KWP2000Command;
 
 impl DynamicDiagSession {
     /// Tells the ECU to switch off its normal communication paths with other ECUs.
@@ -15,13 +15,13 @@ impl DynamicDiagSession {
         self.send_command_with_response(
             KWP2000Command::DisableNormalMessageTransmission,
             &[0x01]
-        )
-        .map(|_| ())
+        )?;
+        Ok(())
     }
 
     /// Tells the ECU to re-enable its normal communication paths with other ECUs.
     pub fn kwp_enable_normal_message_transmission(&mut self) -> DiagServerResult<()> {
-        self.send_command_with_response(KWP2000Command::EnableNormalMessageTransmission, &[0x01])
-            .map(|_| ())
+        self.send_command_with_response(KWP2000Command::EnableNormalMessageTransmission, &[0x01])?;
+        Ok(())
     }
 }

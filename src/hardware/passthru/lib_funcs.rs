@@ -201,7 +201,7 @@ impl PassthruDrv {
     pub fn open(&mut self) -> PassthruResult<u32> {
         log::debug!("PT_OPEN called");
         let mut id: u32 = 0;
-        let res = unsafe { (&self.open_fn)(std::ptr::null(), &mut id) };
+        let res = unsafe { (self.open_fn)(std::ptr::null(), &mut id) };
         if res == 0x00 {
             self.is_connected = true;
         }
@@ -211,7 +211,7 @@ impl PassthruDrv {
     //type PassThruCloseFn = unsafe extern "stdcall" fn(device_id: u32) -> i32;
     pub fn close(&mut self, dev_id: u32) -> PassthruResult<()> {
         log::debug!("PT_CLOSE called. Device ID: {}", dev_id);
-        let res = unsafe { (&self.close_fn)(dev_id) };
+        let res = unsafe { (self.close_fn)(dev_id) };
         if res == 0x00 {
             self.is_connected = false;
         }
@@ -233,7 +233,7 @@ impl PassthruDrv {
         }
         let mut msg_count: u32 = msgs.len() as u32;
         let res = unsafe {
-            (&self.write_msg_fn)(
+            (self.write_msg_fn)(
                 channel_id,
                 msgs.as_mut_ptr(),
                 &mut msg_count as *mut u32,
@@ -267,7 +267,7 @@ impl PassthruDrv {
         ];
 
         let res = unsafe {
-            (&self.read_msg_fn)(
+            (self.read_msg_fn)(
                 channel_id,
                 write_array.as_mut_ptr(),
                 &mut msg_count,
@@ -296,7 +296,7 @@ impl PassthruDrv {
         let mut dll_version: [u8; 80] = [0; 80];
         let mut api_version: [u8; 80] = [0; 80];
         let res = unsafe {
-            (&self.read_version_fn)(
+            (self.read_version_fn)(
                 dev_id,
                 firmware_version.as_mut_ptr() as *mut c_char,
                 dll_version.as_mut_ptr() as *mut c_char,
@@ -327,7 +327,7 @@ impl PassthruDrv {
     //type PassThruGetLastErrorFn = unsafe extern "stdcall" fn(error_description: *mut libc::c_char) -> i32;
     pub fn get_last_error(&self) -> PassthruResult<String> {
         let mut err: [u8; 80] = [0; 80];
-        let res = unsafe { (&self.get_last_err_fn)(err.as_mut_ptr() as *mut c_char) };
+        let res = unsafe { (self.get_last_err_fn)(err.as_mut_ptr() as *mut c_char) };
         ret_res(res, String::from_utf8(err.to_vec()).unwrap())
     }
 
@@ -340,7 +340,7 @@ impl PassthruDrv {
         output: *mut c_void,
     ) -> PassthruResult<()> {
         log::debug!("PT_IOCTL called. handle ID {}, IOCTL ID {}", handle_id, ioctl_id);
-        let res = unsafe { (&self.ioctl_fn)(handle_id, ioctl_id as u32, input, output) };
+        let res = unsafe { (self.ioctl_fn)(handle_id, ioctl_id as u32, input, output) };
         ret_res(res, ())
     }
 
@@ -356,14 +356,14 @@ impl PassthruDrv {
         log::debug!("PT_CONNECT called. Device ID {}, protocol {}, flags: {:08X?}, baud: {}", dev_id, protocol, flags, baud);
         let mut channel_id: u32 = 0;
         let res =
-            unsafe { (&self.connect_fn)(dev_id, protocol as u32, flags, baud, &mut channel_id) };
+            unsafe { (self.connect_fn)(dev_id, protocol as u32, flags, baud, &mut channel_id) };
         ret_res(res, channel_id)
     }
 
     //type PassThruDisconnectFn = unsafe extern "stdcall" fn(channel_id: u32) -> i32;
     pub fn disconnect(&self, channel_id: u32) -> PassthruResult<()> {
         log::debug!("PT_DISCONNECT called. Channel ID {}", channel_id);
-        ret_res(unsafe { (&self.disconnect_fn)(channel_id) }, ())
+        ret_res(unsafe { (self.disconnect_fn)(channel_id) }, ())
     }
 
     //type PassThruStartPeriodicMsgFn = unsafe extern "stdcall" fn(channel_id: u32, msg: *const PASSTHRU_MSG, msg_id: *mut u32, time_interval: u32) -> i32;
@@ -376,14 +376,14 @@ impl PassthruDrv {
         time_interval: u32,
     ) -> PassthruResult<u32> {
         let mut msg_id: u32 = 0;
-        let res = unsafe { (&self.start_periodic_fn)(channel_id, msg, &mut msg_id, time_interval) };
+        let res = unsafe { (self.start_periodic_fn)(channel_id, msg, &mut msg_id, time_interval) };
         ret_res(res, msg_id)
     }
 
     //type PassThruStopPeriodicMsgFn = unsafe extern "stdcall" fn(channel_id: u32, msg_id: u32) -> i32;
     #[allow(dead_code)]
     pub fn stop_periodic_msg(&self, channel_id: u32, msg_id: u32) -> PassthruResult<()> {
-        ret_res(unsafe { (&self.stop_periodic_fn)(channel_id, msg_id) }, ())
+        ret_res(unsafe { (self.stop_periodic_fn)(channel_id, msg_id) }, ())
     }
 
     //type PassThruStartMsgFilterFn = unsafe extern "stdcall" fn(channel_id: u32, filter_type: u32, m_msg: *const PASSTHRU_MSG, p_msg: *const PASSTHRU_MSG, fc_msg: *const PASSTHRU_MSG, filter_id: *mut u32) -> i32;
@@ -405,7 +405,7 @@ impl PassthruDrv {
         let mut filter_id: u32 = 0;
         let res = match flow_control.as_ref() {
             None => unsafe {
-                (&self.start_filter_fn)(
+                (self.start_filter_fn)(
                     channel_id,
                     tmp,
                     mask,
@@ -415,7 +415,7 @@ impl PassthruDrv {
                 )
             },
             Some(fc) => unsafe {
-                (&self.start_filter_fn)(channel_id, tmp, mask, pattern, fc, &mut filter_id)
+                (self.start_filter_fn)(channel_id, tmp, mask, pattern, fc, &mut filter_id)
             },
         };
         ret_res(res, filter_id)
@@ -424,7 +424,7 @@ impl PassthruDrv {
     //type PassThruStopMsgFilterFn = unsafe extern "stdcall" fn(channel_id: u32, filter_id: u32) -> i32;
     pub fn stop_msg_filter(&self, channel_id: u32, filter_id: u32) -> PassthruResult<()> {
         log::debug!("PT_STOP_MSG_FILTER called. Channel ID {}, Filter ID {}", channel_id, filter_id);
-        let res = unsafe { (&self.stop_filter_fn)(channel_id, filter_id) };
+        let res = unsafe { (self.stop_filter_fn)(channel_id, filter_id) };
         match res {
             0 => Ok(()),
             _ => Err(PassthruError::try_from(res as u32).unwrap()),
@@ -439,6 +439,6 @@ impl PassthruDrv {
         pin: u32,
         voltage: u32,
     ) -> PassthruResult<()> {
-        ret_res(unsafe { (&self.set_prog_v_fn)(dev_id, pin, voltage) }, ())
+        ret_res(unsafe { (self.set_prog_v_fn)(dev_id, pin, voltage) }, ())
     }
 }

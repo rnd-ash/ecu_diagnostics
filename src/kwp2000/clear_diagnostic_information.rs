@@ -1,9 +1,9 @@
 //! This service allows for the clearing of DTCs
 //! (Diagnostic trouble codes) from the ECU
 
-use crate::{DiagServerResult, DiagnosticServer, dynamic_diag::DynamicDiagSession};
+use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
 
-use super::{KWP2000Command, Kwp2000Protocol};
+use super::KWP2000Command;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Denotes a single or range of DTCs that can be cleared from the ECU
@@ -59,7 +59,7 @@ impl DynamicDiagSession {
         self.send_command_with_response(
             KWP2000Command::ClearDiagnosticInformation,
             &[(dtc_range_num >> 8) as u8, dtc_range_num as u8]
-        )
-        .map(|_| ())
+        )?;
+        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 //! Dynamic diagnostic session helper
 //!
-use std::{sync::{mpsc::Sender, atomic::{AtomicBool, Ordering}}, time::Duration, collections::HashMap};
+use std::{sync::{mpsc::{Sender, Receiver}, atomic::{AtomicBool, Ordering}}, time::Duration, collections::HashMap};
 
 use std::{
     sync::{Arc, Mutex, RwLock, mpsc}, time::Instant,
@@ -13,11 +13,22 @@ use crate::{
 };
 
 #[derive(Debug)]
+/// Diagnostic server responses
 pub enum DiagServerRx {
+    /// Positive ECU response
     EcuResponse(Vec<u8>),
-    EcuError { b: u8, desc: String },
+    /// ECU error
+    EcuError {
+        /// Raw NRC byte
+        b: u8, 
+        /// NRC description
+        desc: String 
+    },
+    /// ECU is busy, please wait
     EcuBusy,
+    /// Request message transmit result
     SendState(DiagServerResult<()>),
+    /// Receive response error
     RecvError(DiagError)
 }
 
@@ -35,6 +46,7 @@ impl DiagServerRx {
     }
 }
 
+/// ECU Negative response code trait
 pub trait EcuNRC : From<u8> {
     /// Description of the NRC
     fn desc(&self) -> String;
@@ -50,6 +62,7 @@ pub trait EcuNRC : From<u8> {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
+/// Server read/write timeout configuration
 pub struct TimeoutConfig {
     /// Read timeout
     pub read_timeout_ms: u32,
@@ -97,6 +110,7 @@ pub struct DiagServerAdvancedOptions {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// Diagnostic session mode
 pub struct DiagSessionMode {
     /// Session mode ID
     pub id: u8,
@@ -107,6 +121,7 @@ pub struct DiagSessionMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// Diagnostic request payload
 pub struct DiagPayload {
     /// Service ID
     sid: u8,
@@ -115,12 +130,14 @@ pub struct DiagPayload {
 }
 
 impl DiagPayload {
+    /// Converts DiagPayload to a byte array to be sent to the ECU
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut r = vec![self.sid];
         r.extend_from_slice(&self.data);
         r
     }
 
+    /// Creates a new DiagPayload
     pub fn new(sid: u8, data: &[u8]) -> Self {
         Self {
             sid,
@@ -130,17 +147,29 @@ impl DiagPayload {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// Diagnostic server request action
 pub enum DiagAction {
+    /// Set session mode
     SetSessionMode(DiagSessionMode),
-    Other { sid: u8, data: Vec<u8> }
+    /// Other request
+    Other { 
+        /// Service ID
+        sid: u8, 
+        /// PID and data
+        data: Vec<u8> 
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DiagTxPayload {
+/// Diagnostic request param info
+struct DiagTxPayload {
+    /// Raw payload to send to the ECU
     pub payload: Vec<u8>,
+    /// Should the payload require a response from the ECU?
     pub response_require: bool
 }
 
+/// Diagnostic protocol description trait
 pub trait DiagProtocol<NRC> : Send + Sync where NRC: EcuNRC {
     /// Returns the alias to the ECU 'default' diagnostic session mode
     /// Returns None if there is no session type control in the protocol
@@ -161,6 +190,13 @@ pub trait DiagProtocol<NRC> : Send + Sync where NRC: EcuNRC {
     fn register_session_type(&mut self, session: DiagSessionMode);
 }
 
+// Callbacks
+
+/// Transmit data callback
+pub type TxCallbackFn = dyn FnMut(&[u8]);
+/// ECU Waiting callback
+pub type EcuWaitCallbackFn = dyn FnMut();
+
 /// Dynamic diagnostic session
 ///
 /// This is used if a target ECU has an unknown diagnostic protocol.
@@ -168,10 +204,10 @@ pub trait DiagProtocol<NRC> : Send + Sync where NRC: EcuNRC {
 /// This also contains some useful wrappers for basic functions such as
 /// reading and clearing error codes.
 pub struct DynamicDiagSession {
-    sender: mpsc::Sender<DiagTxPayload>,
-    receiver: mpsc::Receiver<DiagServerRx>,
-    waiting_hook: Box<dyn FnMut()>,
-    on_send_complete_hook: Box<dyn FnMut()>,
+    sender: Sender<DiagTxPayload>,
+    receiver: Receiver<DiagServerRx>,
+    waiting_hook: Box<EcuWaitCallbackFn>,
+    on_send_complete_hook: Box<TxCallbackFn>,
     connected: Arc<AtomicBool>,
     current_diag_mode: Arc<RwLock<Option<DiagSessionMode>>>,
     running: Arc<AtomicBool>
@@ -203,7 +239,7 @@ impl DynamicDiagSession {
         NRC: EcuNRC
     {
         // Create iso tp channel using provided HW interface. If this fails, we cannot setup KWP or UDS session!
-        let mut iso_tp_channel = Hardware::create_iso_tp_channel(hw_device.clone())?;
+        let mut iso_tp_channel = Hardware::create_iso_tp_channel(hw_device)?;
         iso_tp_channel.set_iso_tp_cfg(channel_cfg)?;
         iso_tp_channel.set_ids(basic_opts.send_id, basic_opts.recv_id)?;
         iso_tp_channel.open()?;
@@ -243,8 +279,7 @@ impl DynamicDiagSession {
                                     log::warn!("Global session control is enabled but global TP ID is not specified");
                                 }
                             }
-                            let res = send_recv_ecu_req(
-                                &protocol, 
+                            let res = send_recv_ecu_req::<P, NRC>(
                                 tx_addr, 
                                 ext_id, 
                                 &req.payload, 
@@ -264,8 +299,7 @@ impl DynamicDiagSession {
                             tx_resp.send(res);
                         },
                         _ => {
-                            let resp = send_recv_ecu_req(
-                                &protocol, 
+                            let resp = send_recv_ecu_req::<P, NRC>(
                                 tx_addr, 
                                 None, 
                                 &req.payload, 
@@ -292,8 +326,7 @@ impl DynamicDiagSession {
                             } else {
                                 basic_opts.send_id
                             };
-                            if send_recv_ecu_req(
-                                &protocol, 
+                            if send_recv_ecu_req::<P, NRC>(
                                 tx_addr, 
                                 aops.tp_ext_id, 
                                 &tx_payload.to_bytes(), 
@@ -322,7 +355,7 @@ impl DynamicDiagSession {
             sender: tx_req,
             receiver: rx_resp,
             waiting_hook: Box::new(||{}),
-            on_send_complete_hook: Box::new(||{}),
+            on_send_complete_hook: Box::new(|_|{}),
             connected: is_connected,
             current_diag_mode: noti_session_mode,
             running: is_running_c
@@ -365,7 +398,7 @@ impl DynamicDiagSession {
     /// such that the user is aware the ECU is just processing the request
     pub fn send_byte_array_with_response(&mut self, p: &[u8]) -> DiagServerResult<Vec<u8>> {
         self.internal_send_byte_array(p, true)?;
-        (self.on_send_complete_hook)();
+        (self.on_send_complete_hook)(p);
         loop {
             match self.receiver.recv().unwrap() {
                 DiagServerRx::EcuResponse(r) => {
@@ -393,14 +426,19 @@ impl DynamicDiagSession {
         self.connected.load(Ordering::Relaxed)
     }
 
+    /// Register a hook that will be called whenever the ECU has replyed with 
+    /// a 'Busy' or 'Please wait' response
     pub fn register_waiting_hook<F: FnMut() + 'static>(&mut self, hook: F) {
         self.waiting_hook = Box::new(hook)
     }
 
-    pub fn register_send_complete_hook<F: FnMut() + 'static>(&mut self, hook: F) {
+    /// Register a hook that will be called whenever data has been sent out to the ECU
+    /// successfully
+    pub fn register_send_complete_hook<F: FnMut(&[u8]) + 'static>(&mut self, hook: F) {
         self.on_send_complete_hook = Box::new(hook)
     }
 
+    /// Returns the current diagnostic session mode that the ECU is in
     pub fn get_current_diag_mode(&self) -> Option<DiagSessionMode> {
         self.current_diag_mode.read().unwrap().clone()
     }
@@ -417,7 +455,6 @@ impl Drop for DynamicDiagSession {
 }
 
 fn send_recv_ecu_req<P, NRC>(
-    protocol: &P,
     tx_addr: u32,
     ext_id: Option<u8>,
     payload: &[u8], // If empty, we are only reading
@@ -438,7 +475,7 @@ where
             res = channel.clear_tx_buffer()
                 .and_then(|_| channel.clear_rx_buffer())
                 .and_then(|_|
-                    channel.write_bytes(tx_addr, ext_id, &payload, basic_opts.timeout_cfg.write_timeout_ms)
+                    channel.write_bytes(tx_addr, ext_id, payload, basic_opts.timeout_cfg.write_timeout_ms)
                 )
         }
         match res {
@@ -455,13 +492,13 @@ where
                             log::error!("Error reading from channel: {:02X?}", payload);
                             connect_state.store(false, Ordering::Relaxed);
                             // Final error
-                            return DiagServerRx::RecvError(e.into())
+                            DiagServerRx::RecvError(e.into())
                         },
                         Ok(bytes) => {
                             log::debug!("ECU Response: {:02X?}", bytes);
                             let parsed_response = P::process_ecu_response(&bytes);
                             connect_state.store(true, Ordering::Relaxed);
-                            return match parsed_response {
+                            match parsed_response {
                                 Ok(pos_result) => {
                                     log::debug!("ECU Response OK!");
                                     DiagServerRx::EcuResponse(pos_result)
@@ -471,12 +508,12 @@ where
                                         // ECU waiting, so poll again for the response
                                         // to do that, call this function again with no payload
                                         log::debug!("ECU is busy, awaiting response");
-                                        return send_recv_ecu_req(protocol, tx_addr, ext_id, &[], needs_response, tx_resp, basic_opts, cooldown, channel, connect_state)
+                                        send_recv_ecu_req::<P, NRC>(tx_addr, ext_id, &[], needs_response, tx_resp, basic_opts, cooldown, channel, connect_state)
                                     } else if nrc_data.is_repeat_request() {
                                         // ECU wants us to ask again, so we wait a little bit, then call ourselves again
                                         log::debug!("ECU has asked for a repeat of the request");
                                         std::thread::sleep(Duration::from_millis(cooldown.into()));
-                                        return send_recv_ecu_req(protocol, tx_addr, ext_id, payload, needs_response, tx_resp, basic_opts, cooldown, channel, connect_state)
+                                        send_recv_ecu_req::<P, NRC>(tx_addr, ext_id, payload, needs_response, tx_resp, basic_opts, cooldown, channel, connect_state)
                                     } else {
                                         // Unhandled NRC
                                         log::warn!("ECU Negative response {:02X?}", code);
@@ -490,14 +527,14 @@ where
                     // Final state. We are done!
                     log::debug!("No need to poll ECU response");
                     connect_state.store(true, Ordering::Relaxed);
-                    return DiagServerRx::SendState(Ok(()))
+                    DiagServerRx::SendState(Ok(()))
                 }
             },
             Err(e) => {
                 log::error!("Channel send error: {}", e);
                 // Final error here at send state :(
                 connect_state.store(false, Ordering::Relaxed);
-                return DiagServerRx::SendState(Err(e.into()));
+                DiagServerRx::SendState(Err(e.into()))
             },
         }
 }
