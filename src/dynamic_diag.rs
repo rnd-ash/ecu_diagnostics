@@ -93,7 +93,7 @@ pub struct DiagServerAdvancedOptions {
     pub tp_ext_id: Option<u8>,
     /// Cooldown period in MS after receiving a response from an ECU before sending a request.
     /// This is useful for some slower ECUs
-    pub command_cooldown_ms: u128
+    pub command_cooldown_ms: u32
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

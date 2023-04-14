@@ -22,8 +22,3 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
-    - name: Build and test FFI
-      run: |
-        cargo build --verbose --package ecu_diagnostics_ffi --no-default-features
-        cargo build --verbose --package ecu_diagnostics_ffi
-        cargo test --verbose --package ecu_diagnostics_ffi
