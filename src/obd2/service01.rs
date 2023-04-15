@@ -1,10 +1,10 @@
 //! OBD2 service 01 (Show current data)
 
 use crate::dynamic_diag::DynamicDiagSession;
-use crate::obd2::data_pids::DataPid;
 use crate::obd2::units::ObdValue;
-use crate::obd2::{decode_pid_response, OBD2Command};
+use crate::obd2::{decode_pid_response, DataPidWrapper};
 use crate::{DiagError, DiagServerResult};
+use auto_uds::obd2::{DataPidByte, Obd2Command};
 
 #[derive(Debug)]
 /// Service 01 wrapper for OBD
@@ -22,7 +22,7 @@ impl DynamicDiagSession {
         // Query supported pids
         let mut total_support_list = Vec::new();
         for i in (0..0xFF).step_by(0x20) {
-            let x = self.send_command_with_response(OBD2Command::Service01, &[i as u8]);
+            let x = self.send_command_with_response(Obd2Command::Service01, &[i as u8]);
             match x {
                 Ok(resp) => total_support_list.extend_from_slice(&resp[2..]),
                 Err(e) => {
@@ -34,7 +34,8 @@ impl DynamicDiagSession {
                     }
                 }
             }
-            if total_support_list.last().unwrap() & 0x01 == 0 { // Early return if we don't support any more PIDs
+            if total_support_list.last().unwrap() & 0x01 == 0 {
+                // Early return if we don't support any more PIDs
                 break;
             }
         }
@@ -47,13 +48,13 @@ impl DynamicDiagSession {
 
 impl<'a> Service01<'a> {
     /// Returns a byte array of supported PIDs supported by the ECU for service 01
-    pub fn get_supported_pids(&self) -> Vec<DataPid> {
+    pub fn get_supported_pids(&self) -> Vec<DataPidByte> {
         let mut r = Vec::new();
         for (idx, supported) in self.support_list.iter().enumerate() {
             if *supported {
                 let pid = (idx + 1) as u8;
                 if !&[0x13, 0x1D, 0x20, 0x40, 0x60, 0x80, 0xA0, 0xC0, 0xE0].contains(&pid) {
-                    r.push(DataPid::from(pid))
+                    r.push(DataPidByte::from(pid))
                 }
             }
         }
@@ -61,7 +62,7 @@ impl<'a> Service01<'a> {
     }
 
     /// Query's a data PID from Service 01
-    pub fn query_pid(&mut self, pid: DataPid) -> DiagServerResult<Vec<ObdValue>> {
+    pub fn query_pid(&mut self, pid: DataPidWrapper) -> DiagServerResult<Vec<ObdValue>> {
         pid.get_value(self.server, None)
     }
 }

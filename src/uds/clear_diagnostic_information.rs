@@ -1,8 +1,8 @@
 //!  Provides methods to clear diagnostic trouble codes from the ECU
 
-use auto_uds::UdsCommand;
+use auto_uds::uds::UdsCommand;
 
-use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
+use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
 
 impl DynamicDiagSession {
     /// Clears diagnostic information (DTCs) from the ECU.

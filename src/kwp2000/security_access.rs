@@ -1,7 +1,7 @@
 //! Functions for unlocking secure regions on the ECU
 
-use crate::{DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession};
-use super::KWP2000Command;
+use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
+use auto_uds::kwp2k::KwpCommand;
 
 impl DynamicDiagSession {
     /// Requests a seed from the ECU
@@ -18,7 +18,7 @@ impl DynamicDiagSession {
             return Err(DiagError::ParameterInvalid);
         }
         let mut res =
-            self.send_command_with_response(KWP2000Command::SecurityAccess, &[access_mode])?;
+            self.send_command_with_response(KwpCommand::SecurityAccess, &[access_mode])?;
         res.drain(0..2); // Remove SID and access mode
         Ok(res) // Return just the key
     }
@@ -38,7 +38,7 @@ impl DynamicDiagSession {
         }
         let mut args = vec![access_mode + 1];
         args.extend_from_slice(key);
-        self.send_command_with_response(KWP2000Command::SecurityAccess, &args)?;
+        self.send_command_with_response(KwpCommand::SecurityAccess, &args)?;
         Ok(())
     }
 }

@@ -1,8 +1,7 @@
 //! This service requests blocks of data from the ECU.
 
-use crate::{DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession};
-
-use super::KWP2000Command;
+use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
+use auto_uds::kwp2k::KwpCommand;
 
 impl DynamicDiagSession {
     /// Reads ECU data using a given identifier
@@ -15,8 +14,8 @@ impl DynamicDiagSession {
     /// without the identifier ID on the response itself.
     pub fn kwp_read_data_by_identifier(&mut self, identifier: u16) -> DiagServerResult<Vec<u8>> {
         let mut res = self.send_command_with_response(
-            KWP2000Command::ReadDataByIdentifier,
-            &[(identifier >> 8) as u8, identifier as u8]
+            KwpCommand::ReadDataByIdentifier,
+            &[(identifier >> 8) as u8, identifier as u8],
         )?;
         // Now check identifier in response message was same as our request identifier, if so, strip it
         // from the response message

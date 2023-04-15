@@ -1,6 +1,6 @@
 //! Module for service 01 and 02 unit value type conversions
 
-use crate::obd2::enumerations::ObdEnumValue;
+use crate::obd2::ObdEnumValue;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]

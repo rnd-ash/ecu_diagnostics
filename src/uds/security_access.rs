@@ -2,11 +2,11 @@
 //! are considered secure such as writing or reading to specific memory regions on the ECU
 //!
 //! Currently, only default seed/key (0x01/0x02) are supported
-//! 
-use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
+//!
+use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
 
-pub use auto_uds::SecurityOperation;
-use auto_uds::UdsCommand;
+pub use auto_uds::uds::SecurityOperation;
+use auto_uds::uds::UdsCommand;
 
 impl DynamicDiagSession {
     /// Requests a seed from the ECU for security access.

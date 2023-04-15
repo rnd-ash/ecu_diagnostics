@@ -2,13 +2,13 @@
 
 /// FIXME: Use ScalingExtension instead
 /// Note: `#[deprecated]` doesn't work here due to https://github.com/rust-lang/rust/issues/30827
-pub use auto_uds::ScalingExtension as ScalingByteExtension;
+pub use auto_uds::uds::ScalingExtension as ScalingByteExtension;
 
 /// FIXME: Use ScalingType instead
 /// Note: `#[deprecated]` doesn't work here due to https://github.com/rust-lang/rust/issues/30827
-pub use auto_uds::ScalingType as ScalingByteHigh;
+pub use auto_uds::uds::ScalingType as ScalingByteHigh;
 
-pub use auto_uds::{ScalingExtension, ScalingType};
+pub use auto_uds::uds::{ScalingExtension, ScalingType};
 
 /// Represents Scaling data structure returned from ECU
 #[derive(Debug, Clone)]

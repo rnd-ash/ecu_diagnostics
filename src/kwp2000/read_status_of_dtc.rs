@@ -1,9 +1,8 @@
 //! Reads environmental data from the ECU about a requested Diagnostic
 //! trouble code (DTC).
 
-use crate::{DiagServerResult, dynamic_diag::DynamicDiagSession};
-
-use super::KWP2000Command;
+use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
+use auto_uds::kwp2k::KwpCommand;
 
 impl DynamicDiagSession {
     /// Reads the status of a given DTC.
@@ -23,7 +22,7 @@ impl DynamicDiagSession {
     /// 4. Status of DTC
     pub fn kwp_read_status_of_dtc(&mut self, dtc: u16) -> DiagServerResult<Vec<u8>> {
         self.send_command_with_response(
-            KWP2000Command::ReadStatusOfDiagnosticTroubleCodes,
+            KwpCommand::ReadStatusOfDiagnosticTroubleCodes,
             &[(dtc >> 8) as u8, dtc as u8],
         )
     }
