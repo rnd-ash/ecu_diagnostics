@@ -3,7 +3,7 @@
 use crate::{
     bcd_decode, bcd_decode_slice, dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult,
 };
-use automotive_diag::kwp2k::KwpCommand;
+use automotive_diag::kwp2000::KwpCommand;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 

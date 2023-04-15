@@ -1,7 +1,7 @@
 //! Functions for unlocking secure regions on the ECU
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
-use automotive_diag::kwp2k::KwpCommand;
+use automotive_diag::kwp2000::KwpCommand;
 
 impl DynamicDiagSession {
     /// Requests a seed from the ECU

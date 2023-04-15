@@ -1,7 +1,7 @@
 //! This service requests blocks of data from the ECU.
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
-use automotive_diag::kwp2k::KwpCommand;
+use automotive_diag::kwp2000::KwpCommand;
 
 impl DynamicDiagSession {
     /// Reads ECU data using a given identifier

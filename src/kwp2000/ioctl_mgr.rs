@@ -1,7 +1,7 @@
 //! Wrapper for IOCTL requests
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
-use automotive_diag::kwp2k::{KwpCommand, KwpSessionType};
+use automotive_diag::kwp2000::{KwpCommand, KwpSessionType};
 
 /// Handler for Input output control by local identifier requests (IOCTL)
 /// This allows for short term or long term actuation's of components an ECU controls,

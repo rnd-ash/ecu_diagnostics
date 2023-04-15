@@ -1,5 +1,5 @@
 use crate::dynamic_diag::EcuNRC;
-use automotive_diag::kwp2k::{KwpError, KwpErrorByte};
+use automotive_diag::kwp2000::{KwpError, KwpErrorByte};
 use automotive_diag::ByteWrapper::Standard;
 
 impl EcuNRC for KwpErrorByte {

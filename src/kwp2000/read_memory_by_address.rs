@@ -1,7 +1,7 @@
 //! Reads contents from the ECU's RAM
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
-use automotive_diag::kwp2k::KwpCommand;
+use automotive_diag::kwp2000::KwpCommand;
 
 impl DynamicDiagSession {
     /// Reads the contents of RAM memory on the ECU given a 3 byte address, and 1 byte size.
