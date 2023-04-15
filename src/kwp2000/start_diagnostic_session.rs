@@ -1,7 +1,7 @@
 //! Provides methods to manipulate the ECUs diagnostic session mode
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
-use auto_uds::kwp2k::KwpSessionTypeByte;
+use automotive_diag::kwp2k::KwpSessionTypeByte;
 
 impl DynamicDiagSession {
     /// Set KWP session mode

@@ -1,7 +1,7 @@
 //! Provides methods to control normal ECU communication
 
-use auto_uds::uds::UdsCommand;
-pub use auto_uds::uds::{
+use automotive_diag::uds::UdsCommand;
+pub use automotive_diag::uds::{
     encode_communication_type, CommunicationLevel, CommunicationType as EcuCommunicationType,
     Subnet,
 };

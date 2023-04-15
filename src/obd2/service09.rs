@@ -3,8 +3,8 @@
 use crate::dynamic_diag::DynamicDiagSession;
 use crate::obd2::decode_pid_response;
 use crate::{DiagError, DiagServerResult};
-use auto_uds::obd2::{Obd2Command, Service09Pid, Service09PidByte};
-use auto_uds::ByteWrapper::{Extended, Standard};
+use automotive_diag::obd2::{Obd2Command, Service09Pid, Service09PidByte};
+use automotive_diag::ByteWrapper::{Extended, Standard};
 
 #[derive(Debug)]
 /// Service 09 wrapper for OBD

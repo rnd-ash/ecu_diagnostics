@@ -1,6 +1,6 @@
 //!  Provides methods to clear diagnostic trouble codes from the ECU
 
-use auto_uds::uds::UdsCommand;
+use automotive_diag::uds::UdsCommand;
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
 

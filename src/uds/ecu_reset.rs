@@ -5,9 +5,9 @@ use crate::{
     DiagError, DiagServerResult,
 };
 
-pub use auto_uds::uds::ResetType;
-use auto_uds::uds::{UdsCommand, UdsError};
-use auto_uds::ByteWrapper::Standard;
+pub use automotive_diag::uds::ResetType;
+use automotive_diag::uds::{UdsCommand, UdsError};
+use automotive_diag::ByteWrapper::Standard;
 
 impl DynamicDiagSession {
     /// Asks the ECU to perform a hard reset. See [ResetType::HardReset] for more details

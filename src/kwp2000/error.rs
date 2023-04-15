@@ -1,6 +1,6 @@
 use crate::dynamic_diag::EcuNRC;
-use auto_uds::kwp2k::{KwpError, KwpErrorByte};
-use auto_uds::ByteWrapper::Standard;
+use automotive_diag::kwp2k::{KwpError, KwpErrorByte};
+use automotive_diag::ByteWrapper::Standard;
 
 impl EcuNRC for KwpErrorByte {
     fn desc(&self) -> String {

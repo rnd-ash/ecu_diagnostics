@@ -1,7 +1,7 @@
 //! Message transmission wrapper
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
-use auto_uds::kwp2k::KwpCommand;
+use automotive_diag::kwp2k::KwpCommand;
 
 impl DynamicDiagSession {
     /// Tells the ECU to switch off its normal communication paths with other ECUs.

@@ -12,7 +12,7 @@
 //!
 //! based on KWP2000 v2.2 (05/08/02)
 
-use auto_uds::kwp2k::{KwpCommand, KwpErrorByte};
+use automotive_diag::kwp2k::{KwpCommand, KwpErrorByte};
 use std::collections::HashMap;
 
 use crate::dynamic_diag::{self, DiagAction, DiagPayload, DiagSessionMode};

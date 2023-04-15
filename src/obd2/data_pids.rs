@@ -3,11 +3,11 @@ use crate::obd2::{
     Distance, ObdEnumValue, ObdUnitType, ObdValue, Pressure, Speed, Temperature, Time,
 };
 use crate::{DiagError, DiagServerResult};
-use auto_uds::obd2::{
+use automotive_diag::obd2::{
     CommandedSecondaryAirStatusByte, DataPidByte, FuelSystemStatusByte, FuelTypeCodingByte,
     ObdStandardByte,
 };
-use auto_uds::ByteWrapper::Standard;
+use automotive_diag::ByteWrapper::Standard;
 // use strum_macros::EnumString;
 
 /// Data PID wrapper
@@ -53,7 +53,7 @@ impl DataPidWrapper {
         server: &mut DynamicDiagSession,
         ff: Option<u16>,
     ) -> DiagServerResult<Vec<ObdValue>> {
-        use auto_uds::obd2::DataPid::*;
+        use automotive_diag::obd2::DataPid::*;
 
         match self.0 {
             Standard(PidSupport0120) => Ok(vec![ObdValue::new(

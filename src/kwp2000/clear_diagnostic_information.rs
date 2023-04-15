@@ -2,7 +2,7 @@
 //! (Diagnostic trouble codes) from the ECU
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
-use auto_uds::kwp2k::KwpCommand;
+use automotive_diag::kwp2k::KwpCommand;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Denotes a single or range of DTCs that can be cleared from the ECU

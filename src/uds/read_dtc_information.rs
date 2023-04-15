@@ -6,8 +6,8 @@ use crate::{
     DiagError, DiagServerResult,
 };
 
-pub use auto_uds::uds::DtcSubFunction;
-use auto_uds::uds::UdsCommand;
+pub use automotive_diag::uds::DtcSubFunction;
+use automotive_diag::uds::UdsCommand;
 
 impl DynamicDiagSession {
     /// Returns the number of DTCs stored on the ECU

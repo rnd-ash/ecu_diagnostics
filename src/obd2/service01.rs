@@ -4,7 +4,7 @@ use crate::dynamic_diag::DynamicDiagSession;
 use crate::obd2::units::ObdValue;
 use crate::obd2::{decode_pid_response, DataPidWrapper};
 use crate::{DiagError, DiagServerResult};
-use auto_uds::obd2::{DataPidByte, Obd2Command};
+use automotive_diag::obd2::{DataPidByte, Obd2Command};
 
 #[derive(Debug)]
 /// Service 01 wrapper for OBD

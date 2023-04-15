@@ -1,7 +1,7 @@
 //! Routine management wrapper for KWP2000
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
-use auto_uds::kwp2k::{KwpCommand, KwpSessionType};
+use automotive_diag::kwp2k::{KwpCommand, KwpSessionType};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Routine Identifier

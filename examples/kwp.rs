@@ -1,4 +1,4 @@
-use auto_uds::kwp2k::{KwpSessionType, KwpSessionTypeByte};
+use automotive_diag::kwp2k::{KwpSessionType, KwpSessionTypeByte};
 use std::time::Duration;
 
 use ecu_diagnostics::{

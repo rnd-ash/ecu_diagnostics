@@ -2,7 +2,7 @@
 //! trouble code (DTC).
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
-use auto_uds::kwp2k::KwpCommand;
+use automotive_diag::kwp2k::KwpCommand;
 
 impl DynamicDiagSession {
     /// Reads the status of a given DTC.

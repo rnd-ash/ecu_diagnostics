@@ -16,8 +16,8 @@ mod scaling_data;
 mod security_access;
 
 pub use access_timing_parameter::*;
-use auto_uds::uds::{UdsCommand, UdsErrorByte};
-use auto_uds::ByteWrapper;
+use automotive_diag::uds::{UdsCommand, UdsErrorByte};
+use automotive_diag::ByteWrapper;
 pub use clear_diagnostic_information::*;
 pub use communication_control::*;
 pub use diagnostic_session_control::*;
@@ -26,7 +26,7 @@ pub use read_dtc_information::*;
 pub use scaling_data::*;
 pub use security_access::*;
 
-pub use auto_uds::uds::UdsError;
+pub use automotive_diag::uds::UdsError;
 
 impl EcuNRC for UdsErrorByte {
     fn desc(&self) -> String {

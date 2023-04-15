@@ -1,9 +1,9 @@
 //! Enumeration data for OBD services 01 and 02
 
-use auto_uds::obd2::{
+use automotive_diag::obd2::{
     CommandedSecondaryAirStatusByte, FuelSystemStatusByte, FuelTypeCodingByte, ObdStandardByte,
 };
-use auto_uds::ByteWrapper::Standard;
+use automotive_diag::ByteWrapper::Standard;
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]

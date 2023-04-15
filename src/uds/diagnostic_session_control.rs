@@ -2,8 +2,8 @@
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
 
-use auto_uds::uds::UdsCommand;
-pub use auto_uds::uds::UdsSessionType as UDSSessionType;
+use automotive_diag::uds::UdsCommand;
+pub use automotive_diag::uds::UdsSessionType as UDSSessionType;
 
 impl DynamicDiagSession {
     /// Requests the ECU to go into a specific diagnostic session mode

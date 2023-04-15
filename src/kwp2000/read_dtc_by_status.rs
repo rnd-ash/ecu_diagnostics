@@ -5,8 +5,8 @@ use crate::{
     dynamic_diag::DynamicDiagSession,
     DiagError, DiagServerResult,
 };
-use auto_uds::kwp2k::{KwpCommand, KwpError, KwpErrorByte};
-use auto_uds::ByteWrapper::Standard;
+use automotive_diag::kwp2k::{KwpCommand, KwpError, KwpErrorByte};
+use automotive_diag::ByteWrapper::Standard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 

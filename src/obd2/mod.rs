@@ -1,8 +1,8 @@
 //! Module for OBD (ISO-9141)
 
 use crate::dynamic_diag::{DiagAction, DiagPayload, DiagProtocol, DiagSessionMode, EcuNRC};
-use auto_uds::obd2::{Obd2Error, Obd2ErrorByte};
-use auto_uds::ByteWrapper::Standard;
+use automotive_diag::obd2::{Obd2Error, Obd2ErrorByte};
+use automotive_diag::ByteWrapper::Standard;
 use std::collections::HashMap;
 
 mod data_pids;

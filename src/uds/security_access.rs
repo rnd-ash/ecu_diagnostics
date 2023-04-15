@@ -5,8 +5,8 @@
 //!
 use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
 
-pub use auto_uds::uds::SecurityOperation;
-use auto_uds::uds::UdsCommand;
+pub use automotive_diag::uds::SecurityOperation;
+use automotive_diag::uds::UdsCommand;
 
 impl DynamicDiagSession {
     /// Requests a seed from the ECU for security access.
