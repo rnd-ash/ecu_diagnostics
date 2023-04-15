@@ -1,7 +1,7 @@
 //! Routine management wrapper for KWP2000
 
 use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
-use automotive_diag::kwp2000::{KwpCommand, KwpSessionType};
+use automotive_diag::kwp2000::{KwpCommand, KwpSessionType, RoutineExitStatusByte};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Routine Identifier
@@ -24,30 +24,6 @@ pub enum RoutineID {
     ClearTellTaleRetentionStack,
     /// System supplier specific
     SystemSupplierSpecific(u8),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-/// Routine exit status
-pub enum RoutineExitStatus {
-    /// Unknown exit type
-    Unknown(u8),
-    /// Normal exit with results available. Call [KwpRoutineManager::request_routine_results] to obtain the results
-    NormalExitWithResults,
-    /// Normal exit, the routine does not return any result data
-    NormalExitWithoutResults,
-    /// Abnormal or premature exit. No results available.
-    AbnormalExitWithoutResults,
-}
-
-impl From<u8> for RoutineExitStatus {
-    fn from(x: u8) -> Self {
-        match x {
-            0x61 => Self::NormalExitWithResults,
-            0x62 => Self::NormalExitWithoutResults,
-            0x64 => Self::AbnormalExitWithoutResults,
-            _ => Self::Unknown(x),
-        }
-    }
 }
 
 impl RoutineID {
@@ -121,7 +97,7 @@ impl<'a> KwpRoutineManager<'a> {
 
     /// Attempts to stop the routine. Note that some routines automatically exit themselves
     /// and do NOT need to be manually stopped
-    pub fn stop_routine(&mut self, exit_options: &[u8]) -> DiagServerResult<RoutineExitStatus> {
+    pub fn stop_routine(&mut self, exit_options: &[u8]) -> DiagServerResult<RoutineExitStatusByte> {
         let mut p: Vec<u8> = vec![self.r_id.as_start_byte()];
         p.extend_from_slice(exit_options);
         self.server
