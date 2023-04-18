@@ -140,6 +140,10 @@ impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
         )
     }
 
+    fn make_session_control_msg(&self, mode: &DiagSessionMode) -> Vec<u8> {
+        vec![UdsCommand::DiagnosticSessionControl.into(), mode.id]
+    }
+
     fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, UdsErrorByte)> {
         if r[0] == 0x7F {
             // [7F, SID, NRC]

@@ -73,6 +73,10 @@ impl DiagProtocol<Obd2ErrorByte> for OBD2Protocol {
         DiagPayload::new(0x00, &[]) // Ignored
     }
 
+    fn make_session_control_msg(&self, mode: &DiagSessionMode) -> Vec<u8> {
+        vec![]
+    }
+
     fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, Obd2ErrorByte)> {
         match r[0] {
             0x7F => Err((r[2], r[2].into())),

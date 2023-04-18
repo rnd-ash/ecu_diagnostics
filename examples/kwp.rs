@@ -105,6 +105,9 @@ fn main() {
             mode.name, mode.id, mode.tp_require
         );
     }
+    println!("Reset result: {:?}", diag_server.kwp_reset_ecu(automotive_diag::kwp2000::ResetType::PowerOnReset));
+    std::thread::sleep(Duration::from_millis(500));
+    println!("Read op: {:?}", diag_server.kwp_enable_normal_message_transmission());
     loop {
         // TP will be sent in this mode forever
         std::thread::sleep(Duration::from_millis(1000));

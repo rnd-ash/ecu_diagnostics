@@ -27,7 +27,12 @@ pub enum DiagServerRx {
     /// ECU is busy, please wait
     EcuBusy,
     /// Request message transmit result
-    SendState(DiagServerResult<()>),
+    SendState { 
+        /// Data that was sent to be transmitted
+        p: Vec<u8>, 
+        /// The send result of the data transmission
+        r: DiagServerResult<()> 
+    },
     /// Receive response error
     RecvError(DiagError)
 }
@@ -36,7 +41,7 @@ impl DiagServerRx {
     const fn is_err(&self) -> bool {
         match self {
             DiagServerRx::EcuResponse(_) => false,
-            DiagServerRx::SendState(res) => res.is_err(),
+            DiagServerRx::SendState { p: _, r} => r.is_err(),
             _ => true
         }
     }
@@ -179,6 +184,8 @@ pub trait DiagProtocol<NRC> : Send + Sync where NRC: EcuNRC {
     fn get_protocol_name(&self) -> &'static str;
     /// Process a byte array into a command
     fn process_req_payload(&self, payload: &[u8]) -> DiagAction;
+    /// Creates a session mod req message
+    fn make_session_control_msg(&self, mode: &DiagSessionMode) -> Vec<u8>;
     /// Generate the tester present message (If required)
     fn create_tp_msg(response_required: bool) -> DiagPayload;
     /// Processes the ECU response, and checks to see if it is a positive or negative response,
@@ -244,9 +251,8 @@ impl DynamicDiagSession {
         iso_tp_channel.set_ids(basic_opts.send_id, basic_opts.recv_id)?;
         iso_tp_channel.open()?;
 
-        let requested_session_mode = protocol.get_basic_session_mode();
         let mut current_session_mode = protocol.get_basic_session_mode();
-        if requested_session_mode.is_none() && advanced_opts.is_some() {
+        if current_session_mode.is_none() && advanced_opts.is_some() {
             log::warn!("Session mode is None but advanced opts was specified. Ignoring advanced opts");
         }
         let session_control = current_session_mode.is_some() && advanced_opts.is_some();
@@ -299,7 +305,7 @@ impl DynamicDiagSession {
                             tx_resp.send(res);
                         },
                         _ => {
-                            let resp = send_recv_ecu_req::<P, NRC>(
+                            let mut resp = send_recv_ecu_req::<P, NRC>(
                                 tx_addr, 
                                 None, 
                                 &req.payload, 
@@ -310,6 +316,57 @@ impl DynamicDiagSession {
                                 &mut iso_tp_channel,
                                 &is_connected_inner
                             );
+                            if let DiagServerRx::EcuError { b, desc:_ } = &resp {
+                                if NRC::from(*b).is_wrong_diag_mode() {
+                                    log::debug!("Trying to switch ECU modes");
+                                    // Wrong diag mode. We need to see if we need to change modes
+                                    // Switch modes!
+                                    tx_resp.send(DiagServerRx::EcuBusy); // Until we have a hook for this specific scenerio
+                                    // Now create new diag server request message
+                                    let mut needs_response = true;
+                                    let mut ext_id = None;
+                                    if let Some(adv) = advanced_opts {
+                                        if adv.global_session_control && adv.global_tp_id != 0 {
+                                            tx_addr = adv.global_tp_id;
+                                            ext_id = adv.tp_ext_id;
+                                            needs_response = false;
+                                        } else if adv.global_session_control && adv.global_tp_id == 0 {
+                                            log::warn!("Global session control is enabled but global TP ID is not specified");
+                                        }
+                                    }
+                                    if send_recv_ecu_req::<P, NRC>(
+                                        tx_addr, 
+                                        ext_id, 
+                                        &protocol.make_session_control_msg(&current_session_mode.clone().unwrap()),
+                                        needs_response, 
+                                        None, // None, internally handled 
+                                        basic_opts, 
+                                        0, 
+                                        &mut iso_tp_channel,
+                                        &is_connected_inner
+                                    ).is_ok() {
+                                        log::debug!("ECU mode switch OK. Resending the request");
+                                        *noti_session_mode_t.write().unwrap() = current_session_mode.clone();
+                                        last_tp_time = Instant::now();
+                                        // Resend our request
+                                        resp = send_recv_ecu_req::<P, NRC>(
+                                            tx_addr, 
+                                            None, 
+                                            &req.payload, 
+                                            req.response_require, 
+                                            Some(&mut tx_resp), 
+                                            basic_opts, 
+                                            0, 
+                                            &mut iso_tp_channel,
+                                            &is_connected_inner
+                                        );
+                                    } else {
+                                        // Diag session mode req failed. Set session data
+                                        *noti_session_mode_t.write().unwrap() = protocol.get_basic_session_mode();
+                                        current_session_mode = protocol.get_basic_session_mode()
+                                    }
+                                }
+                            }
                             tx_resp.send(resp);
                         },
                     }
@@ -378,8 +435,8 @@ impl DynamicDiagSession {
         self.clear_rx_queue();
         self.sender.send(DiagTxPayload { payload: p.to_vec(), response_require: resp_require }).unwrap();
         loop {
-            if let DiagServerRx::SendState(res) = self.receiver.recv().unwrap() {
-                return res
+            if let DiagServerRx::SendState { p: _, r } = self.receiver.recv().unwrap() {
+                return r
             }
         }
     }
@@ -410,8 +467,11 @@ impl DynamicDiagSession {
                 DiagServerRx::EcuBusy => {
                     (self.waiting_hook)()
                 },
-                DiagServerRx::SendState(s) => {
-                    log::error!("Multiple send states received!?. Result was {:?}", s)
+                DiagServerRx::SendState{p, r} => {
+                    match r {
+                        Ok(_) => (self.on_send_complete_hook)(&p),
+                        Err(e) => return Err(e)
+                    }
                 },
                 DiagServerRx::RecvError(e) => {
                     return Err(e)
@@ -484,12 +544,12 @@ where
                     log::debug!("Sending OK, awaiting response from ECU");
                     // Notify sending has completed, we will now poll for the ECUs response!
                     if let Some(s) = &tx_resp {
-                        s.send(DiagServerRx::SendState(Ok(()))).unwrap();
+                        s.send(DiagServerRx::SendState { p: payload.to_vec(), r: Ok(())}).unwrap();
                     }
                     // Now poll for the ECU's response
                     match channel.read_bytes(basic_opts.timeout_cfg.read_timeout_ms) {
                         Err(e) => {
-                            log::error!("Error reading from channel: {:02X?}", payload);
+                            log::error!("Error reading from channel. Request was {:02X?}", payload);
                             connect_state.store(false, Ordering::Relaxed);
                             // Final error
                             DiagServerRx::RecvError(e.into())
@@ -527,14 +587,14 @@ where
                     // Final state. We are done!
                     log::debug!("No need to poll ECU response");
                     connect_state.store(true, Ordering::Relaxed);
-                    DiagServerRx::SendState(Ok(()))
+                    DiagServerRx::SendState { p: payload.to_vec(), r: Ok(()) }
                 }
             },
             Err(e) => {
                 log::error!("Channel send error: {}", e);
                 // Final error here at send state :(
                 connect_state.store(false, Ordering::Relaxed);
-                DiagServerRx::SendState(Err(e.into()))
+                DiagServerRx::SendState { p: payload.to_vec(), r: Err(e.into()) }
             },
         }
 }
