@@ -25,6 +25,15 @@ fn tx_ok_hook(data: &[u8]) {
     );
 }
 
+fn print_diag_mode(server: &DynamicDiagSession) {
+    if let Some(mode) = server.get_current_diag_mode() {
+        println!(
+            "ECU is currently in '{}' diagnostic mode (0x{:02X?}). Tester present being sent?: {}",
+            mode.name, mode.id, mode.tp_require
+        );
+    }
+}
+
 fn main() {
     env_logger::init();
     let dev = ecu_diagnostics::hardware::socketcan::SocketCanScanner::new();
@@ -89,25 +98,16 @@ fn main() {
     let res = diag_server.kwp_set_session(KwpSessionType::ExtendedDiagnostics.into());
     println!("Into extended diag mode result: {:?}", res);
     // Now check diag session mode, should be extended
-    if let Some(mode) = diag_server.get_current_diag_mode() {
-        println!(
-            "ECU is currently in '{}' diagnostic mode (0x{:02X?}). Tester present being sent?: {}",
-            mode.name, mode.id, mode.tp_require
-        );
-    }
-
-    // TODO - Emulate this call somehow for the sake of examples
+    print_diag_mode(&diag_server);
     let res = diag_server.kwp_set_session(KwpSessionTypeByte::from(0x93)); // Same ID as what we registered at the start
     println!("Into special diag mode result: {:?}", res);
-    if let Some(mode) = diag_server.get_current_diag_mode() {
-        println!(
-            "ECU is currently in '{}' diagnostic mode (0x{:02X?}). Tester present being sent?: {}",
-            mode.name, mode.id, mode.tp_require
-        );
-    }
+    print_diag_mode(&diag_server);
     println!("Reset result: {:?}", diag_server.kwp_reset_ecu(automotive_diag::kwp2000::ResetType::PowerOnReset));
+    print_diag_mode(&diag_server); // ECU should be in standard mode now as the ECU was rebooted
     std::thread::sleep(Duration::from_millis(500));
     println!("Read op: {:?}", diag_server.kwp_enable_normal_message_transmission());
+    print_diag_mode(&diag_server); // ECU will automatically be put into 0x93 mode
+                                   // (Last requested mode as enable_normal_message_transmission cannot be ran in standard mode)
     loop {
         // TP will be sent in this mode forever
         std::thread::sleep(Duration::from_millis(1000));

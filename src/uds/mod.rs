@@ -16,7 +16,7 @@ mod scaling_data;
 mod security_access;
 
 pub use access_timing_parameter::*;
-use automotive_diag::uds::{UdsCommand, UdsErrorByte};
+use automotive_diag::uds::{UdsCommand, UdsErrorByte, UdsCommandByte};
 use automotive_diag::ByteWrapper;
 pub use clear_diagnostic_information::*;
 pub use communication_control::*;
@@ -113,9 +113,9 @@ impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
     }
 
     fn process_req_payload(&self, payload: &[u8]) -> DiagAction {
-        match payload[0] {
-            0x10 => {
-                let mode = self
+        let pid = UdsCommandByte::from(payload[0]);
+        if matches!(pid, UdsCommandByte::Standard(UdsCommand::DiagnosticSessionControl)) {
+            let mode = self
                     .session_modes
                     .get(&payload[1])
                     .unwrap_or(&DiagSessionMode {
@@ -125,11 +125,13 @@ impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
                     })
                     .clone();
                 DiagAction::SetSessionMode(mode)
-            }
-            x => DiagAction::Other {
-                sid: x,
+        } else if matches!(pid, UdsCommandByte::Standard(UdsCommand::ECUReset)) {
+            DiagAction::EcuReset
+        } else {
+            DiagAction::Other {
+                sid: payload[0],
                 data: payload[1..].to_vec(),
-            },
+            }
         }
     }
 

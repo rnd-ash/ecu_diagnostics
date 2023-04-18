@@ -156,6 +156,8 @@ impl DiagPayload {
 pub enum DiagAction {
     /// Set session mode
     SetSessionMode(DiagSessionMode),
+    /// ECU Reset message (On completion, ECU will be back in default diag mode)
+    EcuReset,
     /// Other request
     Other { 
         /// Service ID
@@ -301,6 +303,27 @@ impl DynamicDiagSession {
                                 current_session_mode = Some(mode);
                                 *noti_session_mode_t.write().unwrap() = current_session_mode.clone();
                                 last_tp_time = Instant::now();
+                            }
+                            tx_resp.send(res);
+                        },
+                        DiagAction::EcuReset => {
+                            let res = send_recv_ecu_req::<P, NRC>(
+                                tx_addr, 
+                                None, 
+                                &req.payload, 
+                                req.response_require, 
+                                Some(&mut tx_resp), 
+                                basic_opts, 
+                                0, 
+                                &mut iso_tp_channel,
+                                &is_connected_inner
+                            );
+                            if res.is_ok() {
+                                log::debug!("ECU Reset detected. Setting default session mode");
+                                // Send OK! We have to set default session mode as the ECU has been rebooted
+                                // Internally, the 'current session' does not change, as diag server will try on the next
+                                // request to change modes back
+                                *noti_session_mode_t.write().unwrap() = protocol.get_basic_session_mode();
                             }
                             tx_resp.send(res);
                         },
