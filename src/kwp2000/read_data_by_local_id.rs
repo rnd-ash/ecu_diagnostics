@@ -1,6 +1,7 @@
 //! Read data by Local identifier
 
-use crate::{kwp2000::KWP2000Command, DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession};
+use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
+use automotive_diag::kwp2000::KwpCommand;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Development data of the ECU. Used by [super::Kwp2000DiagnosticServer::read_ecu_development_data]
@@ -118,7 +119,7 @@ impl DynamicDiagSession {
     /// Reads development data from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
     pub fn kwp_read_ecu_development_data(&mut self) -> DiagServerResult<DevelopmentData> {
         let res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE0])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE0])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -131,7 +132,7 @@ impl DynamicDiagSession {
     /// can be interpreted as either ASCII (Daimler ECUs), or Model line specification (Varies from OEM to OEM)
     pub fn kwp_read_ecu_serial_number(&mut self) -> DiagServerResult<Vec<u8>> {
         let mut res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE1])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE1])?;
         res.drain(0..2);
         Ok(res)
     }
@@ -139,7 +140,7 @@ impl DynamicDiagSession {
     /// Reads DBCom data from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
     pub fn kwp_read_ecu_dbcom_data(&mut self) -> DiagServerResult<DBComData> {
         let res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE2])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE2])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -149,7 +150,7 @@ impl DynamicDiagSession {
     /// Reads the Operating system version on the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
     pub fn kwp_read_ecu_os_version(&mut self) -> DiagServerResult<String> {
         let res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE3])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE3])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -160,15 +161,14 @@ impl DynamicDiagSession {
     /// This is to be interpreted by GSP/SDE.
     pub fn kwp_read_ecu_reprogramming_fault_report(&mut self) -> DiagServerResult<Vec<u8>> {
         let mut res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE4])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE4])?;
         res.drain(0..2);
         Ok(res)
     }
 
     /// Reads vehicle information from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
     pub fn kwp_read_ecu_vehicle_info(&mut self) -> DiagServerResult<VehicleInfo> {
-        let res =
-            self.send_command_with_response(KWP2000Command::ReadECUIdentification, &[0xE5])?;
+        let res = self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0xE5])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -178,7 +178,7 @@ impl DynamicDiagSession {
     /// Reads flash data from block 1. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
     pub fn kwp_read_ecu_flash_info_1(&mut self) -> DiagServerResult<Vec<u8>> {
         let res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE6])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE6])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -188,7 +188,7 @@ impl DynamicDiagSession {
     /// Reads flash data from block 2. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
     pub fn kwp_read_ecu_flash_info_2(&mut self) -> DiagServerResult<Vec<u8>> {
         let res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE7])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE7])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -200,7 +200,7 @@ impl DynamicDiagSession {
         &mut self,
     ) -> DiagServerResult<DiagGeneralParamData> {
         let res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE8])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE8])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -208,9 +208,11 @@ impl DynamicDiagSession {
     }
 
     /// Reads global diagnostic parameter data from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
-    pub fn kwp_read_system_diag_global_param_data(&mut self) -> DiagServerResult<DiagGlobalParamData> {
+    pub fn kwp_read_system_diag_global_param_data(
+        &mut self,
+    ) -> DiagServerResult<DiagGlobalParamData> {
         let res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xE9])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE9])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -220,7 +222,7 @@ impl DynamicDiagSession {
     /// Reads the ECU's current configuration status. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
     pub fn kwp_read_ecu_configuration(&mut self) -> DiagServerResult<Vec<u8>> {
         let res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xEA])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xEA])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -230,7 +232,7 @@ impl DynamicDiagSession {
     /// Reads ECU protocol information. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
     pub fn kwp_read_diag_protocol_info(&mut self) -> DiagServerResult<DiagProtocolInfo> {
         let res =
-            self.send_command_with_response(KWP2000Command::ReadDataByLocalIdentifier, &[0xEB])?;
+            self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xEB])?;
         Err(DiagError::NotImplemented(format!(
             "ECU Response: {:02X?}",
             res
@@ -252,8 +254,8 @@ impl DynamicDiagSession {
         local_identifier: u8,
     ) -> DiagServerResult<Vec<u8>> {
         let mut res = self.send_command_with_response(
-            KWP2000Command::ReadDataByLocalIdentifier,
-            &[local_identifier]
+            KwpCommand::ReadDataByLocalIdentifier,
+            &[local_identifier],
         )?;
         // Now check identifier in response message was same as our request identifier, if so, strip it
         // from the response message

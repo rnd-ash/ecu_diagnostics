@@ -2,11 +2,12 @@
 
 use crate::{
     dtc::{self, DTCFormatType, DTCStatus, DTC},
-    DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession,
+    dynamic_diag::DynamicDiagSession,
+    DiagError, DiagServerResult,
 };
 
-pub use auto_uds::DtcSubFunction;
-use auto_uds::UdsCommand;
+pub use automotive_diag::uds::DtcSubFunction;
+use automotive_diag::uds::UdsCommand;
 
 impl DynamicDiagSession {
     /// Returns the number of DTCs stored on the ECU
@@ -58,7 +59,8 @@ impl DynamicDiagSession {
 
         // Now, see if we can query the ECU's DTC format
         // Note the ECU might not support this command, in which case return 0 as format specifier
-        let fmt = self.uds_get_number_of_dtcs_by_status_mask(status_mask)
+        let fmt = self
+            .uds_get_number_of_dtcs_by_status_mask(status_mask)
             .map(|x| x.1)
             .unwrap_or(DTCFormatType::Unknown(0));
         let mut result: Vec<DTC> = Vec::new();
@@ -104,7 +106,8 @@ impl DynamicDiagSession {
 
         // Now, see if we can query the ECU's DTC format
         // Note the ECU might not support this command, in which case return 0 as format specifier
-        let fmt = self.uds_get_number_of_dtcs_by_status_mask(status_mask)
+        let fmt = self
+            .uds_get_number_of_dtcs_by_status_mask(status_mask)
             .map(|x| x.1)
             .unwrap_or(DTCFormatType::Unknown(0));
         let mut result: Vec<DTC> = Vec::new();
@@ -209,7 +212,8 @@ impl DynamicDiagSession {
 
         // Now, see if we can query the ECU's DTC format
         // Note the ECU might not support this command, in which case return 0 as format specifier
-        let fmt = self.uds_get_number_of_dtcs_by_status_mask(status_mask)
+        let fmt = self
+            .uds_get_number_of_dtcs_by_status_mask(status_mask)
             .map(|x| x.1)
             .unwrap_or(DTCFormatType::Unknown(0));
         let mut result: Vec<DTC> = Vec::new();
@@ -400,7 +404,8 @@ impl DynamicDiagSession {
 
         // Now, see if we can query the ECU's DTC format
         // Note the ECU might not support this command, in which case return 0 as format specifier
-        let fmt = self.uds_get_number_of_dtcs_by_status_mask(0xFF)
+        let fmt = self
+            .uds_get_number_of_dtcs_by_status_mask(0xFF)
             .map(|x| x.1)
             .unwrap_or(DTCFormatType::Unknown(0));
         let mut result: Vec<DTC> = Vec::new();

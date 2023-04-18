@@ -1,8 +1,7 @@
 //! Routine management wrapper for KWP2000
 
-use crate::{DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession};
-
-use super::start_diagnostic_session::KwpSessionType;
+use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
+use automotive_diag::kwp2000::{KwpCommand, KwpSessionType, RoutineExitStatusByte};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Routine Identifier
@@ -25,30 +24,6 @@ pub enum RoutineID {
     ClearTellTaleRetentionStack,
     /// System supplier specific
     SystemSupplierSpecific(u8),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-/// Routine exit status
-pub enum RoutineExitStatus {
-    /// Unknown exit type
-    Unknown(u8),
-    /// Normal exit with results available. Call [KwpRoutineManager::request_routine_results] to obtain the results
-    NormalExitWithResults,
-    /// Normal exit, the routine does not return any result data
-    NormalExitWithoutResults,
-    /// Abnormal or premature exit. No results available.
-    AbnormalExitWithoutResults,
-}
-
-impl From<u8> for RoutineExitStatus {
-    fn from(x: u8) -> Self {
-        match x {
-            0x61 => Self::NormalExitWithResults,
-            0x62 => Self::NormalExitWithoutResults,
-            0x64 => Self::AbnormalExitWithoutResults,
-            _ => Self::Unknown(x),
-        }
-    }
 }
 
 impl RoutineID {
@@ -101,16 +76,13 @@ impl<'a> KwpRoutineManager<'a> {
     /// If an error of [DiagError::ParameterInvalid] is returned, then it means that the value of `rid` is invalid
     /// and violates the KWP2000 specification. Other [DiagError]'s will come from the attempt to set the ECU
     /// into extended diagnostic session mode.
-    pub fn new(
-        rid: RoutineID,
-        server: &'a mut DynamicDiagSession,
-    ) -> DiagServerResult<Self> {
+    pub fn new(rid: RoutineID, server: &'a mut DynamicDiagSession) -> DiagServerResult<Self> {
         let x: u8 = rid.as_start_byte();
         if x == 0x00 || x == 0xE2 || x == 0xFF || (0xEA..=0xF9).contains(&x) {
             return Err(DiagError::ParameterInvalid); // Unsupported by the spec, might have undefined behavior. Ignore!
         }
         // We have to be in extended mode for routine management to work!
-        server.kwp_set_session(KwpSessionType::ExtendedDiagnostics)?;
+        server.kwp_set_session(KwpSessionType::ExtendedDiagnostics.into())?;
         Ok(Self { server, r_id: rid })
     }
 
@@ -119,23 +91,17 @@ impl<'a> KwpRoutineManager<'a> {
         let mut p: Vec<u8> = vec![self.r_id.as_start_byte()];
         p.extend_from_slice(entry_options);
         self.server
-            .send_command_with_response(
-                crate::kwp2000::KWP2000Command::StartRoutineByLocalIdentifier,
-                &p,
-            )?;
-            Ok(())
+            .send_command_with_response(KwpCommand::StartRoutineByLocalIdentifier, &p)?;
+        Ok(())
     }
 
     /// Attempts to stop the routine. Note that some routines automatically exit themselves
     /// and do NOT need to be manually stopped
-    pub fn stop_routine(&mut self, exit_options: &[u8]) -> DiagServerResult<RoutineExitStatus> {
+    pub fn stop_routine(&mut self, exit_options: &[u8]) -> DiagServerResult<RoutineExitStatusByte> {
         let mut p: Vec<u8> = vec![self.r_id.as_start_byte()];
         p.extend_from_slice(exit_options);
         self.server
-            .send_command_with_response(
-                crate::kwp2000::KWP2000Command::StopRoutineByLocalIdentifier,
-                &p,
-            )
+            .send_command_with_response(KwpCommand::StopRoutineByLocalIdentifier, &p)
             .map(|x| x[1].into())
     }
 
@@ -144,7 +110,7 @@ impl<'a> KwpRoutineManager<'a> {
     /// [RoutineExitStatus::NormalExitWithResults] first.
     pub fn request_routine_results(&mut self) -> DiagServerResult<Vec<u8>> {
         self.server.send_command_with_response(
-            crate::kwp2000::KWP2000Command::RequestRoutineResultsByLocalIdentifier,
+            KwpCommand::RequestRoutineResultsByLocalIdentifier,
             &[self.r_id.as_result_byte()],
         )
     }

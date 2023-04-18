@@ -1,9 +1,13 @@
 //!  Provides methods to reset the ECU in order to simulate power cycling and resetting memory regions
-//! 
-use crate::{DiagError, DiagServerResult, dynamic_diag::{DynamicDiagSession, EcuNRC}};
+//!
+use crate::{
+    dynamic_diag::{DynamicDiagSession, EcuNRC},
+    DiagError, DiagServerResult,
+};
 
-pub use auto_uds::ResetType;
-use auto_uds::{UdsCommand, ByteWrapper, UdsError};
+pub use automotive_diag::uds::ResetType;
+use automotive_diag::uds::{UdsCommand, UdsError};
+use automotive_diag::ByteWrapper::Standard;
 
 impl DynamicDiagSession {
     /// Asks the ECU to perform a hard reset. See [ResetType::HardReset] for more details
@@ -48,7 +52,7 @@ impl DynamicDiagSession {
         match res.get(2) {
             Some(&time) if time == 0xFF => Err(DiagError::ECUError {
                 code: 0x10,
-                def: Some(ByteWrapper::from(UdsError::GeneralReject as u8).desc())
+                def: Some(Standard(UdsError::GeneralReject).desc()),
             }), // General reject
             Some(&time) => Ok(time),
             None => Err(DiagError::InvalidResponseLength),

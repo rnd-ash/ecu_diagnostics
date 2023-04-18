@@ -2,10 +2,11 @@
 
 use crate::{
     dtc::{DTCFormatType, DTCStatus, DTC},
-    DiagError, DiagServerResult, dynamic_diag::DynamicDiagSession,
+    dynamic_diag::DynamicDiagSession,
+    DiagError, DiagServerResult,
 };
-
-use super::{KWP2000Command, KWP2000Error};
+use automotive_diag::kwp2000::{KwpCommand, KwpError, KwpErrorByte};
+use automotive_diag::ByteWrapper::Standard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 
@@ -49,7 +50,7 @@ impl DynamicDiagSession {
     /// Returns a list of stored DTCs on the ECU in ISO15031-6 format
     pub fn kwp_read_stored_dtcs_iso15031(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let mut res = self.send_command_with_response(
-            KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
+            KwpCommand::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0x00),
         )?;
         if res.len() < 5 {
@@ -79,12 +80,15 @@ impl DynamicDiagSession {
     }
 
     /// Returns a list of all supported DTCs on the ECU regardless of their status in ISO15031-6 format
-    pub fn kwp_read_supported_dtcs_iso15031(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
+    pub fn kwp_read_supported_dtcs_iso15031(
+        &mut self,
+        range: DTCRange,
+    ) -> DiagServerResult<Vec<DTC>> {
         let res: Vec<DTC> = Vec::new();
 
         loop {
             let res_bytes = self.send_command_with_response(
-                KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
+                KwpCommand::ReadDiagnosticTroubleCodesByStatus,
                 &range.as_args(0x01),
             )?;
             println!("RES: {:02X?}", res_bytes);
@@ -105,7 +109,7 @@ impl DynamicDiagSession {
     /// Returns a list of stored DTCs on the ECU in KWP2000 format
     pub fn kwp_read_stored_dtcs(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let mut res = self.send_command_with_response(
-            KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
+            KwpCommand::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0x02),
         )?;
         if res.len() < 5 {
@@ -142,7 +146,7 @@ impl DynamicDiagSession {
         let mut res: Vec<DTC> = Vec::new();
         loop {
             let mut res_bytes = self.send_command_with_response(
-                KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
+                KwpCommand::ReadDiagnosticTroubleCodesByStatus,
                 &range.as_args(0x03),
             )?;
 
@@ -182,7 +186,7 @@ impl DynamicDiagSession {
     /// Only one DTC is returned if stored, otherwise no DTC is returned.
     pub fn kwp_get_most_recent_dtc(&mut self, range: DTCRange) -> DiagServerResult<Option<DTC>> {
         let req = self.send_command_with_response(
-            KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
+            KwpCommand::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0x04),
         )?;
         todo!("ECU Response: {:02X?}", req)
@@ -194,7 +198,7 @@ impl DynamicDiagSession {
     /// should be executed to read the rest of the DTCs again within the ECUs P3-MAX time window
     pub fn kwp_read_extended_supported_dtcs(&mut self, range: DTCRange) -> DiagServerResult<u16> {
         match self.send_command_with_response(
-            KWP2000Command::ReadDiagnosticTroubleCodesByStatus,
+            KwpCommand::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0xE0),
         ) {
             Ok(x) => {
@@ -207,8 +211,8 @@ impl DynamicDiagSession {
             Err(e) => {
                 if let DiagError::ECUError { code, def } = e {
                     // ECU error, check if sub function not supported, in which case just return 0!
-                    if KWP2000Error::from(code)
-                        == KWP2000Error::SubFunctionNotSupportedInvalidFormat
+                    if KwpErrorByte::from(code)
+                        == Standard(KwpError::SubFunctionNotSupportedInvalidFormat)
                     {
                         Ok(0)
                     } else {
