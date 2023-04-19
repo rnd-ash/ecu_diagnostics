@@ -237,7 +237,7 @@ impl DynamicDiagSession {
     #[allow(unused_must_use, unused_assignments)]
     pub fn new_over_iso_tp<C, P, NRC>(
         protocol: P,
-        hw_device: Arc<Mutex<C>>,
+        mut channel: Box<dyn IsoTPChannel>,
         channel_cfg: IsoTPSettings,
         basic_opts: DiagServerBasicOptions,
         advanced_opts: Option<DiagServerAdvancedOptions>,
@@ -248,10 +248,9 @@ impl DynamicDiagSession {
         NRC: EcuNRC
     {
         // Create iso tp channel using provided HW interface. If this fails, we cannot setup KWP or UDS session!
-        let mut iso_tp_channel = Hardware::create_iso_tp_channel(hw_device)?;
-        iso_tp_channel.set_iso_tp_cfg(channel_cfg)?;
-        iso_tp_channel.set_ids(basic_opts.send_id, basic_opts.recv_id)?;
-        iso_tp_channel.open()?;
+        channel.set_iso_tp_cfg(channel_cfg)?;
+        channel.set_ids(basic_opts.send_id, basic_opts.recv_id)?;
+        channel.open()?;
 
         let mut current_session_mode = protocol.get_basic_session_mode();
         if current_session_mode.is_none() && advanced_opts.is_some() {
@@ -295,7 +294,7 @@ impl DynamicDiagSession {
                                 Some(&mut tx_resp), 
                                 basic_opts, 
                                 0, 
-                                &mut iso_tp_channel,
+                                &mut channel,
                                 &is_connected_inner
                             );
                             if res.is_ok() {
@@ -315,7 +314,7 @@ impl DynamicDiagSession {
                                 Some(&mut tx_resp), 
                                 basic_opts, 
                                 0, 
-                                &mut iso_tp_channel,
+                                &mut channel,
                                 &is_connected_inner
                             );
                             if res.is_ok() {
@@ -336,7 +335,7 @@ impl DynamicDiagSession {
                                 Some(&mut tx_resp), 
                                 basic_opts, 
                                 0, 
-                                &mut iso_tp_channel,
+                                &mut channel,
                                 &is_connected_inner
                             );
                             if let DiagServerRx::EcuError { b, desc:_ } = &resp {
@@ -365,7 +364,7 @@ impl DynamicDiagSession {
                                         None, // None, internally handled 
                                         basic_opts, 
                                         0, 
-                                        &mut iso_tp_channel,
+                                        &mut channel,
                                         &is_connected_inner
                                     ).is_ok() {
                                         log::debug!("ECU mode switch OK. Resending the request");
@@ -380,7 +379,7 @@ impl DynamicDiagSession {
                                             Some(&mut tx_resp), 
                                             basic_opts, 
                                             0, 
-                                            &mut iso_tp_channel,
+                                            &mut channel,
                                             &is_connected_inner
                                         );
                                     } else {
@@ -414,7 +413,7 @@ impl DynamicDiagSession {
                                 None, 
                                 basic_opts, 
                                 0, 
-                                &mut iso_tp_channel,
+                                &mut channel,
                                 &is_connected_inner
                             ).is_err() {
                                 log::warn!("Tester present send failure. Assuming default diag session state");
@@ -428,8 +427,8 @@ impl DynamicDiagSession {
                 }
             }
             // Thread has exited, so tear everything down!
-            iso_tp_channel.close().unwrap();
-            drop(iso_tp_channel)
+            channel.close().unwrap();
+            drop(channel)
         });
         Ok(Self {
             sender: tx_req,
