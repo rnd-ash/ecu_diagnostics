@@ -235,7 +235,7 @@ impl DynamicDiagSession {
     /// Creates a new diagnostic server with a given protocol and NRC format
     /// over an ISO-TP connection
     #[allow(unused_must_use, unused_assignments)]
-    pub fn new_over_iso_tp<C, P, NRC>(
+    pub fn new_over_iso_tp<P, NRC>(
         protocol: P,
         mut channel: Box<dyn IsoTPChannel>,
         channel_cfg: IsoTPSettings,
@@ -243,7 +243,6 @@ impl DynamicDiagSession {
         advanced_opts: Option<DiagServerAdvancedOptions>,
     ) -> DiagServerResult<Self>
     where
-        C: Hardware + 'static,
         P: DiagProtocol<NRC> + 'static,
         NRC: EcuNRC
     {
