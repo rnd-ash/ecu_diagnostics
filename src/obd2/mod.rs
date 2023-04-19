@@ -1,8 +1,9 @@
 //! Module for OBD (ISO-9141)
 
 use crate::dynamic_diag::{DiagAction, DiagPayload, DiagProtocol, DiagSessionMode, EcuNRC};
-use automotive_diag::obd2::{Obd2Error, Obd2ErrorByte};
-use automotive_diag::ByteWrapper::Standard;
+
+use automotive_diag::ByteWrapper;
+pub use automotive_diag::obd2::*;
 use std::collections::HashMap;
 
 mod data_pids;
@@ -37,7 +38,7 @@ impl EcuNRC for Obd2ErrorByte {
     }
 
     fn is_ecu_busy(&self) -> bool {
-        matches!(self, Standard(Obd2Error::BusyResponsePending))
+        matches!(self, ByteWrapper::Standard(Obd2Error::BusyResponsePending))
     }
 
     fn is_wrong_diag_mode(&self) -> bool {
@@ -45,7 +46,7 @@ impl EcuNRC for Obd2ErrorByte {
     }
 
     fn is_repeat_request(&self) -> bool {
-        matches!(self, Standard(Obd2Error::BusyRepeatRequest))
+        matches!(self, ByteWrapper::Standard(Obd2Error::BusyRepeatRequest))
     }
 }
 

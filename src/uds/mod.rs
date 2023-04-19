@@ -16,8 +16,8 @@ mod scaling_data;
 mod security_access;
 
 pub use access_timing_parameter::*;
-use automotive_diag::uds::{UdsCommand, UdsErrorByte, UdsCommandByte};
 use automotive_diag::ByteWrapper;
+pub use automotive_diag::uds::*;
 pub use clear_diagnostic_information::*;
 pub use communication_control::*;
 pub use diagnostic_session_control::*;

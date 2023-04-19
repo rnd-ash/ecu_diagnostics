@@ -70,7 +70,7 @@ pub mod kwp2000;
 pub mod obd2;
 pub mod uds;
 
-pub use automotive_diag;
+pub use automotive_diag::ByteWrapper::*;
 
 /// Diagnostic server result
 pub type DiagServerResult<T> = Result<T, DiagError>;
