@@ -3,12 +3,11 @@
 use std::{sync::{mpsc::{Sender, Receiver}, atomic::{AtomicBool, Ordering}}, time::Duration, collections::HashMap};
 
 use std::{
-    sync::{Arc, Mutex, RwLock, mpsc}, time::Instant,
+    sync::{Arc, RwLock, mpsc}, time::Instant,
 };
 
 use crate::{
     channel::{IsoTPSettings, IsoTPChannel, ChannelResult},
-    hardware::Hardware,
     DiagError, DiagServerResult
 };
 
