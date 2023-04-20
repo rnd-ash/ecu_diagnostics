@@ -7,7 +7,7 @@ use ecu_diagnostics::{
         DiagProtocol, DiagServerAdvancedOptions, DiagServerBasicOptions, DiagSessionMode,
         DynamicDiagSession, TimeoutConfig,
     },
-    hardware::{self, HardwareScanner},
+    hardware::{self, HardwareScanner, Hardware},
     kwp2000::Kwp2000Protocol,
 };
 
@@ -38,6 +38,7 @@ fn main() {
     env_logger::init();
     let dev = ecu_diagnostics::hardware::socketcan::SocketCanScanner::new();
     let d = dev.open_device_by_name("can0").unwrap();
+    let isotp = Hardware::create_iso_tp_channel(d).unwrap();
 
     let mut protocol = Kwp2000Protocol::default();
     println!("Diagnostic server is {}!", protocol.get_protocol_name());
@@ -50,7 +51,7 @@ fn main() {
 
     let mut diag_server = ecu_diagnostics::dynamic_diag::DynamicDiagSession::new_over_iso_tp(
         protocol,
-        d,
+        isotp,
         IsoTPSettings {
             // ISO-TP layer settings
             block_size: 8,
