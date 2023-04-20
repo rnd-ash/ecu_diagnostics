@@ -31,7 +31,7 @@ impl<'a> KwpIOCTLManager<'a> {
     }
 
     /// Asks the ECU to take back control of the identifier.
-    pub fn return_control_to_ecu(&mut self) -> DiagServerResult<()> {
+    pub fn return_control_to_ecu(&self) -> DiagServerResult<()> {
         self.server.send_command_with_response(
             KwpCommand::InputOutputControlByLocalIdentifier,
             &[self.identifier, 0x00],
@@ -40,7 +40,7 @@ impl<'a> KwpIOCTLManager<'a> {
     }
 
     /// Asks the ECU to report the current state of the identifier.
-    pub fn report_current_state(&mut self) -> DiagServerResult<Vec<u8>> {
+    pub fn report_current_state(&self) -> DiagServerResult<Vec<u8>> {
         self.server.send_command_with_response(
             KwpCommand::InputOutputControlByLocalIdentifier,
             &[self.identifier, 0x01],
@@ -48,7 +48,7 @@ impl<'a> KwpIOCTLManager<'a> {
     }
 
     /// Asks the ECU to return the component identifier back to its default (Factory) state
-    pub fn reset_to_default_state(&mut self) -> DiagServerResult<()> {
+    pub fn reset_to_default_state(&self) -> DiagServerResult<()> {
         self.server.send_command_with_response(
             KwpCommand::InputOutputControlByLocalIdentifier,
             &[self.identifier, 0x04],
@@ -57,7 +57,7 @@ impl<'a> KwpIOCTLManager<'a> {
     }
 
     /// Asks the ECU to freeze the current state of the identifier
-    pub fn freeze_current_state(&mut self) -> DiagServerResult<()> {
+    pub fn freeze_current_state(&self) -> DiagServerResult<()> {
         self.server.send_command_with_response(
             KwpCommand::InputOutputControlByLocalIdentifier,
             &[self.identifier, 0x05],
@@ -68,7 +68,7 @@ impl<'a> KwpIOCTLManager<'a> {
     /// Actuates the component at the provided identifier. This is a short term actuation.
     /// Once the ECU looses power or returns to its default session state, the component will
     /// be controlled by the ECU normally
-    pub fn short_term_actuate(&mut self, args: &[u8]) -> DiagServerResult<()> {
+    pub fn short_term_actuate(&self, args: &[u8]) -> DiagServerResult<()> {
         let mut a = vec![self.identifier, 0x07];
         a.extend_from_slice(args);
         self.server
@@ -79,7 +79,7 @@ impl<'a> KwpIOCTLManager<'a> {
     /// Adjusts the component's value. This is an optional command and is NOT supported by all ECUs.
     /// This allows for long-term adjustments (Such as fuel trims) to be made to the ECU. The ECU
     /// will retain the values even after a power reset.
-    pub fn long_term_adjust(&mut self, args: &[u8]) -> DiagServerResult<()> {
+    pub fn long_term_adjust(&self, args: &[u8]) -> DiagServerResult<()> {
         let mut a = vec![self.identifier, 0x08];
         a.extend_from_slice(args);
         self.server

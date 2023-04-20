@@ -53,7 +53,7 @@ impl From<ClearDTCRange> for u16 {
 
 impl DynamicDiagSession {
     /// Executes a DTC clear command on the ECU, given a range of DTCs to clear
-    pub fn kwp_clear_dtc_range(&mut self, dtc_range: ClearDTCRange) -> DiagServerResult<()> {
+    pub fn kwp_clear_dtc_range(&self, dtc_range: ClearDTCRange) -> DiagServerResult<()> {
         let dtc_range_num: u16 = dtc_range.into();
         self.send_command_with_response(
             KwpCommand::ClearDiagnosticInformation,

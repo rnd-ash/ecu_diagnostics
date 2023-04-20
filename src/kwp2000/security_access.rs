@@ -13,7 +13,7 @@ impl DynamicDiagSession {
     /// ## Returns
     /// This function will return an error if the access_mode parameter is not a valid mode!
     /// If the function succeeds, then just the ECUs key response is returned
-    pub fn kwp_request_seed(&mut self, access_mode: u8) -> DiagServerResult<Vec<u8>> {
+    pub fn kwp_request_seed(&self, access_mode: u8) -> DiagServerResult<Vec<u8>> {
         if access_mode % 2 == 0 {
             return Err(DiagError::ParameterInvalid);
         }
@@ -32,7 +32,7 @@ impl DynamicDiagSession {
     /// ## Returns
     /// This function will return an error if the access_mode parameter is not a valid mode! The access_mode
     /// should be THE SAME as what was provided to [Kwp2000DiagnosticServer::request_seed]
-    pub fn kwp_unlock_ecu_with_key(&mut self, access_mode: u8, key: &[u8]) -> DiagServerResult<()> {
+    pub fn kwp_unlock_ecu_with_key(&self, access_mode: u8, key: &[u8]) -> DiagServerResult<()> {
         if access_mode % 2 == 0 {
             return Err(DiagError::ParameterInvalid);
         }

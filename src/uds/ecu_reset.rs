@@ -14,7 +14,7 @@ impl DynamicDiagSession {
     ///
     /// ## Parameters
     /// * server - The UDS Diagnostic server
-    pub fn uds_ecu_hard_reset(&mut self) -> DiagServerResult<()> {
+    pub fn uds_ecu_hard_reset(&self) -> DiagServerResult<()> {
         self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::HardReset.into()])?;
         Ok(())
     }
@@ -23,7 +23,7 @@ impl DynamicDiagSession {
     ///
     /// ## Parameters
     /// * server - The UDS Diagnostic server
-    pub fn uds_ecu_key_off_on_reset(&mut self) -> DiagServerResult<()> {
+    pub fn uds_ecu_key_off_on_reset(&self) -> DiagServerResult<()> {
         self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::KeyOffReset.into()])?;
         Ok(())
     }
@@ -32,7 +32,7 @@ impl DynamicDiagSession {
     ///
     /// ## Parameters
     /// * server - The UDS Diagnostic server
-    pub fn uds_ecu_soft_reset(&mut self) -> DiagServerResult<()> {
+    pub fn uds_ecu_soft_reset(&self) -> DiagServerResult<()> {
         self.send_command_with_response(UdsCommand::ECUReset, &[ResetType::SoftReset.into()])?;
         Ok(())
     }
@@ -44,7 +44,7 @@ impl DynamicDiagSession {
     ///
     /// ## Returns
     /// If successful, this function will return the minimum time in seconds that the ECU will remain in the power-down sequence
-    pub fn uds_enable_rapid_power_shutdown(&mut self) -> DiagServerResult<u8> {
+    pub fn uds_enable_rapid_power_shutdown(&self) -> DiagServerResult<u8> {
         let res = self.send_command_with_response(
             UdsCommand::ECUReset,
             &[ResetType::EnableRapidPowerShutDown.into()],
@@ -63,7 +63,7 @@ impl DynamicDiagSession {
     ///
     /// ## Parameters
     /// * server - The UDS Diagnostic server
-    pub fn uds_disable_rapid_power_shutdown(&mut self) -> DiagServerResult<()> {
+    pub fn uds_disable_rapid_power_shutdown(&self) -> DiagServerResult<()> {
         self.send_command_with_response(
             UdsCommand::ECUReset,
             &[ResetType::DisableRapidPowerShutDown.into()],

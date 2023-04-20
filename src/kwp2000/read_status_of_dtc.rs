@@ -20,7 +20,7 @@ impl DynamicDiagSession {
     /// 2. DTC High byte
     /// 3. DTC Low byte
     /// 4. Status of DTC
-    pub fn kwp_read_status_of_dtc(&mut self, dtc: u16) -> DiagServerResult<Vec<u8>> {
+    pub fn kwp_read_status_of_dtc(&self, dtc: u16) -> DiagServerResult<Vec<u8>> {
         self.send_command_with_response(
             KwpCommand::ReadStatusOfDiagnosticTroubleCodes,
             &[(dtc >> 8) as u8, dtc as u8],

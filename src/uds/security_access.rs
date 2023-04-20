@@ -18,7 +18,7 @@ impl DynamicDiagSession {
     ///
     /// ## Returns
     /// Returns the security key's seed
-    pub fn uds_request_seed(&mut self) -> DiagServerResult<Vec<u8>> {
+    pub fn uds_request_seed(&self) -> DiagServerResult<Vec<u8>> {
         let mut resp = self.send_command_with_response(
             UdsCommand::SecurityAccess,
             &[SecurityOperation::RequestSeed.into()],
@@ -34,7 +34,7 @@ impl DynamicDiagSession {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     /// * key - The computed key to send to the ECU
-    pub fn uds_send_key(&mut self, key: &[u8]) -> DiagServerResult<()> {
+    pub fn uds_send_key(&self, key: &[u8]) -> DiagServerResult<()> {
         let mut payload = Vec::with_capacity(key.len() + 1);
         payload.push(SecurityOperation::SendKey.into());
         payload.extend_from_slice(key);

@@ -9,7 +9,7 @@ impl DynamicDiagSession {
     ///
     /// NOTE: This function is ONLY indented for ECU development. In production ECUs,
     /// use [Kwp2000DiagnosticServer::read_custom_local_identifier] instead
-    pub fn kwp_read_memory(&mut self, address: u32, size: u8) -> DiagServerResult<Vec<u8>> {
+    pub fn kwp_read_memory(&self, address: u32, size: u8) -> DiagServerResult<Vec<u8>> {
         self.send_command_with_response(
             KwpCommand::ReadMemoryByAddress,
             &[

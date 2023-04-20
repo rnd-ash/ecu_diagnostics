@@ -8,7 +8,7 @@ impl DynamicDiagSession {
     ///
     /// ## Params
     /// * mode - [ResetMode] to send to the ECU
-    pub fn kwp_reset_ecu(&mut self, mode: ResetType) -> DiagServerResult<()> {
+    pub fn kwp_reset_ecu(&self, mode: ResetType) -> DiagServerResult<()> {
         self.send_command_with_response(KwpCommand::ECUReset, &[mode.into()])?;
         Ok(())
     }

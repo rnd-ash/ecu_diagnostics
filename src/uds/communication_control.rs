@@ -17,7 +17,7 @@ impl DynamicDiagSession {
     /// * Subnet - The subnet the ECU communicates with to modify
     /// * comm_level - Communication level
     pub fn uds_control_communication(
-        &mut self,
+        &self,
         communication_type: EcuCommunicationType,
         subnet: Subnet,
         comm_level: CommunicationLevel,

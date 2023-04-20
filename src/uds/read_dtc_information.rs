@@ -19,7 +19,7 @@ impl DynamicDiagSession {
     /// 2. ([DTCFormatType]) - Format of the DTCs
     /// 3. (u16) - Number of DTCs which match the status mask
     pub fn uds_get_number_of_dtcs_by_status_mask(
-        &mut self,
+        &self,
         status_mask: u8,
     ) -> DiagServerResult<(u8, DTCFormatType, u16)> {
         let resp = self.send_command_with_response(
@@ -43,7 +43,7 @@ impl DynamicDiagSession {
 
     /// Returns a list of DTCs stored on the ECU
     /// matching the provided status_mask
-    pub fn uds_get_dtcs_by_status_mask(&mut self, status_mask: u8) -> DiagServerResult<Vec<DTC>> {
+    pub fn uds_get_dtcs_by_status_mask(&self, status_mask: u8) -> DiagServerResult<Vec<DTC>> {
         let mut resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportDtcByStatusMask as u8, status_mask],
@@ -85,7 +85,7 @@ impl DynamicDiagSession {
     /// Returns a list of DTCs out of the DTC mirror memory who's status_mask matches
     /// the provided mask
     pub fn uds_get_mirror_memory_dtcs_by_status_mask(
-        &mut self,
+        &self,
         status_mask: u8,
     ) -> DiagServerResult<Vec<DTC>> {
         let mut resp = self.send_command_with_response(
@@ -137,7 +137,7 @@ impl DynamicDiagSession {
     /// 2. ([DTCFormatType]) - Format of the DTCs
     /// 3. (u16) - Number of DTCs which match the status mask
     pub fn uds_get_number_of_mirror_memory_dtcs_by_status_mask(
-        &mut self,
+        &self,
         status_mask: u8,
     ) -> DiagServerResult<(u8, DTCFormatType, u16)> {
         let resp = self.send_command_with_response(
@@ -167,7 +167,7 @@ impl DynamicDiagSession {
     /// 2. ([DTCFormatType]) - Format of the DTCs
     /// 3. (u16) - Number of DTCs which match the status mask
     pub fn uds_get_number_of_emissions_related_obd_dtcs_by_status_mask(
-        &mut self,
+        &self,
         status_mask: u8,
     ) -> DiagServerResult<(u8, DTCFormatType, u16)> {
         let resp = self.send_command_with_response(
@@ -191,7 +191,7 @@ impl DynamicDiagSession {
     /// Returns a list of OBD emissions related DTCs stored on the ECU
     /// who's status mask matches the provided mask
     pub fn uds_get_emissions_related_obd_dtcs_by_status_mask(
-        &mut self,
+        &self,
         status_mask: u8,
     ) -> DiagServerResult<Vec<DTC>> {
         let mut resp = self.send_command_with_response(
@@ -236,7 +236,7 @@ impl DynamicDiagSession {
 
     ///
     pub fn uds_get_dtc_snapshot_record_by_dtc_number(
-        &mut self,
+        &self,
         dtc_mask_record: u32,
         snapshot_record_number: u8,
     ) -> DiagServerResult<u32> {
@@ -257,7 +257,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns all DTC snapshot identifications (DTC number(s) and DTCSnapshot record number(s))
-    pub fn uds_get_dtc_snapshot_identification(&mut self) -> DiagServerResult<u32> {
+    pub fn uds_get_dtc_snapshot_identification(&self) -> DiagServerResult<u32> {
         let resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportDtcSnapshotIdentifier as u8],
@@ -270,7 +270,7 @@ impl DynamicDiagSession {
 
     /// Returns a list of snapshot records based on the mask of snapshot_record_number (0xFF for all records)
     pub fn uds_get_dtc_snapshot_record_by_record_number(
-        &mut self,
+        &self,
         snapshot_record_number: u8,
     ) -> DiagServerResult<u32> {
         let resp = self.send_command_with_response(
@@ -292,7 +292,7 @@ impl DynamicDiagSession {
     /// ## Returns
     /// This function will return the ECUs full response if successful
     pub fn uds_get_dtc_extended_data_record_by_dtc_number(
-        &mut self,
+        &self,
         dtc: u32,
         extended_data_record_number: u8,
     ) -> DiagServerResult<Vec<u8>> {
@@ -314,7 +314,7 @@ impl DynamicDiagSession {
     /// ## Returns
     /// This function will return the ECUs full response if successful
     pub fn uds_get_mirror_memory_dtc_extended_data_record_by_dtc_number(
-        &mut self,
+        &self,
         dtc: u32,
         extended_data_record_number: u8,
     ) -> DiagServerResult<Vec<u8>> {
@@ -332,7 +332,7 @@ impl DynamicDiagSession {
 
     /// Returns the number of DTCs stored on the ECU that match the provided severity and status mask
     pub fn uds_get_number_of_dtcs_by_severity_mask_record(
-        &mut self,
+        &self,
         severity_mask: u8,
         status_mask: u8,
     ) -> DiagServerResult<u32> {
@@ -352,7 +352,7 @@ impl DynamicDiagSession {
 
     /// Returns a list of DTCs who's severity mask matches the provided mask
     pub fn uds_get_dtcs_by_severity_mask_record(
-        &mut self,
+        &self,
         severity_mask: u8,
         status_mask: u8,
     ) -> DiagServerResult<Vec<DTC>> {
@@ -371,7 +371,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns the severity status of a provided DTC
-    pub fn uds_get_severity_information_of_dtc(&mut self, dtc: u32) -> DiagServerResult<u32> {
+    pub fn uds_get_severity_information_of_dtc(&self, dtc: u32) -> DiagServerResult<u32> {
         let resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[
@@ -388,7 +388,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns a list of all DTCs that the ECU can return
-    pub fn uds_get_supported_dtc(&mut self) -> DiagServerResult<Vec<DTC>> {
+    pub fn uds_get_supported_dtc(&self) -> DiagServerResult<Vec<DTC>> {
         let mut resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportSupportedDtc as u8],
@@ -427,7 +427,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns the first failed DTC to be detected since the last DTC clear operation
-    pub fn uds_get_first_test_failed_dtc(&mut self) -> DiagServerResult<Option<DTC>> {
+    pub fn uds_get_first_test_failed_dtc(&self) -> DiagServerResult<Option<DTC>> {
         let resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportFirstTestFailedDtc as u8],
@@ -439,7 +439,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns the first confirmed DTC to be detected since the last DTC clear operation
-    pub fn uds_get_first_confirmed_dtc(&mut self) -> DiagServerResult<Option<DTC>> {
+    pub fn uds_get_first_confirmed_dtc(&self) -> DiagServerResult<Option<DTC>> {
         let resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportFirstConfirmedDtc as u8],
@@ -451,7 +451,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns the most recent DTC to be detected since the last DTC clear operation
-    pub fn uds_get_most_recent_test_failed_dtc(&mut self) -> DiagServerResult<Option<DTC>> {
+    pub fn uds_get_most_recent_test_failed_dtc(&self) -> DiagServerResult<Option<DTC>> {
         let resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportMostRecentTestFailedDtc as u8],
@@ -463,7 +463,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns the most recent DTC to be detected since the last DTC clear operation
-    pub fn uds_get_most_recent_confirmed_dtc(&mut self) -> DiagServerResult<Option<DTC>> {
+    pub fn uds_get_most_recent_confirmed_dtc(&self) -> DiagServerResult<Option<DTC>> {
         let resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportMostRecentConfirmedDtc as u8],
@@ -481,7 +481,7 @@ impl DynamicDiagSession {
     /// This function will return a vector of information, where each element is a tuple containing the following values:
     /// 1. (u32) - DTC Code
     /// 2. (u8) - Fault detection counter
-    pub fn uds_get_dtc_fault_detection_counter(&mut self) -> DiagServerResult<Vec<(u32, u8)>> {
+    pub fn uds_get_dtc_fault_detection_counter(&self) -> DiagServerResult<Vec<(u32, u8)>> {
         let mut resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportDtcFaultDetectionCounter as u8],
@@ -506,7 +506,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns a list of DTCs that have a permanent status
-    pub fn uds_get_dtc_with_permanent_status(&mut self) -> DiagServerResult<Vec<DTC>> {
+    pub fn uds_get_dtc_with_permanent_status(&self) -> DiagServerResult<Vec<DTC>> {
         let resp = self.send_command_with_response(
             UdsCommand::ReadDTCInformation,
             &[DtcSubFunction::ReportDtcWithPermanentStatus as u8],

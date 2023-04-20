@@ -48,7 +48,7 @@ impl DTCRange {
 
 impl DynamicDiagSession {
     /// Returns a list of stored DTCs on the ECU in ISO15031-6 format
-    pub fn kwp_read_stored_dtcs_iso15031(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
+    pub fn kwp_read_stored_dtcs_iso15031(&self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let mut res = self.send_command_with_response(
             KwpCommand::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0x00),
@@ -81,7 +81,7 @@ impl DynamicDiagSession {
 
     /// Returns a list of all supported DTCs on the ECU regardless of their status in ISO15031-6 format
     pub fn kwp_read_supported_dtcs_iso15031(
-        &mut self,
+        &self,
         range: DTCRange,
     ) -> DiagServerResult<Vec<DTC>> {
         let res: Vec<DTC> = Vec::new();
@@ -107,7 +107,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns a list of stored DTCs on the ECU in KWP2000 format
-    pub fn kwp_read_stored_dtcs(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
+    pub fn kwp_read_stored_dtcs(&self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let mut res = self.send_command_with_response(
             KwpCommand::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0x02),
@@ -142,7 +142,7 @@ impl DynamicDiagSession {
     ///
     /// NOTE: Internally, this function will call [Kwp2000DiagnosticServer::read_extended_supported_dtcs] in a loop in order
     /// to read all DTCs regardless of transport layer limitations
-    pub fn kwp_read_supported_dtcs(&mut self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
+    pub fn kwp_read_supported_dtcs(&self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let mut res: Vec<DTC> = Vec::new();
         loop {
             let mut res_bytes = self.send_command_with_response(
@@ -184,7 +184,7 @@ impl DynamicDiagSession {
 
     /// Asks the ECU to report its most recent DTCs that has been stored.
     /// Only one DTC is returned if stored, otherwise no DTC is returned.
-    pub fn kwp_get_most_recent_dtc(&mut self, range: DTCRange) -> DiagServerResult<Option<DTC>> {
+    pub fn kwp_get_most_recent_dtc(&self, range: DTCRange) -> DiagServerResult<Option<DTC>> {
         let req = self.send_command_with_response(
             KwpCommand::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0x04),
@@ -196,7 +196,7 @@ impl DynamicDiagSession {
     /// if the transport layer restricts the number of DTCs that can be read, or the number of DTCs exceeds 255,
     /// then this function will return the number of remaining supported of DTCs to read. [Kwp2000DiagnosticServer::read_supported_dtcs] or [Kwp2000DiagnosticServer::read_supported_dtcs_iso15031]
     /// should be executed to read the rest of the DTCs again within the ECUs P3-MAX time window
-    pub fn kwp_read_extended_supported_dtcs(&mut self, range: DTCRange) -> DiagServerResult<u16> {
+    pub fn kwp_read_extended_supported_dtcs(&self, range: DTCRange) -> DiagServerResult<u16> {
         match self.send_command_with_response(
             KwpCommand::ReadDiagnosticTroubleCodesByStatus,
             &range.as_args(0xE0),

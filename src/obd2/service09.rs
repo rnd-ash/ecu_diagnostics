@@ -51,7 +51,7 @@ impl<'a> Service09<'a> {
     }
 
     /// Reads the ECU's stored VIN
-    pub fn read_vin(&mut self) -> DiagServerResult<String> {
+    pub fn read_vin(&self) -> DiagServerResult<String> {
         if !self.support_list[0x01] {
             return Err(DiagError::NotSupported); // Unsupported request
         }
@@ -65,7 +65,7 @@ impl<'a> Service09<'a> {
     }
 
     /// Reads the vehicles stored calibration ID (More than 1 may be returned)
-    pub fn read_calibration_id(&mut self) -> DiagServerResult<Vec<String>> {
+    pub fn read_calibration_id(&self) -> DiagServerResult<Vec<String>> {
         if !self.support_list[0x03] {
             return Err(DiagError::NotSupported); // Unsupported request
         }
@@ -80,7 +80,7 @@ impl<'a> Service09<'a> {
     }
 
     /// Reads the vehicles stored calibration verification number (More than 1 may be returned)
-    pub fn read_cvn(&mut self) -> DiagServerResult<Vec<String>> {
+    pub fn read_cvn(&self) -> DiagServerResult<Vec<String>> {
         if !self.support_list[0x05] {
             return Err(DiagError::NotSupported); // Unsupported request
         }

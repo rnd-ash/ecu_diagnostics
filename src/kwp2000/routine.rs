@@ -87,7 +87,7 @@ impl<'a> KwpRoutineManager<'a> {
     }
 
     /// Attempts to start the routine
-    pub fn start_routine(&mut self, entry_options: &[u8]) -> DiagServerResult<()> {
+    pub fn start_routine(&self, entry_options: &[u8]) -> DiagServerResult<()> {
         let mut p: Vec<u8> = vec![self.r_id.as_start_byte()];
         p.extend_from_slice(entry_options);
         self.server
@@ -97,7 +97,7 @@ impl<'a> KwpRoutineManager<'a> {
 
     /// Attempts to stop the routine. Note that some routines automatically exit themselves
     /// and do NOT need to be manually stopped
-    pub fn stop_routine(&mut self, exit_options: &[u8]) -> DiagServerResult<RoutineExitStatusByte> {
+    pub fn stop_routine(&self, exit_options: &[u8]) -> DiagServerResult<RoutineExitStatusByte> {
         let mut p: Vec<u8> = vec![self.r_id.as_start_byte()];
         p.extend_from_slice(exit_options);
         self.server
@@ -108,7 +108,7 @@ impl<'a> KwpRoutineManager<'a> {
     /// Requests the results of the routine. If the routine was manually stopped prior to running this,
     /// it is best practice to check the [RoutineExitStatus] to see if the routine exited with
     /// [RoutineExitStatus::NormalExitWithResults] first.
-    pub fn request_routine_results(&mut self) -> DiagServerResult<Vec<u8>> {
+    pub fn request_routine_results(&self) -> DiagServerResult<Vec<u8>> {
         self.server.send_command_with_response(
             KwpCommand::RequestRoutineResultsByLocalIdentifier,
             &[self.r_id.as_result_byte()],

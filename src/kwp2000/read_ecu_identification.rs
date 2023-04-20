@@ -218,7 +218,7 @@ fn decode_block_ident(res: &mut Vec<u8>) -> DiagServerResult<SoftwareBlockIdenti
 
 impl DynamicDiagSession {
     /// Reads Daimler ECU identification from ECU
-    pub fn kwp_read_daimler_identification(&mut self) -> DiagServerResult<DaimlerEcuIdent> {
+    pub fn kwp_read_daimler_identification(&self) -> DiagServerResult<DaimlerEcuIdent> {
         let res = self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x86])?;
         if res.len() != 18 {
             return Err(DiagError::InvalidResponseLength);
@@ -238,7 +238,7 @@ impl DynamicDiagSession {
     }
 
     /// Reads Daimler and MMC ECU identification from ECU
-    pub fn kwp_read_daimler_mmc_identification(&mut self) -> DiagServerResult<DaimlerMmcEcuIdent> {
+    pub fn kwp_read_daimler_mmc_identification(&self) -> DiagServerResult<DaimlerMmcEcuIdent> {
         let res = self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x87])?;
         if res.len() != 22 {
             return Err(DiagError::InvalidResponseLength);
@@ -254,13 +254,13 @@ impl DynamicDiagSession {
     }
 
     /// Reads the original VIN programmed onto the ECU from the manufacturer
-    pub fn kwp_read_original_vin(&mut self) -> DiagServerResult<String> {
+    pub fn kwp_read_original_vin(&self) -> DiagServerResult<String> {
         let res = self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x88])?;
         Ok(String::from_utf8_lossy(&res[2..]).to_string())
     }
 
     /// Reads the unique diagnostic variant code of the ECU
-    pub fn kwp_read_diagnostic_variant_code(&mut self) -> DiagServerResult<u32> {
+    pub fn kwp_read_diagnostic_variant_code(&self) -> DiagServerResult<u32> {
         let res = self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x89])?;
         if res.len() != 6 {
             return Err(DiagError::InvalidResponseLength);
@@ -269,19 +269,19 @@ impl DynamicDiagSession {
     }
 
     /// Reads the current VIN stored on the ECU
-    pub fn kwp_read_current_vin(&mut self) -> DiagServerResult<String> {
+    pub fn kwp_read_current_vin(&self) -> DiagServerResult<String> {
         let res = self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x90])?;
         Ok(String::from_utf8_lossy(&res[2..]).to_string())
     }
 
     /// Reads the OBD Calibration ID from the ECU.
-    pub fn kwp_read_calibration_id(&mut self) -> DiagServerResult<String> {
+    pub fn kwp_read_calibration_id(&self) -> DiagServerResult<String> {
         let res = self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x96])?;
         Ok(String::from_utf8_lossy(&res[2..]).to_string())
     }
 
     /// Reads the calibration verification number from the ECU
-    pub fn kwp_read_cvn(&mut self) -> DiagServerResult<[u8; 4]> {
+    pub fn kwp_read_cvn(&self) -> DiagServerResult<[u8; 4]> {
         let res = self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x97])?;
         if res.len() != 6 {
             return Err(DiagError::InvalidResponseLength);
@@ -290,14 +290,14 @@ impl DynamicDiagSession {
     }
 
     /// Reads module information from the ECU's code block
-    pub fn kwp_read_ecu_code_fingerprint(&mut self) -> DiagServerResult<ModuleInformation> {
+    pub fn kwp_read_ecu_code_fingerprint(&self) -> DiagServerResult<ModuleInformation> {
         let mut res =
             self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x9A])?;
         decode_module_info(&mut res)
     }
 
     /// Reads module information from the ECU's data block
-    pub fn kwp_read_ecu_data_fingerprint(&mut self) -> DiagServerResult<ModuleInformation> {
+    pub fn kwp_read_ecu_data_fingerprint(&self) -> DiagServerResult<ModuleInformation> {
         let mut res =
             self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x9B])?;
         decode_module_info(&mut res)
@@ -305,7 +305,7 @@ impl DynamicDiagSession {
 
     /// Reads code identification information from the ECU's code block
     pub fn kwp_read_ecu_code_software_id(
-        &mut self,
+        &self,
     ) -> DiagServerResult<SoftwareBlockIdentification> {
         let mut res =
             self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x9C])?;
@@ -314,7 +314,7 @@ impl DynamicDiagSession {
 
     /// Reads code identification information from the ECU's data block
     pub fn kwp_read_ecu_data_software_id(
-        &mut self,
+        &self,
     ) -> DiagServerResult<SoftwareBlockIdentification> {
         let mut res =
             self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x9D])?;
@@ -323,7 +323,7 @@ impl DynamicDiagSession {
 
     /// Reads code identification information from the ECU's boot block
     pub fn kwp_read_ecu_boot_software_id(
-        &mut self,
+        &self,
     ) -> DiagServerResult<SoftwareBlockIdentification> {
         let mut res =
             self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x9E])?;
@@ -331,7 +331,7 @@ impl DynamicDiagSession {
     }
 
     /// Reads code identification information from the ECU's boot block
-    pub fn kwp_read_ecu_boot_fingerprint(&mut self) -> DiagServerResult<ModuleInformation> {
+    pub fn kwp_read_ecu_boot_fingerprint(&self) -> DiagServerResult<ModuleInformation> {
         let mut res =
             self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x9F])?;
         decode_module_info(&mut res)

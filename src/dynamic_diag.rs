@@ -201,9 +201,9 @@ pub trait DiagProtocol<NRC> : Send + Sync where NRC: EcuNRC {
 // Callbacks
 
 /// Transmit data callback
-pub type TxCallbackFn = dyn FnMut(&[u8]);
+pub type TxCallbackFn = dyn Fn(&[u8]);
 /// ECU Waiting callback
-pub type EcuWaitCallbackFn = dyn FnMut();
+pub type EcuWaitCallbackFn = dyn Fn();
 
 /// Dynamic diagnostic session
 ///
@@ -462,7 +462,7 @@ impl DynamicDiagSession {
     }
 
     /// Send a command to the ECU and await its response
-    pub fn send_command_with_response<T: Into<u8>>(&mut self, cmd: T, args: &[u8]) -> DiagServerResult<Vec<u8>> {
+    pub fn send_command_with_response<T: Into<u8>>(&self, cmd: T, args: &[u8]) -> DiagServerResult<Vec<u8>> {
         let mut r = vec![cmd.into()];
         r.extend_from_slice(args);
         self.send_byte_array_with_response(&r)
@@ -473,7 +473,7 @@ impl DynamicDiagSession {
     /// * p - Raw byte array to send
     /// * on_ecu_waiting_hook - Callback to call when the ECU responds with ResponsePending. Can be used to update a programs state
     /// such that the user is aware the ECU is just processing the request
-    pub fn send_byte_array_with_response(&mut self, p: &[u8]) -> DiagServerResult<Vec<u8>> {
+    pub fn send_byte_array_with_response(&self, p: &[u8]) -> DiagServerResult<Vec<u8>> {
         self.internal_send_byte_array(p, true)?;
         (self.on_send_complete_hook)(p);
         loop {
@@ -508,13 +508,13 @@ impl DynamicDiagSession {
 
     /// Register a hook that will be called whenever the ECU has replyed with 
     /// a 'Busy' or 'Please wait' response
-    pub fn register_waiting_hook<F: FnMut() + 'static>(&mut self, hook: F) {
+    pub fn register_waiting_hook<F: Fn() + 'static>(&mut self, hook: F) {
         self.waiting_hook = Box::new(hook)
     }
 
     /// Register a hook that will be called whenever data has been sent out to the ECU
     /// successfully
-    pub fn register_send_complete_hook<F: FnMut(&[u8]) + 'static>(&mut self, hook: F) {
+    pub fn register_send_complete_hook<F: Fn(&[u8]) + 'static>(&mut self, hook: F) {
         self.on_send_complete_hook = Box::new(hook)
     }
 

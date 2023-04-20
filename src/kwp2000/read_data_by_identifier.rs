@@ -12,7 +12,7 @@ impl DynamicDiagSession {
     /// ## Returns
     /// If successful, this function returns the raw data stored at this identifier,
     /// without the identifier ID on the response itself.
-    pub fn kwp_read_data_by_identifier(&mut self, identifier: u16) -> DiagServerResult<Vec<u8>> {
+    pub fn kwp_read_data_by_identifier(&self, identifier: u16) -> DiagServerResult<Vec<u8>> {
         let mut res = self.send_command_with_response(
             KwpCommand::ReadDataByIdentifier,
             &[(identifier >> 8) as u8, identifier as u8],
