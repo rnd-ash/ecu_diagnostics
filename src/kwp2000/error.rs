@@ -8,7 +8,7 @@ impl EcuNRC for KwpErrorByte {
     }
 
     fn is_ecu_busy(&self) -> bool {
-        *self == Standard(KwpError::BusyRepeatRequest)
+        *self == Standard(KwpError::RequestCorrectlyReceivedResponsePending)
     }
 
     fn is_wrong_diag_mode(&self) -> bool {
