@@ -91,7 +91,6 @@ impl DynamicDiagSession {
                 KwpCommand::ReadDiagnosticTroubleCodesByStatus,
                 &range.as_args(0x01),
             )?;
-            println!("RES: {:02X?}", res_bytes);
             match self.kwp_read_extended_supported_dtcs(range) {
                 Ok(x) => {
                     if x == 0 {
