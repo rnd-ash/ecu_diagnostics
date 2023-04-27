@@ -121,8 +121,7 @@ impl DynamicDiagSession {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE0])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 
@@ -142,8 +141,7 @@ impl DynamicDiagSession {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE2])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 
@@ -152,8 +150,7 @@ impl DynamicDiagSession {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE3])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 
@@ -170,8 +167,7 @@ impl DynamicDiagSession {
     pub fn kwp_read_ecu_vehicle_info(&self) -> DiagServerResult<VehicleInfo> {
         let res = self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0xE5])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 
@@ -180,8 +176,7 @@ impl DynamicDiagSession {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE6])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 
@@ -190,8 +185,7 @@ impl DynamicDiagSession {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE7])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 
@@ -202,8 +196,7 @@ impl DynamicDiagSession {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE8])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 
@@ -212,8 +205,7 @@ impl DynamicDiagSession {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE9])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 
@@ -222,8 +214,7 @@ impl DynamicDiagSession {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xEA])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 
@@ -232,8 +223,7 @@ impl DynamicDiagSession {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xEB])?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response: {:02X?}",
-            res
+            "ECU Response: {res:02X?}"
         )))
     }
 

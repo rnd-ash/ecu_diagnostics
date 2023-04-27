@@ -560,7 +560,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
                 // Oops! Teardown
                 drop(device);
                 if let Err(e) = self.close() {
-                    eprintln!("TODO PT close failed! {}", e)
+                    eprintln!("TODO PT close failed! {e}")
                 }
                 Err(e.into())
             }
@@ -755,7 +755,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 // Oops! Teardown
                 drop(device);
                 if let Err(e) = self.close() {
-                    eprintln!("TODO PT close failed! {}", e)
+                    eprintln!("TODO PT close failed! {e}")
                 }
                 Err(e.into())
             }
@@ -853,7 +853,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
             tx_flags |= TxFlag::ISO15765_EXT_ADDR.bits();
         }
         let mut offset = 0;
-        if let Some((tx, rx)) = ext_addresses {
+        if let Some((tx, _rx)) = ext_addresses {
             offset = 1;
             write_msg.data[0] = tx;
         }

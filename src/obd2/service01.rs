@@ -89,7 +89,7 @@ pub mod service_09_test {
                 }
             }
             Err(e) => {
-                eprintln!("PID request failed {}", e);
+                eprintln!("PID request failed {e}");
             }
         }
     }

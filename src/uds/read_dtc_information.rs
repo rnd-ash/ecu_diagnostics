@@ -251,8 +251,7 @@ impl DynamicDiagSession {
             ],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response was: {:02X?}",
-            resp
+            "ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -263,8 +262,7 @@ impl DynamicDiagSession {
             &[DtcSubFunction::ReportDtcSnapshotIdentifier as u8],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response was: {:02X?}",
-            resp
+            "ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -281,8 +279,7 @@ impl DynamicDiagSession {
             ],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response was: {:02X?}",
-            resp
+            "ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -345,8 +342,7 @@ impl DynamicDiagSession {
             ],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response was: {:02X?}",
-            resp
+            "ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -365,8 +361,7 @@ impl DynamicDiagSession {
             ],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response was: {:02X?}",
-            resp
+            "ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -382,8 +377,7 @@ impl DynamicDiagSession {
             ],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response was: {:02X?}",
-            resp
+            "ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -433,8 +427,7 @@ impl DynamicDiagSession {
             &[DtcSubFunction::ReportFirstTestFailedDtc as u8],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response was: {:02X?}",
-            resp
+            "ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -445,8 +438,7 @@ impl DynamicDiagSession {
             &[DtcSubFunction::ReportFirstConfirmedDtc as u8],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ECU Response was: {:02X?}",
-            resp
+            "ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -457,8 +449,7 @@ impl DynamicDiagSession {
             &[DtcSubFunction::ReportMostRecentTestFailedDtc as u8],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ReportMostRecentTestFailedDtc ECU Response was: {:02X?}",
-            resp
+            "ReportMostRecentTestFailedDtc ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -469,8 +460,7 @@ impl DynamicDiagSession {
             &[DtcSubFunction::ReportMostRecentConfirmedDtc as u8],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ReportMostRecentConfirmedDtc ECU Response was: {:02X?}",
-            resp
+            "ReportMostRecentConfirmedDtc ECU Response was: {resp:02X?}"
         )))
     }
 
@@ -512,8 +502,7 @@ impl DynamicDiagSession {
             &[DtcSubFunction::ReportDtcWithPermanentStatus as u8],
         )?;
         Err(DiagError::NotImplemented(format!(
-            "ReportDtcWithPermanentStatus ECU Response was: {:02X?}",
-            resp
+            "ReportDtcWithPermanentStatus ECU Response was: {resp:02X?}"
         )))
     }
 }

@@ -6,7 +6,8 @@
     unstable_features,
     unused_imports,
     unused_import_braces,
-    unused_qualifications
+    unused_qualifications,
+    clippy::uninlined_format_args
 )]
 
 //! A crate which provides the most common ECU diagnostic protocols used by modern ECUs in vehicles,
@@ -114,9 +115,9 @@ impl std::fmt::Display for DiagError {
             DiagError::NotSupported => write!(f, "request not supported"),
             DiagError::ECUError { code, def } => {
                 if let Some(d) = def {
-                    write!(f, "ECU error 0x{:02X} ({})", code, d)
+                    write!(f, "ECU error 0x{code:02X} ({d})")
                 } else {
-                    write!(f, "ECU error 0x{:02X}", code)
+                    write!(f, "ECU error 0x{code:02X}")
                 }
             }
             DiagError::EmptyResponse => write!(f, "ECU provided an empty response"),
@@ -126,12 +127,12 @@ impl std::fmt::Display for DiagError {
             DiagError::InvalidResponseLength => {
                 write!(f, "ECU response message was of invalid length")
             }
-            DiagError::ChannelError(err) => write!(f, "underlying channel error: {}", err),
+            DiagError::ChannelError(err) => write!(f, "underlying channel error: {err}"),
             DiagError::NotImplemented(s) => {
-                write!(f, "server encountered an unimplemented function: {}", s)
+                write!(f, "server encountered an unimplemented function: {s}")
             }
-            DiagError::HardwareError(e) => write!(f, "Hardware error: {}", e),
-            DiagError::MismatchedResponse(e) => write!(f, "Param mismatched response: {}", e),
+            DiagError::HardwareError(e) => write!(f, "Hardware error: {e}"),
+            DiagError::MismatchedResponse(e) => write!(f, "Param mismatched response: {e}"),
         }
     }
 }

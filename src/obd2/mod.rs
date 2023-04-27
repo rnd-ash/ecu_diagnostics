@@ -34,7 +34,7 @@ pub(crate) fn decode_pid_response(x: &[u8]) -> Vec<bool> {
 
 impl EcuNRC for Obd2ErrorByte {
     fn desc(&self) -> String {
-        format!("{:02X?}", self)
+        format!("{self:02X?}")
     }
 
     fn is_ecu_busy(&self) -> bool {
@@ -74,7 +74,7 @@ impl DiagProtocol<Obd2ErrorByte> for OBD2Protocol {
         DiagPayload::new(0x00, &[]) // Ignored
     }
 
-    fn make_session_control_msg(&self, mode: &DiagSessionMode) -> Vec<u8> {
+    fn make_session_control_msg(&self, _mode: &DiagSessionMode) -> Vec<u8> {
         vec![]
     }
 

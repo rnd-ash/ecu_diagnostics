@@ -123,8 +123,7 @@ impl std::fmt::Display for HardwareError {
         match &self {
             HardwareError::APIError { code, desc } => write!(
                 f,
-                "Hardware API Error. Code {}, Description: {}",
-                code, desc
+                "Hardware API Error. Code {code}, Description: {desc}"
             ),
             HardwareError::ConflictingChannel => {
                 write!(f, "Conflicting communication channel already open")
@@ -135,7 +134,7 @@ impl std::fmt::Display for HardwareError {
             HardwareError::DeviceNotFound => write!(f, "Device not found"),
             HardwareError::DeviceNotOpen => write!(f, "Hardware device not open"),
             #[cfg(feature = "passthru")]
-            HardwareError::LibLoadError(e) => write!(f, "LibLoading error: {}", e),
+            HardwareError::LibLoadError(e) => write!(f, "LibLoading error: {e}"),
         }
     }
 }

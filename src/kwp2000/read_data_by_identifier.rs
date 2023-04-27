@@ -26,8 +26,7 @@ impl DynamicDiagSession {
         let ident_response = ((res[1] as u16) << 8) | (res[2] as u16);
         if ident_response != identifier {
             return Err(DiagError::MismatchedResponse(format!(
-                "Expected identifier 0x{:04X}, got identifier 0x{:04X}",
-                identifier, ident_response
+                "Expected identifier 0x{identifier:04X}, got identifier 0x{ident_response:04X}"
             )));
         }
         res.drain(0..3);

@@ -44,16 +44,16 @@ pub enum ChannelError {
 impl std::fmt::Display for ChannelError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ChannelError::IOError(e) => write!(f, "IO error: {}", e),
+            ChannelError::IOError(e) => write!(f, "IO error: {e}"),
             ChannelError::UnsupportedRequest => write!(f, "unsupported channel request"),
             ChannelError::ReadTimeout => write!(f, "timeout reading from channel"),
             ChannelError::WriteTimeout => write!(f, "timeout writing to channel"),
             ChannelError::BufferFull => write!(f, "channel's Transmit buffer is full"),
             ChannelError::BufferEmpty => write!(f, "channel's Receive buffer is empty"),
             ChannelError::InterfaceNotOpen => write!(f, "channel's interface is not open"),
-            ChannelError::HardwareError(err) => write!(f, "Channel hardware error: {}", err),
+            ChannelError::HardwareError(err) => write!(f, "Channel hardware error: {err}"),
             ChannelError::NotOpen => write!(f, "Channel has not been opened"),
-            ChannelError::Other(e) => write!(f, "{}", e),
+            ChannelError::Other(e) => write!(f, "{e}"),
             ChannelError::ConfigurationError => {
                 write!(f, "Channel opened prior to being configured")
             }
@@ -92,7 +92,7 @@ impl From<mpsc::RecvError> for ChannelError {
 }
 
 impl From<mpsc::RecvTimeoutError> for ChannelError {
-    fn from(err: mpsc::RecvTimeoutError) -> Self {
+    fn from(_err: mpsc::RecvTimeoutError) -> Self {
         ChannelError::WriteTimeout // Only used for writing
     }
 }

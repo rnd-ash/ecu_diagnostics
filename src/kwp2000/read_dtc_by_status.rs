@@ -84,7 +84,7 @@ impl DynamicDiagSession {
         let res: Vec<DTC> = Vec::new();
 
         loop {
-            let res_bytes = self.send_command_with_response(
+            let _res_bytes = self.send_command_with_response(
                 KwpCommand::ReadDiagnosticTroubleCodesByStatus,
                 &range.as_args(0x01),
             )?;

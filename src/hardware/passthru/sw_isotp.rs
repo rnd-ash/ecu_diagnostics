@@ -136,7 +136,7 @@ impl PtCombiChannel {
                             tx_isotp_send_res.send(Ok(()))
                         } // Todo clear Tx buffer,
                         ChannelMessage::SendData {
-                            ext_id,
+                            ext_id: _,
                             d: (addr, data),
                         } => {
                             if iso_tp_cfg.is_none() || iso_tp_filter.is_none() {

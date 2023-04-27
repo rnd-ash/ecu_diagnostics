@@ -358,7 +358,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             {
                 let mut data = Vec::new();
                 let can_id = addr;
-                if let Some((tx, rx)) = ext_addresses {
+                if let Some((tx, _rx)) = ext_addresses {
                     data.push(tx);
                     data.push(buffer.len() as u8);
                 } else {
