@@ -251,6 +251,7 @@ impl DynamicDiagSession {
         channel.open()?;
 
         let mut current_session_mode = protocol.get_basic_session_mode();
+        let mut requested_session_mode = protocol.get_basic_session_mode();
         if current_session_mode.is_none() && advanced_opts.is_some() {
             log::warn!("Session mode is None but advanced opts was specified. Ignoring advanced opts");
         }
@@ -297,8 +298,8 @@ impl DynamicDiagSession {
                             );
                             if res.is_ok() {
                                 // Send OK! We can set diag mode in the server side
-                                current_session_mode = Some(mode);
-                                *noti_session_mode_t.write().unwrap() = current_session_mode.clone();
+                                requested_session_mode = Some(mode);
+                                *noti_session_mode_t.write().unwrap() = requested_session_mode.clone();
                                 last_tp_time = Instant::now();
                             }
                             tx_resp.send(res);
@@ -321,6 +322,8 @@ impl DynamicDiagSession {
                                 // Internally, the 'current session' does not change, as diag server will try on the next
                                 // request to change modes back
                                 *noti_session_mode_t.write().unwrap() = protocol.get_basic_session_mode();
+                                current_session_mode = protocol.get_basic_session_mode();
+                                std::thread::sleep(Duration::from_millis(500)); // Await ECU to reboot - TODO. Maybe we should let this be configured?
                             }
                             tx_resp.send(res);
                         },
@@ -391,6 +394,9 @@ impl DynamicDiagSession {
                         },
                     }
                 } else {
+                    if current_session_mode != requested_session_mode {
+                        current_session_mode = requested_session_mode.clone();
+                    }
                     // Nothing to process, so sleep and/or tester present processing
                     // Logic for handling session control TP present requests
                     if session_control {
