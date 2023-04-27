@@ -2,8 +2,8 @@
 
 use crate::dynamic_diag::{DiagAction, DiagPayload, DiagProtocol, DiagSessionMode, EcuNRC};
 
-use automotive_diag::ByteWrapper;
 pub use automotive_diag::obd2::*;
+use automotive_diag::ByteWrapper;
 use std::collections::HashMap;
 
 mod data_pids;

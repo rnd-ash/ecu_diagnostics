@@ -80,10 +80,7 @@ impl DynamicDiagSession {
     }
 
     /// Returns a list of all supported DTCs on the ECU regardless of their status in ISO15031-6 format
-    pub fn kwp_read_supported_dtcs_iso15031(
-        &self,
-        range: DTCRange,
-    ) -> DiagServerResult<Vec<DTC>> {
+    pub fn kwp_read_supported_dtcs_iso15031(&self, range: DTCRange) -> DiagServerResult<Vec<DTC>> {
         let res: Vec<DTC> = Vec::new();
 
         loop {

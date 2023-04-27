@@ -304,27 +304,21 @@ impl DynamicDiagSession {
     }
 
     /// Reads code identification information from the ECU's code block
-    pub fn kwp_read_ecu_code_software_id(
-        &self,
-    ) -> DiagServerResult<SoftwareBlockIdentification> {
+    pub fn kwp_read_ecu_code_software_id(&self) -> DiagServerResult<SoftwareBlockIdentification> {
         let mut res =
             self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x9C])?;
         decode_block_ident(&mut res)
     }
 
     /// Reads code identification information from the ECU's data block
-    pub fn kwp_read_ecu_data_software_id(
-        &self,
-    ) -> DiagServerResult<SoftwareBlockIdentification> {
+    pub fn kwp_read_ecu_data_software_id(&self) -> DiagServerResult<SoftwareBlockIdentification> {
         let mut res =
             self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x9D])?;
         decode_block_ident(&mut res)
     }
 
     /// Reads code identification information from the ECU's boot block
-    pub fn kwp_read_ecu_boot_software_id(
-        &self,
-    ) -> DiagServerResult<SoftwareBlockIdentification> {
+    pub fn kwp_read_ecu_boot_software_id(&self) -> DiagServerResult<SoftwareBlockIdentification> {
         let mut res =
             self.send_command_with_response(KwpCommand::ReadECUIdentification, &[0x9E])?;
         decode_block_ident(&mut res)

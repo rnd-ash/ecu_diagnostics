@@ -6,7 +6,7 @@
 
 use std::{
     borrow::BorrowMut,
-    sync::{Arc, Mutex, PoisonError, mpsc},
+    sync::{mpsc, Arc, Mutex, PoisonError},
 };
 
 use crate::hardware::HardwareError;
@@ -38,7 +38,7 @@ pub enum ChannelError {
     /// Channel not configured prior to opening
     ConfigurationError,
     /// Other Channel error
-    Other(String)
+    Other(String),
 }
 
 impl std::fmt::Display for ChannelError {
@@ -78,9 +78,9 @@ impl<T> From<PoisonError<T>> for HardwareError {
 
 impl From<mpsc::RecvError> for HardwareError {
     fn from(e: mpsc::RecvError) -> Self {
-        HardwareError::APIError { 
-            code: 98, 
-            desc: e.to_string() 
+        HardwareError::APIError {
+            code: 98,
+            desc: e.to_string(),
         }
     }
 }
@@ -99,9 +99,9 @@ impl From<mpsc::RecvTimeoutError> for ChannelError {
 
 impl<T> From<mpsc::SendError<T>> for HardwareError {
     fn from(e: mpsc::SendError<T>) -> Self {
-        HardwareError::APIError { 
-            code: 98, 
-            desc: e.to_string() 
+        HardwareError::APIError {
+            code: 98,
+            desc: e.to_string(),
         }
     }
 }
@@ -169,7 +169,13 @@ pub trait PayloadChannel: Send + Sync {
     /// * buffer - The buffer of bytes to write to the channel
     /// * timeout_ms - Timeout for writing bytes. If a value of 0 is used, it tells the channel to write without checking if
     /// data was actually written.
-    fn write_bytes(&mut self, addr: u32, ext_id: Option<u8>, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()>;
+    fn write_bytes(
+        &mut self,
+        addr: u32,
+        ext_id: Option<u8>,
+        buffer: &[u8],
+        timeout_ms: u32,
+    ) -> ChannelResult<()>;
 
     /// Attempts to write bytes to the channel, then listen for the channels response
     ///
@@ -184,7 +190,7 @@ pub trait PayloadChannel: Send + Sync {
     fn read_write_bytes(
         &mut self,
         addr: u32,
-        ext_id: Option<u8>, 
+        ext_id: Option<u8>,
         buffer: &[u8],
         write_timeout_ms: u32,
         read_timeout_ms: u32,
@@ -266,7 +272,13 @@ impl<T: PayloadChannel + ?Sized> PayloadChannel for Box<T> {
         T::read_bytes(self, timeout_ms)
     }
 
-    fn write_bytes(&mut self, addr: u32, ext_id: Option<u8>, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+    fn write_bytes(
+        &mut self,
+        addr: u32,
+        ext_id: Option<u8>,
+        buffer: &[u8],
+        timeout_ms: u32,
+    ) -> ChannelResult<()> {
         T::write_bytes(self, addr, ext_id, buffer, timeout_ms)
     }
 
@@ -334,7 +346,13 @@ impl<T: PayloadChannel + ?Sized> PayloadChannel for Arc<Mutex<T>> {
         T::read_bytes(self.lock()?.borrow_mut(), timeout_ms)
     }
 
-    fn write_bytes(&mut self, addr: u32, ext_id: Option<u8>, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+    fn write_bytes(
+        &mut self,
+        addr: u32,
+        ext_id: Option<u8>,
+        buffer: &[u8],
+        timeout_ms: u32,
+    ) -> ChannelResult<()> {
         T::write_bytes(self.lock()?.borrow_mut(), addr, ext_id, buffer, timeout_ms)
     }
 
@@ -406,8 +424,8 @@ pub struct CanFrame {
     ext: bool,
 }
 
-unsafe impl Sync for CanFrame{}
-unsafe impl Send for CanFrame{}
+unsafe impl Sync for CanFrame {}
+unsafe impl Send for CanFrame {}
 
 impl CanFrame {
     /// Creates a new CAN Frame given data and an ID.

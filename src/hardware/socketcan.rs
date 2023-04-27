@@ -1,11 +1,14 @@
 //! SocketCAN module
 
 use std::{
+    path::PathBuf,
     sync::{Arc, Mutex},
-    time::Instant, path::PathBuf,
+    time::Instant,
 };
 
-use socketcan_isotp::{ExtendedId, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId, FlowControlOptions};
+use socketcan_isotp::{
+    ExtendedId, FlowControlOptions, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId,
+};
 
 use crate::channel::{
     CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet,
@@ -332,14 +335,20 @@ impl PayloadChannel for SocketCanIsoTPChannel {
     /// address.
     ///
     /// If `buffer` is more than 7 bytes and you request on an alternate address, then this function will fail with [ChannelError::UnsupportedRequest]
-    fn write_bytes(&mut self, addr: u32, ext_id: Option<u8>, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+    fn write_bytes(
+        &mut self,
+        addr: u32,
+        ext_id: Option<u8>,
+        buffer: &[u8],
+        timeout_ms: u32,
+    ) -> ChannelResult<()> {
         // if ext_id is specified, this can override the cfg config extended addresses
         let mut ext_addresses = self.cfg.extended_addresses;
         if let Some(id) = ext_id {
             log::warn!("extended_addresses was specified byt ext_id also was. ext_id overriding");
             ext_addresses = Some((id, 0));
         }
-        
+
         // Work around for issue #1
         // If the buffer is less than 7/6 bytes, we can send it as 1 frame (Usually for global tester present msg)
         // If this is the case, we can simply open a socketCAN channel to send that frame in parallel to the ISO-TP channel already open!
@@ -377,7 +386,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             // Create a temporary channel to send this one packet!
             let mut c_2 = Hardware::create_iso_tp_channel(self.device.clone())?;
             let cfg = IsoTPSettings {
-                extended_addresses: Some((ext_id.unwrap(),0)),
+                extended_addresses: Some((ext_id.unwrap(), 0)),
                 ..self.cfg
             };
             c_2.set_iso_tp_cfg(cfg)?;

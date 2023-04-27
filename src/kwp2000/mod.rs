@@ -117,10 +117,7 @@ impl dynamic_diag::DiagProtocol<KwpErrorByte> for Kwp2000Protocol {
                     })
                     .clone(),
             )
-        } else if matches!(
-            KwpCommand::try_from(payload[0]),
-            Ok(KwpCommand::ECUReset)
-        ) {
+        } else if matches!(KwpCommand::try_from(payload[0]), Ok(KwpCommand::ECUReset)) {
             DiagAction::EcuReset
         } else {
             DiagAction::Other {

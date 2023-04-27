@@ -208,9 +208,7 @@ impl DynamicDiagSession {
     }
 
     /// Reads global diagnostic parameter data from the ECU. NOT IMPLEMENTED YET (Will return [DiagError::NotImplemented])
-    pub fn kwp_read_system_diag_global_param_data(
-        &self,
-    ) -> DiagServerResult<DiagGlobalParamData> {
+    pub fn kwp_read_system_diag_global_param_data(&self) -> DiagServerResult<DiagGlobalParamData> {
         let res =
             self.send_command_with_response(KwpCommand::ReadDataByLocalIdentifier, &[0xE9])?;
         Err(DiagError::NotImplemented(format!(
