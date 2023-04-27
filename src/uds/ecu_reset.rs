@@ -51,7 +51,7 @@ impl DynamicDiagSession {
         )?;
         match res.get(2) {
             Some(&time) if time == 0xFF => Err(DiagError::ECUError {
-                code: 0x10,
+                code: UdsError::GeneralReject.into(),
                 def: Some(Standard(UdsError::GeneralReject).desc()),
             }), // General reject
             Some(&time) => Ok(time),
