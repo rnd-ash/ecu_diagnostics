@@ -89,13 +89,8 @@ impl DynamicDiagSession {
                 &range.as_args(0x01),
             )?;
             match self.kwp_read_extended_supported_dtcs(range) {
-                Ok(x) => {
-                    if x == 0 {
-                        break; // Completed reading!
-                    }
-                    // Else keep looping to read DTCs
-                }
-                Err(_) => break, // Return what we have
+                Ok(0) | Err(_) => break, // No more DTCs or error reading
+                Ok(_) => {},
             }
         }
 
