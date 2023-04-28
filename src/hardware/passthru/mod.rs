@@ -404,16 +404,14 @@ impl super::Hardware for PassthruDevice {
         if this.lock().unwrap().software_mode {
             return Ok(Box::new(PtCombiChannel::new(this)?));
         }
+        // Not in software mode
         {
             let this = this.lock()?;
-            if this.software_mode {
-            } else {
-                if !this.info.capabilities.iso_tp {
-                    return Err(HardwareError::ChannelNotSupported);
-                }
-                if this.can_channel {
-                    return Err(HardwareError::ConflictingChannel);
-                }
+            if !this.info.capabilities.iso_tp {
+                return Err(HardwareError::ChannelNotSupported);
+            }
+            if this.can_channel {
+                return Err(HardwareError::ConflictingChannel);
             }
         }
         let iso_tp_channel = PassthruIsoTpChannel {
