@@ -94,8 +94,7 @@ pub struct DiagServerBasicOptions {
     pub timeout_cfg: TimeoutConfig,
 }
 
-#[derive(Debug, Copy, Clone)]
-#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Advanced diagnostic server options
 pub struct DiagServerAdvancedOptions {
     /// Optional global address to send tester-present messages to
