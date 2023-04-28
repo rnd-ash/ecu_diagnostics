@@ -122,7 +122,7 @@ impl PtCombiChannel {
             log::info!("SW ISO-TP thread running!");
             while is_running_t.load(Ordering::Relaxed) {
                 if let Ok(can_req) = rx_can_send.try_recv() {
-                    log::debug!("SW ISO-TP CAN Req: {:?}", can_req);
+                    log::debug!("SW ISO-TP CAN Req: {can_req:?}");
                     tx_can_send_res.send(Ok(())).unwrap();
                 }
                 if let Ok(isotp_req) = rx_isotp_send.try_recv() {
@@ -159,7 +159,7 @@ impl PtCombiChannel {
                                     if cfg.pad_frame {
                                         df.resize(8, 0xCC);
                                     }
-                                    log::debug!("Sending ISO-TP msg as 1 CAN frame {:02X?}", df);
+                                    log::debug!("Sending ISO-TP msg as 1 CAN frame {df:02X?}");
                                     let cf = CanFrame::new(addr, &df, cfg.can_use_ext_addr);
                                     tx_isotp_send_res.send(can.write_packets(vec![cf], 100))
                                 } else {
@@ -296,7 +296,7 @@ impl PtCombiChannel {
                                             let size = ((data[pci_idx] as usize & 0x0F) << 8)
                                                 | data[1 + pci_idx] as usize;
                                             let mut data_rx = Vec::with_capacity(size);
-                                            log::debug!("ISOTP Expecting data payload of {} bytes, sending FC", size);
+                                            log::debug!("ISOTP Expecting data payload of {size} bytes, sending FC");
                                             data_rx.extend_from_slice(&data[pci_idx + 2..]);
                                             isotp_rx = Some(IsoTpPayload {
                                                 data: data_rx,
@@ -331,7 +331,7 @@ impl PtCombiChannel {
                                                 100,
                                             ) {
                                                 isotp_rx = None; // Could not send FC
-                                                log::error!("Could not send FC to ECU: {}", e);
+                                                log::error!("Could not send FC to ECU: {e}");
                                             }
                                             rx_frames_received = 0;
                                         }
@@ -378,10 +378,7 @@ impl PtCombiChannel {
                                                         100,
                                                     ) {
                                                         isotp_rx = None; // Could not send FC
-                                                        log::error!(
-                                                            "Could not send FC to ECU: {}",
-                                                            e
-                                                        );
+                                                        log::error!("Could not send FC to ECU: {e}");
                                                     }
                                                     rx_frames_received = 0;
                                                     // Send FC
@@ -403,7 +400,7 @@ impl PtCombiChannel {
                                             }
                                         }
                                         _ => {
-                                            log::warn!("Cannot handle ISO-TP frame {:02X?}", data);
+                                            log::warn!("Cannot handle ISO-TP frame {data:02X?}");
                                         }
                                     }
                                 }

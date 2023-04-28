@@ -589,7 +589,7 @@ where
     let mut res: ChannelResult<()> = Ok(());
     if !payload.is_empty() {
         // We need to write some bytes
-        log::debug!("Sending req to ECU: {:02X?}", payload);
+        log::debug!("Sending req to ECU: {payload:02X?}");
         res = channel
             .clear_tx_buffer()
             .and_then(|_| channel.clear_rx_buffer())
@@ -617,13 +617,13 @@ where
                 // Now poll for the ECU's response
                 match channel.read_bytes(basic_opts.timeout_cfg.read_timeout_ms) {
                     Err(e) => {
-                        log::error!("Error reading from channel. Request was {:02X?}", payload);
+                        log::error!("Error reading from channel. Request was {payload:02X?}");
                         connect_state.store(false, Ordering::Relaxed);
                         // Final error
                         DiagServerRx::RecvError(e.into())
                     }
                     Ok(bytes) => {
-                        log::debug!("ECU Response: {:02X?}", bytes);
+                        log::debug!("ECU Response: {bytes:02X?}");
                         let parsed_response = P::process_ecu_response(&bytes);
                         connect_state.store(true, Ordering::Relaxed);
                         match parsed_response {
@@ -664,7 +664,7 @@ where
                                     )
                                 } else {
                                     // Unhandled NRC
-                                    log::warn!("ECU Negative response {:02X?}", code);
+                                    log::warn!("ECU Negative response {code:02X?}");
                                     DiagServerRx::EcuError {
                                         b: code,
                                         desc: nrc_data.desc(),
@@ -685,7 +685,7 @@ where
             }
         }
         Err(e) => {
-            log::error!("Channel send error: {}", e);
+            log::error!("Channel send error: {e}");
             // Final error here at send state :(
             connect_state.store(false, Ordering::Relaxed);
             DiagServerRx::SendState {

@@ -315,8 +315,7 @@ impl PassthruDevice {
                 }
                 Err(e) => {
                     log::warn!(
-                        "Function failed with status {:?}, status 0x{:02X}",
-                        e,
+                        "Function failed with status {e:?}, status 0x{:02X}",
                         e as u32
                     );
                     if e == PassthruError::ERR_DEVICE_NOT_CONNECTED {
@@ -325,7 +324,7 @@ impl PassthruDevice {
                     } else if e == PassthruError::ERR_FAILED {
                         // Err failed, query the adapter for error!
                         if let Ok(reason) = self.drv.get_last_error() {
-                            log::warn!("Function generic failure reason: {}", reason);
+                            log::warn!("Function generic failure reason: {reason}");
                             Err(HardwareError::APIError {
                                 code: e as u32,
                                 desc: reason,
@@ -560,7 +559,7 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
                 // Oops! Teardown
                 drop(device);
                 if let Err(e) = self.close() {
-                    eprintln!("TODO PT close failed! {e}")
+                    log::debug!("TODO PT close failed! {e}")
                 }
                 Err(e.into())
             }
@@ -755,7 +754,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 // Oops! Teardown
                 drop(device);
                 if let Err(e) = self.close() {
-                    eprintln!("TODO PT close failed! {e}")
+                    log::debug!("TODO PT close failed! {e}")
                 }
                 Err(e.into())
             }
