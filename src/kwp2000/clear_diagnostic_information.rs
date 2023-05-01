@@ -1,9 +1,8 @@
 //! This service allows for the clearing of DTCs
 //! (Diagnostic trouble codes) from the ECU
 
-use crate::{DiagServerResult, DiagnosticServer};
-
-use super::{KWP2000Command, Kwp2000DiagnosticServer};
+use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
+use automotive_diag::kwp2000::KwpCommand;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Denotes a single or range of DTCs that can be cleared from the ECU
@@ -52,14 +51,14 @@ impl From<ClearDTCRange> for u16 {
     }
 }
 
-impl Kwp2000DiagnosticServer {
+impl DynamicDiagSession {
     /// Executes a DTC clear command on the ECU, given a range of DTCs to clear
-    pub fn clear_dtc_range(&mut self, dtc_range: ClearDTCRange) -> DiagServerResult<()> {
+    pub fn kwp_clear_dtc_range(&self, dtc_range: ClearDTCRange) -> DiagServerResult<()> {
         let dtc_range_num: u16 = dtc_range.into();
-        self.execute_command_with_response(
-            KWP2000Command::ClearDiagnosticInformation,
+        self.send_command_with_response(
+            KwpCommand::ClearDiagnosticInformation,
             &[(dtc_range_num >> 8) as u8, dtc_range_num as u8],
-        )
-        .map(|_| ())
+        )?;
+        Ok(())
     }
 }

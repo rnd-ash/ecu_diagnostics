@@ -2,13 +2,13 @@
 //! are considered secure such as writing or reading to specific memory regions on the ECU
 //!
 //! Currently, only default seed/key (0x01/0x02) are supported
+//!
+use crate::{dynamic_diag::DynamicDiagSession, DiagServerResult};
 
-use super::{UdsCommand, UdsDiagnosticServer};
-use crate::{DiagServerResult, DiagnosticServer};
+pub use automotive_diag::uds::SecurityOperation;
+use automotive_diag::uds::UdsCommand;
 
-pub use auto_uds::SecurityOperation;
-
-impl UdsDiagnosticServer {
+impl DynamicDiagSession {
     /// Requests a seed from the ECU for security access.
     ///
     /// Once the key is calculated from the response seed, run [UdsDiagnosticServer::send_key] to send the computed key to the ECU
@@ -18,8 +18,8 @@ impl UdsDiagnosticServer {
     ///
     /// ## Returns
     /// Returns the security key's seed
-    pub fn request_seed(&mut self) -> DiagServerResult<Vec<u8>> {
-        let mut resp = self.execute_command_with_response(
+    pub fn uds_request_seed(&self) -> DiagServerResult<Vec<u8>> {
+        let mut resp = self.send_command_with_response(
             UdsCommand::SecurityAccess,
             &[SecurityOperation::RequestSeed.into()],
         )?;
@@ -34,11 +34,11 @@ impl UdsDiagnosticServer {
     /// ## Parameters
     /// * server - The UDS Diagnostic server
     /// * key - The computed key to send to the ECU
-    pub fn send_key(&mut self, key: &[u8]) -> DiagServerResult<()> {
+    pub fn uds_send_key(&self, key: &[u8]) -> DiagServerResult<()> {
         let mut payload = Vec::with_capacity(key.len() + 1);
         payload.push(SecurityOperation::SendKey.into());
         payload.extend_from_slice(key);
-        self.execute_command_with_response(UdsCommand::SecurityAccess, &payload)
-            .map(|_| ())
+        self.send_command_with_response(UdsCommand::SecurityAccess, &payload)?;
+        Ok(())
     }
 }

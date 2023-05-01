@@ -1,1 +1,0 @@
-cargo_build(NAME ecu_diagnostics_ffi)

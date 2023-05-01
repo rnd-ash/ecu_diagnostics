@@ -1,11 +1,14 @@
 //! SocketCAN module
 
 use std::{
+    path::PathBuf,
     sync::{Arc, Mutex},
     time::Instant,
 };
 
-use socketcan_isotp::{ExtendedId, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId, FlowControlOptions};
+use socketcan_isotp::{
+    ExtendedId, FlowControlOptions, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId,
+};
 
 use crate::channel::{
     CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet,
@@ -88,6 +91,10 @@ impl Hardware for SocketCanDevice {
 
     fn is_can_channel_open(&self) -> bool {
         self.canbus_active
+    }
+
+    fn is_connected(&self) -> bool {
+        PathBuf::from(format!("/sys/class/net/{}", self.info.name)).exists()
     }
 }
 
@@ -328,17 +335,30 @@ impl PayloadChannel for SocketCanIsoTPChannel {
     /// address.
     ///
     /// If `buffer` is more than 7 bytes and you request on an alternate address, then this function will fail with [ChannelError::UnsupportedRequest]
-    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> ChannelResult<()> {
+    fn write_bytes(
+        &mut self,
+        addr: u32,
+        ext_id: Option<u8>,
+        buffer: &[u8],
+        timeout_ms: u32,
+    ) -> ChannelResult<()> {
+        // if ext_id is specified, this can override the cfg config extended addresses
+        let mut ext_addresses = self.cfg.extended_addresses;
+        if let Some(id) = ext_id {
+            log::warn!("extended_addresses was specified byt ext_id also was. ext_id overriding");
+            ext_addresses = Some((id, 0));
+        }
+
         // Work around for issue #1
         // If the buffer is less than 7/6 bytes, we can send it as 1 frame (Usually for global tester present msg)
         // If this is the case, we can simply open a socketCAN channel to send that frame in parallel to the ISO-TP channel already open!
         if addr != self.ids.0 {
-            if (buffer.len() <= 7 && !self.cfg.extended_addresses.is_some())
-                || (buffer.len() <= 6 && self.cfg.extended_addresses.is_some())
+            if (buffer.len() <= 7 && ext_addresses.is_none())
+                || (buffer.len() <= 6 && ext_addresses.is_some())
             {
                 let mut data = Vec::new();
                 let can_id = addr;
-                if let Some((tx, rx)) = self.cfg.extended_addresses {
+                if let Some((tx, _rx)) = ext_addresses {
                     data.push(tx);
                     data.push(buffer.len() as u8);
                 } else {
@@ -358,16 +378,30 @@ impl PayloadChannel for SocketCanIsoTPChannel {
                 channel.open()?;
                 channel.write_packets(vec![can_frame], timeout_ms)?;
                 drop(channel);
-                return Ok(());
+                Ok(())
             } else {
-                return Err(ChannelError::UnsupportedRequest);
+                Err(ChannelError::UnsupportedRequest)
             }
-        }
-
-        self.safe_with_iface(|socket| {
-            socket.write(buffer)?;
+        } else if ext_id.is_some() && self.cfg.extended_addresses.is_none() {
+            // Create a temporary channel to send this one packet!
+            let mut c_2 = Hardware::create_iso_tp_channel(self.device.clone())?;
+            let cfg = IsoTPSettings {
+                extended_addresses: Some((ext_id.unwrap(), 0)),
+                ..self.cfg
+            };
+            c_2.set_iso_tp_cfg(cfg)?;
+            c_2.set_ids(self.ids.0, self.ids.1)?;
+            c_2.open()?;
+            c_2.write_bytes(addr, None, buffer, timeout_ms)?;
+            drop(c_2);
             Ok(())
-        })
+        } else {
+            // Easy
+            self.safe_with_iface(|socket| {
+                socket.write(buffer)?;
+                Ok(())
+            })
+        }
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {

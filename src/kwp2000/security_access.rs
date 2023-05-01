@@ -1,9 +1,9 @@
 //! Functions for unlocking secure regions on the ECU
 
-use super::{KWP2000Command, Kwp2000DiagnosticServer};
-use crate::{DiagError, DiagServerResult, DiagnosticServer};
+use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
+use automotive_diag::kwp2000::KwpCommand;
 
-impl Kwp2000DiagnosticServer {
+impl DynamicDiagSession {
     /// Requests a seed from the ECU
     ///
     /// ## Parameters
@@ -13,12 +13,12 @@ impl Kwp2000DiagnosticServer {
     /// ## Returns
     /// This function will return an error if the access_mode parameter is not a valid mode!
     /// If the function succeeds, then just the ECUs key response is returned
-    pub fn request_seed(&mut self, access_mode: u8) -> DiagServerResult<Vec<u8>> {
+    pub fn kwp_request_seed(&self, access_mode: u8) -> DiagServerResult<Vec<u8>> {
         if access_mode % 2 == 0 {
             return Err(DiagError::ParameterInvalid);
         }
         let mut res =
-            self.execute_command_with_response(KWP2000Command::SecurityAccess, &[access_mode])?;
+            self.send_command_with_response(KwpCommand::SecurityAccess, &[access_mode])?;
         res.drain(0..2); // Remove SID and access mode
         Ok(res) // Return just the key
     }
@@ -32,13 +32,13 @@ impl Kwp2000DiagnosticServer {
     /// ## Returns
     /// This function will return an error if the access_mode parameter is not a valid mode! The access_mode
     /// should be THE SAME as what was provided to [Kwp2000DiagnosticServer::request_seed]
-    pub fn unlock_ecu_with_key(&mut self, access_mode: u8, key: &[u8]) -> DiagServerResult<()> {
+    pub fn kwp_unlock_ecu_with_key(&self, access_mode: u8, key: &[u8]) -> DiagServerResult<()> {
         if access_mode % 2 == 0 {
             return Err(DiagError::ParameterInvalid);
         }
         let mut args = vec![access_mode + 1];
         args.extend_from_slice(key);
-        self.execute_command_with_response(KWP2000Command::SecurityAccess, &args)
-            .map(|_| ())
+        self.send_command_with_response(KwpCommand::SecurityAccess, &args)?;
+        Ok(())
     }
 }

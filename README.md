@@ -1,13 +1,10 @@
 # ecu_diagnostics
 
-[![Documentation](https://docs.rs/ecu_diagnostics/badge.svg)](https://docs.rs/ecu_diagnostics/)
-[![Crates.io](https://img.shields.io/crates/v/ecu_diagnostics.svg)](https://crates.io/crates/ecu_diagnostics)
-[![License](https://img.shields.io/crates/l/ecu_diagnostics.svg)](https://github.com/rnd-ash/ecu_diagnostics/blob/master/LICENSE)
+[![crates.io version](https://img.shields.io/crates/v/ecu_diagnostics.svg)](https://crates.io/crates/ecu_diagnostics)
+[![docs.rs docs](https://docs.rs/ecu_diagnostics/badge.svg)](https://docs.rs/ecu_diagnostics)
 
-A cross-platform crate with FFI bindings to allow for complex vehicle ECU diagnostics.
+A cross-platform crate for the diagnostic servers used for ECU diagnostics.
 
-## IMPORTANT
-This crate is a work in progress, and ECU compatibility may vary! This crate goes by the KWP2000 and UDS specification, but some ECUs choose to deviate slightly from the official specification!
 
 ## Ensure you are running Rust 1.56.0 (2021 edition) or higher to use this crate!
 
@@ -47,12 +44,27 @@ Unlike OBD2, KWP2000 allows for much more complex operations, which could potent
 
  The specification implemented in this crate is the second edition, dated 01-12-2006.
 
+# NEW (As off version 0.99! UNIFIED DIAGNOSTIC SERVER!)
+The individual diagnostic servers are now merged into 1 diagnostic server that can handle all the different protocols
+(Diagnostic protocol is specified at the servers creation). This dramatically reduces the crates bloat (Less copy/paste code),
+and the refactoring has also introduced some new features:
 
+* It is also possible now to define your own ECU Diagnostic protocol and session modes. Check the [examples](examples/) folder for how to do this!
+* You can now set a hook function for when the ECU has received the request and is processing (Useful for longer running operations)
+* You can now set a hook function for when transmit is completed and the server is waiting for the ECUs reply 
+* The diagnostic server can now inform you if the ECU is connected or has been disconnected
+* The diagnostic server can now automtically change the ECUs diagnostic session mode after a reboot to avoid 'ServiceNotSupportedInActiveSession'
 
 ## Diagnostic server checklist
 
 ### OBD2
-TBA
+
+Custom service support: YES
+
+Working specification services:
+* Service 01 - Show current data 
+* Service 02 - Show data of freeze frame
+* Service 09 - Request vehicle information
 
 ### KWP2000
 
@@ -89,7 +101,8 @@ for creating Channels for diagnostic servers using the hardware
 * Read Battery voltage
 
 ### SocketCAN
-TBA
+* ISO-TP
+* CAN
 
 ### D-PDU (ISO 22900-2)
 TBA
@@ -97,3 +110,4 @@ TBA
 
 # Notable contributions
 * @LLBlumire
+* @nyurik (Created the [automotive_diag](https://github.com/nyurik/automotive_diag) crate, which this project now relies on)

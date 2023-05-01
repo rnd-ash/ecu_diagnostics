@@ -1,6 +1,6 @@
 //! Module for service 01 and 02 unit value type conversions
 
-use crate::obd2::enumerations::ObdEnumValue;
+use crate::obd2::ObdEnumValue;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -263,17 +263,17 @@ impl ObdUnitType {
     /// * Encoded - As is
     pub fn to_metric_string(&self) -> String {
         match self {
-            ObdUnitType::Raw(i) => format!("{:.1}", i),
-            ObdUnitType::Rpm(i) => format!("{} Rpm", i),
+            ObdUnitType::Raw(i) => format!("{i:.1}"),
+            ObdUnitType::Rpm(i) => format!("{i} Rpm"),
             ObdUnitType::Speed(s) => format!("{} km/h", s.to_kmh()),
-            ObdUnitType::Percent(p) => format!("{:.1} %", p),
+            ObdUnitType::Percent(p) => format!("{p:.1} %"),
             ObdUnitType::Temperature(t) => format!("{}°C", t.to_celsius()),
-            ObdUnitType::Volts(v) => format!("{}V", v),
+            ObdUnitType::Volts(v) => format!("{v}V"),
             ObdUnitType::Time(t) => t.to_elapsed_string(),
             ObdUnitType::Distance(d) => format!("{} km", d.to_kilometers()),
             ObdUnitType::Pressure(p) => format!("{} bar", p.to_bar()),
             ObdUnitType::Encoded(e) => e.to_string(),
-            ObdUnitType::ByteArray(v) => format!("{:02X?}", v),
+            ObdUnitType::ByteArray(v) => format!("{v:02X?}"),
         }
     }
 
@@ -292,17 +292,17 @@ impl ObdUnitType {
     /// * Encoded - As is
     pub fn to_imperial_string(&self) -> String {
         match self {
-            ObdUnitType::Raw(i) => format!("{:.1}", i),
-            ObdUnitType::Rpm(i) => format!("{} Rpm", i),
+            ObdUnitType::Raw(i) => format!("{i:.1}"),
+            ObdUnitType::Rpm(i) => format!("{i} Rpm"),
             ObdUnitType::Speed(s) => format!("{} mph", s.to_mph()),
-            ObdUnitType::Percent(p) => format!("{:.1} %", p),
+            ObdUnitType::Percent(p) => format!("{p:.1} %"),
             ObdUnitType::Temperature(t) => format!("{} F", t.to_fahrenheit()),
-            ObdUnitType::Volts(v) => format!("{}V", v),
+            ObdUnitType::Volts(v) => format!("{v}V"),
             ObdUnitType::Time(t) => t.to_elapsed_string(),
             ObdUnitType::Distance(d) => format!("{} miles", d.to_miles()),
             ObdUnitType::Pressure(p) => format!("{} bar", p.to_psi()),
             ObdUnitType::Encoded(e) => e.to_string(),
-            ObdUnitType::ByteArray(v) => format!("{:02X?}", v),
+            ObdUnitType::ByteArray(v) => format!("{v:02X?}"),
         }
     }
 
