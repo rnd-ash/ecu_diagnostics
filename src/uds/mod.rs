@@ -104,7 +104,7 @@ impl Default for UDSProtocol {
 impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
     fn get_basic_session_mode(&self) -> Option<DiagSessionMode> {
         self.session_modes
-            .get(&UDSSessionType::Default.into())
+            .get(&UdsSessionType::Default.into())
             .cloned()
     }
 
