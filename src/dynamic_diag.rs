@@ -4,7 +4,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, Sender},
+        mpsc::{Receiver, Sender}, Mutex,
     },
     time::Duration,
 };
@@ -220,7 +220,7 @@ pub type EcuWaitCallbackFn = dyn Fn();
 /// This also contains some useful wrappers for basic functions such as
 /// reading and clearing error codes.
 pub struct DynamicDiagSession {
-    sender: Sender<DiagTxPayload>,
+    sender: Mutex<Sender<DiagTxPayload>>,
     receiver: Receiver<DiagServerRx>,
     waiting_hook: Box<EcuWaitCallbackFn>,
     on_send_complete_hook: Box<TxCallbackFn>,
@@ -228,6 +228,9 @@ pub struct DynamicDiagSession {
     current_diag_mode: Arc<RwLock<Option<DiagSessionMode>>>,
     running: Arc<AtomicBool>,
 }
+
+unsafe impl Sync for DynamicDiagSession{}
+unsafe impl Send for DynamicDiagSession{}
 
 impl std::fmt::Debug for DynamicDiagSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -461,7 +464,7 @@ impl DynamicDiagSession {
             drop(channel)
         });
         Ok(Self {
-            sender: tx_req,
+            sender: Mutex::new(tx_req),
             receiver: rx_resp,
             waiting_hook: Box::new(|| {}),
             on_send_complete_hook: Box::new(|_| {}),
@@ -475,17 +478,19 @@ impl DynamicDiagSession {
     pub fn send_command<T: Into<u8>>(&self, cmd: T, args: &[u8]) -> DiagServerResult<()> {
         let mut r = vec![cmd.into()];
         r.extend_from_slice(args);
-        self.internal_send_byte_array(&r, false)
+        let lock = self.sender.lock().unwrap();
+        self.internal_send_byte_array(&r, &lock, false)
     }
 
     /// Send a byte array
     pub fn send_byte_array(&self, p: &[u8]) -> DiagServerResult<()> {
-        self.internal_send_byte_array(p, false)
+        let lock = self.sender.lock().unwrap();
+        self.internal_send_byte_array(p, &lock, false)
     }
 
-    fn internal_send_byte_array(&self, p: &[u8], resp_require: bool) -> DiagServerResult<()> {
+    fn internal_send_byte_array(&self, p: &[u8], sender: &Sender<DiagTxPayload>, resp_require: bool) -> DiagServerResult<()> {
         self.clear_rx_queue();
-        self.sender
+        sender
             .send(DiagTxPayload {
                 payload: p.to_vec(),
                 response_require: resp_require,
@@ -515,7 +520,8 @@ impl DynamicDiagSession {
     /// * on_ecu_waiting_hook - Callback to call when the ECU responds with ResponsePending. Can be used to update a programs state
     /// such that the user is aware the ECU is just processing the request
     pub fn send_byte_array_with_response(&self, p: &[u8]) -> DiagServerResult<Vec<u8>> {
-        self.internal_send_byte_array(p, true)?;
+        let lock = self.sender.lock().unwrap();
+        self.internal_send_byte_array(p, &lock, true)?;
         (self.on_send_complete_hook)(p);
         loop {
             match self.receiver.recv().unwrap() {

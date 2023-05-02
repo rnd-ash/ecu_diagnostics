@@ -17,7 +17,7 @@ pub struct DataPidWrapper(DataPidByte);
 impl DataPidWrapper {
     fn request_ecu(
         &self,
-        server: &mut DynamicDiagSession,
+        server: &DynamicDiagSession,
         ff: Option<u16>,
         min_length: usize,
     ) -> DiagServerResult<Vec<u8>> {
@@ -36,7 +36,7 @@ impl DataPidWrapper {
     /// For value = A*100/255
     fn get_percentage_1_byte(
         &self,
-        server: &mut DynamicDiagSession,
+        server: &DynamicDiagSession,
         ff: Option<u16>,
         name: &str,
     ) -> DiagServerResult<Vec<ObdValue>> {
@@ -50,7 +50,7 @@ impl DataPidWrapper {
     #[allow(clippy::excessive_precision)]
     pub(crate) fn get_value(
         &self,
-        server: &mut DynamicDiagSession,
+        server: &DynamicDiagSession,
         ff: Option<u16>,
     ) -> DiagServerResult<Vec<ObdValue>> {
         use automotive_diag::obd2::DataPid::*;

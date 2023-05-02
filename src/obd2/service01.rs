@@ -9,7 +9,7 @@ use automotive_diag::obd2::{DataPidByte, Obd2Command};
 #[derive(Debug)]
 /// Service 01 wrapper for OBD
 pub struct Service01<'a> {
-    server: &'a mut DynamicDiagSession,
+    server: &'a DynamicDiagSession,
     support_list: Vec<bool>,
 }
 
@@ -18,7 +18,7 @@ impl DynamicDiagSession {
     /// on init for supported PIDs.
     /// NOTE: Unlike other functions, if this function encounters a ECU communication
     /// error, it will still return OK.
-    pub fn obd_init_service_01(&mut self) -> DiagServerResult<Service01> {
+    pub fn obd_init_service_01(&self) -> DiagServerResult<Service01> {
         // Query supported pids
         let mut total_support_list = Vec::new();
         for i in (0..0xFF).step_by(0x20) {
@@ -62,8 +62,8 @@ impl<'a> Service01<'a> {
     }
 
     /// Query's a data PID from Service 01
-    pub fn query_pid(&mut self, pid: DataPidWrapper) -> DiagServerResult<Vec<ObdValue>> {
-        pid.get_value(self.server, None)
+    pub fn query_pid(&self, pid: DataPidWrapper) -> DiagServerResult<Vec<ObdValue>> {
+        pid.get_value(&self.server, None)
     }
 }
 
