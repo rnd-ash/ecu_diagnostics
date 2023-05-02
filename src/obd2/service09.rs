@@ -9,14 +9,14 @@ use automotive_diag::ByteWrapper::{Extended, Standard};
 #[derive(Debug)]
 /// Service 09 wrapper for OBD
 pub struct Service09<'a> {
-    server: &'a mut DynamicDiagSession,
+    server: &'a DynamicDiagSession,
     support_list: Vec<bool>,
 }
 
 impl DynamicDiagSession {
     /// Initializes the service 09 wrapper. Automatically query's the ECU
     /// on init for supported PIDs
-    pub fn obd_init_service_09(&mut self) -> DiagServerResult<Service09> {
+    pub fn obd_init_service_09(&self) -> DiagServerResult<Service09> {
         // Query supported pids
         let pid_support_list = self.send_command_with_response(Obd2Command::Service09, &[0x00])?;
         Ok(Service09 {
