@@ -17,9 +17,10 @@
 //! querying the [super::HardwareCapabilities] matrix should be used to determine which protocols
 //! are supported
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{ffi::c_void, time::Instant};
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock, Mutex};
 
 #[cfg(windows)]
 use winreg::enums::*;
@@ -119,16 +120,16 @@ impl super::HardwareScanner<PassthruDevice> for PassthruScanner {
         self.devices.iter().map(|x| x.into()).collect()
     }
 
-    fn open_device_by_index(&self, idx: usize) -> HardwareResult<Arc<Mutex<PassthruDevice>>> {
+    fn open_device_by_index(&self, idx: usize) -> HardwareResult<PassthruDevice> {
         match self.devices.get(idx) {
-            Some(info) => Ok(Arc::new(Mutex::new(PassthruDevice::open_device(info)?))),
+            Some(info) => Ok(PassthruDevice::open_device(info)?),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
 
-    fn open_device_by_name(&self, name: &str) -> HardwareResult<Arc<Mutex<PassthruDevice>>> {
+    fn open_device_by_name(&self, name: &str) -> HardwareResult<PassthruDevice> {
         match self.devices.iter().find(|s| s.name == name) {
-            Some(info) => Ok(Arc::new(Mutex::new(PassthruDevice::open_device(info)?))),
+            Some(info) => Ok(PassthruDevice::open_device(info)?),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
@@ -260,15 +261,15 @@ impl From<&PassthruInfo> for HardwareInfo {
 }
 
 /// Passthru device
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PassthruDevice {
     info: HardwareInfo,
-    drv: PassthruDrv,
+    drv: Arc<Mutex<PassthruDrv>>,
     device_idx: Option<u32>,
-    can_channel: bool,
-    isotp_channel: bool,
-    software_mode: bool,
-    connected_ok: bool,
+    can_channel: Arc<AtomicBool>,
+    isotp_channel: Arc<AtomicBool>,
+    software_mode: Arc<AtomicBool>,
+    connected_ok: Arc<AtomicBool>,
 }
 
 impl PassthruDevice {
@@ -280,37 +281,40 @@ impl PassthruDevice {
             info.function_lib
         );
         let lib = info.function_lib.clone();
-        let mut drv = lib_funcs::PassthruDrv::load_lib(lib)?;
-        let idx = drv.open()?;
+        let drv = Arc::new(Mutex::new(lib_funcs::PassthruDrv::load_lib(lib)?));
+        let mut lck = drv.lock().unwrap();
+        let idx = lck.open()?;
         let mut ret = Self {
             info: info.into(),
-            drv,
+            drv: drv.clone(),
             device_idx: Some(idx),
-            can_channel: false,
-            isotp_channel: false,
-            software_mode: false,
-            connected_ok: true,
+            can_channel: Arc::new(AtomicBool::new(false)),
+            isotp_channel: Arc::new(AtomicBool::new(false)),
+            software_mode: Arc::new(AtomicBool::new(false)),
+            connected_ok: Arc::new(AtomicBool::new(true)),
         };
-        if let Ok(version) = ret.drv.get_version(idx) {
+        if let Ok(version) = lck.get_version(idx) {
             // Set new version information from the device!
             ret.info.api_version = Some(version.api_version.clone());
             ret.info.device_fw_version = Some(version.fw_version.clone());
             ret.info.library_version = Some(version.dll_version);
         }
+        drop(lck);
         Ok(ret)
     }
 
     pub(crate) fn safe_passthru_op<
         X,
-        T: FnOnce(u32, PassthruDrv) -> lib_funcs::PassthruResult<X>,
+        T: FnOnce(u32, &mut PassthruDrv) -> lib_funcs::PassthruResult<X>,
     >(
         &mut self,
         f: T,
     ) -> HardwareResult<X> {
+        let mut lck = self.drv.lock().unwrap();
         match self.device_idx {
-            Some(idx) => match f(idx, self.drv.clone()) {
+            Some(idx) => match f(idx, &mut lck) {
                 Ok(res) => {
-                    self.connected_ok = true;
+                    self.connected_ok.store(true, Ordering::Relaxed);
                     Ok(res)
                 }
                 Err(e) => {
@@ -319,11 +323,11 @@ impl PassthruDevice {
                         e as u32
                     );
                     if e == PassthruError::ERR_DEVICE_NOT_CONNECTED {
-                        self.connected_ok = false;
+                        self.connected_ok.store(false, Ordering::Relaxed);
                         Err(e.into())
                     } else if e == PassthruError::ERR_FAILED {
                         // Err failed, query the adapter for error!
-                        if let Ok(reason) = self.drv.get_last_error() {
+                        if let Ok(reason) = lck.get_last_error() {
                             log::warn!("Function generic failure reason: {reason}");
                             Err(HardwareError::APIError {
                                 code: e as u32,
@@ -358,28 +362,25 @@ impl PassthruDevice {
     /// opened channels will not be affected, so it would be best to close them prior to
     /// toggling this function
     pub fn toggle_sw_channel(&mut self, state: bool) {
-        self.software_mode = state;
+        self.software_mode.store(state, Ordering::Relaxed);
     }
 
     /// Do it on raw device
-    pub fn toggle_sw_channel_raw(dev: &mut Arc<Mutex<PassthruDevice>>, state: bool) {
-        dev.lock().unwrap().toggle_sw_channel(state)
+    pub fn toggle_sw_channel_raw(dev: &mut Arc<RwLock<PassthruDevice>>, state: bool) {
+        dev.write().unwrap().toggle_sw_channel(state)
     }
 
-    pub(crate) fn make_can_channel_raw(
-        this: Arc<Mutex<Self>>,
-    ) -> HardwareResult<PassthruCanChannel> {
+    pub(crate) fn make_can_channel_raw(&mut self) -> HardwareResult<PassthruCanChannel> {
         {
-            let this = this.lock()?;
-            if !this.info.capabilities.can {
+            if !self.info.capabilities.can {
                 return Err(HardwareError::ChannelNotSupported);
             }
-            if this.can_channel && !this.software_mode {
+            if self.can_channel.load(Ordering::Relaxed) && !self.software_mode.load(Ordering::Relaxed) {
                 return Err(HardwareError::ConflictingChannel);
             }
         }
         Ok(PassthruCanChannel {
-            device: this,
+            device: self.clone(),
             channel_id: None,
             baud: 0,
             use_ext: false,
@@ -392,30 +393,29 @@ impl Drop for PassthruDevice {
     fn drop(&mut self) {
         log::debug!("Drop called for device");
         if let Some(idx) = self.device_idx {
-            self.drv.close(idx);
+            self.drv.lock().unwrap().close(idx);
             self.device_idx = None;
         }
     }
 }
 
 impl super::Hardware for PassthruDevice {
-    fn create_iso_tp_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn IsoTPChannel>> {
+    fn create_iso_tp_channel(&mut self) -> HardwareResult<Box<dyn IsoTPChannel>> {
         // If in sw mode
-        if this.lock().unwrap().software_mode {
-            return Ok(Box::new(PtCombiChannel::new(this)?));
+        if self.software_mode.load(Ordering::Relaxed) {
+            return Ok(Box::new(PtCombiChannel::new(self.clone())?));
         }
         // Not in software mode
         {
-            let this = this.lock()?;
-            if !this.info.capabilities.iso_tp {
+            if !self.info.capabilities.iso_tp {
                 return Err(HardwareError::ChannelNotSupported);
             }
-            if this.can_channel {
+            if self.can_channel.load(Ordering::Relaxed) {
                 return Err(HardwareError::ConflictingChannel);
             }
         }
         let iso_tp_channel = PassthruIsoTpChannel {
-            device: this,
+            device: self.clone(),
             channel_id: None,
             cfg: IsoTPSettings::default(),
             ids: (0, 0),
@@ -424,27 +424,27 @@ impl super::Hardware for PassthruDevice {
         Ok(Box::new(iso_tp_channel))
     }
 
-    fn create_can_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn CanChannel>> {
+    fn create_can_channel(&mut self) -> HardwareResult<Box<dyn CanChannel>> {
         // If in sw mode
-        if this.lock().unwrap().software_mode {
-            return Ok(Box::new(PtCombiChannel::new(this)?));
+        if self.software_mode.load(Ordering::Relaxed) {
+            return Ok(Box::new(PtCombiChannel::new(self.clone())?));
         }
-        let can_channel = Self::make_can_channel_raw(this)?;
+        let can_channel = self.make_can_channel_raw()?;
         Ok(Box::new(can_channel))
     }
 
     fn is_iso_tp_channel_open(&self) -> bool {
-        self.can_channel
+        self.can_channel.load(Ordering::Relaxed)
     }
 
     fn is_can_channel_open(&self) -> bool {
-        self.isotp_channel
+        self.isotp_channel.load(Ordering::Relaxed)
     }
 
     #[allow(trivial_casts)]
     fn read_battery_voltage(&mut self) -> Option<f32> {
         let mut output: u32 = 0;
-        match self.safe_passthru_op(|idx, drv: PassthruDrv| {
+        match self.safe_passthru_op(|idx, drv: &mut PassthruDrv| {
             drv.ioctl(
                 idx,
                 IoctlID::READ_VBATT,
@@ -460,7 +460,7 @@ impl super::Hardware for PassthruDevice {
     #[allow(trivial_casts)]
     fn read_ignition_voltage(&mut self) -> Option<f32> {
         let mut output: u32 = 0;
-        match self.safe_passthru_op(|idx, drv: PassthruDrv| {
+        match self.safe_passthru_op(|idx, drv: &mut PassthruDrv| {
             drv.ioctl(
                 idx,
                 IoctlID::READ_PROG_VOLTAGE,
@@ -478,14 +478,14 @@ impl super::Hardware for PassthruDevice {
     }
 
     fn is_connected(&self) -> bool {
-        self.connected_ok
+        self.connected_ok.load(Ordering::Relaxed)
     }
 }
 
 /// Passthru device CAN Channel
 #[derive(Debug)]
 pub struct PassthruCanChannel {
-    pub(crate) device: Arc<Mutex<PassthruDevice>>,
+    pub(crate) device: PassthruDevice,
     pub(crate) channel_id: Option<u32>,
     pub(crate) baud: u32,
     pub(crate) use_ext: bool,
@@ -510,7 +510,6 @@ impl CanChannel for PassthruCanChannel {
 
 impl PacketChannel<CanFrame> for PassthruCanChannel {
     fn open(&mut self) -> ChannelResult<()> {
-        let mut device = self.device.lock()?;
         // Already open, ignore request
         if self.channel_id.is_some() {
             return Ok(());
@@ -521,12 +520,12 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             flags |= ConnectFlags::CAN_29BIT_ID;
         }
         // Initialize the interface
-        let channel_id = device
+        let channel_id = self.device
             .safe_passthru_op(|device_id, device| {
                 device.connect(device_id, Protocol::CAN, flags.bits(), self.baud)
             })
             .map_err(ChannelError::HardwareError)?;
-        device.can_channel = true; // Acknowledge CAN is open now
+        self.device.can_channel.store(true, Ordering::Relaxed); // Acknowledge CAN is open now
         self.channel_id = Some(channel_id);
 
         // Now create open filter
@@ -549,13 +548,12 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         mask.data[0..4].copy_from_slice(&[0x00, 0x00, 0x00, 0x00]);
         pattern.data[0..4].copy_from_slice(&[0x00, 0x00, 0x00, 0x00]);
 
-        match device.safe_passthru_op(|_, device| {
+        match self.device.safe_passthru_op(|_, device| {
             device.start_msg_filter(channel_id, FilterType::PASS_FILTER, &mask, &pattern, None)
         }) {
             Ok(_) => Ok(()), // Channel setup complete
             Err(e) => {
                 // Oops! Teardown
-                drop(device);
                 if let Err(e) = self.close() {
                     log::debug!("TODO PT close failed! {e}")
                 }
@@ -564,16 +562,15 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         }
     }
     fn close(&mut self) -> ChannelResult<()> {
-        let mut device = self.device.lock()?;
         // Channel already closed, ignore request
         if self.channel_id.is_none() {
             return Ok(());
         }
         let id = self.get_channel_id().unwrap(); // Unwrap as we checked previously if none
-        device
+        self.device
             .safe_passthru_op(|_, device| device.disconnect(id))
             .map_err(ChannelError::HardwareError)?;
-        device.can_channel = false;
+        self.device.can_channel.store(false, Ordering::Relaxed);
         self.channel_id = None;
         Ok(())
     }
@@ -582,7 +579,6 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         let channel_id = self.get_channel_id()?;
         let mut msgs: Vec<PASSTHRU_MSG> = packets.iter().map(|f| f.into()).collect();
         self.device
-            .lock()?
             .safe_passthru_op(|_, device| device.write_messages(channel_id, &mut msgs, timeout_ms))
             .map_err(ChannelError::HardwareError)?;
         Ok(())
@@ -592,7 +588,6 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
         let channel_id = self.get_channel_id()?;
         match self
             .device
-            .lock()?
             .safe_passthru_op(|_, device| device.read_messages(channel_id, max as u32, timeout_ms))
         {
             Ok(res) => Ok(res.iter().map(CanFrame::from).collect()),
@@ -603,7 +598,6 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         self.device
-            .lock()?
             .safe_passthru_op(|_, device| {
                 device.ioctl(
                     channel_id,
@@ -618,7 +612,6 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
     fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         self.device
-            .lock()?
             .safe_passthru_op(|_, device| {
                 device.ioctl(
                     channel_id,
@@ -643,7 +636,7 @@ impl Drop for PassthruCanChannel {
 /// Passthru ISO TP Channel
 #[derive(Debug)]
 pub struct PassthruIsoTpChannel {
-    device: Arc<Mutex<PassthruDevice>>,
+    device: PassthruDevice,
     channel_id: Option<u32>,
     cfg: IsoTPSettings,
     ids: (u32, u32),
@@ -672,10 +665,8 @@ impl PayloadChannel for PassthruIsoTpChannel {
             flags |= ConnectFlags::ISO15765_ADDR_TYPE;
         }
 
-        let mut device = self.device.lock()?;
-
         // Initialize the interface
-        let channel_id = device
+        let channel_id = self.device
             .safe_passthru_op(|device_id, device| {
                 device.connect(
                     device_id,
@@ -685,7 +676,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
                 )
             })
             .map_err(ChannelError::HardwareError)?;
-        device.isotp_channel = true; // Acknowledge CAN is open now
+        self.device.isotp_channel.store(true, Ordering::Relaxed); // Acknowledge CAN is open now
         self.channel_id = Some(channel_id);
 
         // Now create open filter
@@ -738,7 +729,7 @@ impl PayloadChannel for PassthruIsoTpChannel {
             }
         }
 
-        match device.safe_passthru_op(|_, device| {
+        match self.device.safe_passthru_op(|_, device| {
             device.start_msg_filter(
                 channel_id,
                 FilterType::FLOW_CONTROL_FILTER,
@@ -750,7 +741,6 @@ impl PayloadChannel for PassthruIsoTpChannel {
             Ok(_) => Ok(()), // Channel setup complete
             Err(e) => {
                 // Oops! Teardown
-                drop(device);
                 if let Err(e) = self.close() {
                     log::debug!("TODO PT close failed! {e}")
                 }
@@ -765,12 +755,11 @@ impl PayloadChannel for PassthruIsoTpChannel {
             return Ok(());
         }
         {
-            let mut device = self.device.lock()?;
             let id = self.get_channel_id().unwrap(); // Unwrap as we checked previously if none
-            device
+            self.device
                 .safe_passthru_op(|_, device| device.disconnect(id))
                 .map_err(ChannelError::HardwareError)?;
-            device.isotp_channel = false;
+            self.device.isotp_channel.store(false, Ordering::Relaxed);
             self.channel_id = None;
         }
         Ok(())
@@ -788,7 +777,6 @@ impl PayloadChannel for PassthruIsoTpChannel {
         while start.elapsed().as_millis() <= timeout as u128 {
             let read = self
                 .device
-                .lock()?
                 .safe_passthru_op(|_, device| device.read_messages(channel_id, 1, timeout_ms))
                 .map_err(ChannelError::HardwareError)?;
             if let Some(msg) = read.get(0) {
@@ -864,7 +852,6 @@ impl PayloadChannel for PassthruIsoTpChannel {
         // Now transmit our message!
 
         self.device
-            .lock()?
             .safe_passthru_op(|_, device| {
                 device.write_messages(channel_id, &mut [write_msg], timeout_ms)
             })
@@ -875,7 +862,6 @@ impl PayloadChannel for PassthruIsoTpChannel {
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         self.device
-            .lock()?
             .safe_passthru_op(|_, device| {
                 device.ioctl(
                     channel_id,
@@ -890,7 +876,6 @@ impl PayloadChannel for PassthruIsoTpChannel {
     fn clear_tx_buffer(&mut self) -> ChannelResult<()> {
         let channel_id = self.get_channel_id()?;
         self.device
-            .lock()?
             .safe_passthru_op(|_, device| {
                 device.ioctl(
                     channel_id,

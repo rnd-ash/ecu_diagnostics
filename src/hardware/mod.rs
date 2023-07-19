@@ -20,16 +20,16 @@ pub type HardwareResult<T> = Result<T, HardwareError>;
 /// The hardware trait defines functions supported by all adapter types,
 /// as well as functions that can create abstracted communication channels
 /// that can be used in diagnostic servers
-pub trait Hardware {
+pub trait Hardware: Clone {
     /// Creates an ISO-TP channel on the devices.
     /// This channel will live for as long as the hardware trait. Upon being dropped,
     /// the channel will automatically be closed, if it has been opened.
-    fn create_iso_tp_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn IsoTPChannel>>;
+    fn create_iso_tp_channel(&mut self) -> HardwareResult<Box<dyn IsoTPChannel>>;
 
     /// Creates a CAN Channel on the devices.
     /// This channel will live for as long as the hardware trait. Upon being dropped,
     /// the channel will automatically be closed, if it has been opened.
-    fn create_can_channel(this: Arc<Mutex<Self>>) -> HardwareResult<Box<dyn CanChannel>>;
+    fn create_can_channel(&mut self) -> HardwareResult<Box<dyn CanChannel>>;
 
     /// Returns true if the ISO-TP channel is current open and in use
     fn is_iso_tp_channel_open(&self) -> bool;
@@ -82,9 +82,9 @@ pub trait HardwareScanner<T: Hardware> {
     /// known it exists.
     fn list_devices(&self) -> Vec<HardwareInfo>;
     /// Tries to open a device by a specific index from the [HardwareScanner::list_devices] function.
-    fn open_device_by_index(&self, idx: usize) -> HardwareResult<Arc<Mutex<T>>>;
+    fn open_device_by_index(&self, idx: usize) -> HardwareResult<T>;
     /// Tries to open a device given the devices name
-    fn open_device_by_name(&self, name: &str) -> HardwareResult<Arc<Mutex<T>>>;
+    fn open_device_by_name(&self, name: &str) -> HardwareResult<T>;
 }
 
 #[derive(Debug)]

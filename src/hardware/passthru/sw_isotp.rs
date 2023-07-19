@@ -78,19 +78,18 @@ fn parse_packet(cf: &CanFrame, iso_tp_ext: bool) -> (u32, &[u8]) {
 
 impl PtCombiChannel {
     /// Creates a new combi channel using a given passthru device
-    pub fn new(dev: Arc<Mutex<PassthruDevice>>) -> HardwareResult<Self> {
+    pub fn new(mut dev: PassthruDevice) -> HardwareResult<Self> {
         {
             log::debug!("SW Combi channel constructor called");
-            let mut this = dev.lock().unwrap();
-            if this.can_channel || this.isotp_channel {
+            if dev.can_channel.load(Ordering::Relaxed) || dev.isotp_channel.load(Ordering::Relaxed) {
                 // Cannot proceed as dedicated CAN or ISO-TP dedicated channel is already open
                 log::error!("CAN/ISO-TP dedicated channel already open");
                 return Err(HardwareError::ConflictingChannel);
             }
 
             // We now own both channel types. This prevents further access to these channels
-            this.can_channel = true;
-            this.isotp_channel = true;
+            dev.can_channel.store(true, Ordering::Relaxed);
+            dev.isotp_channel.store(true, Ordering::Relaxed);
         }
 
         let (tx_can_send, rx_can_send) = mpsc::channel::<ChannelMessage<CanFrame, (u32, bool)>>();
@@ -227,7 +226,7 @@ impl PtCombiChannel {
                             }
                             if channel.is_none() {
                                 // Try open channel
-                                match PassthruDevice::make_can_channel_raw(dev_handle.clone()) {
+                                match dev.make_can_channel_raw() {
                                     Ok(c) => channel = Some(c),
                                     Err(e) => res = Err(e.into()),
                                 };
@@ -488,9 +487,8 @@ impl PtCombiChannel {
             log::info!("SW ISO-TP closed");
             if let Some(mut c) = channel.take() {
                 c.close().unwrap();
-                let mut g = dev.lock().unwrap();
-                g.can_channel = false;
-                g.isotp_channel = false;
+                dev.can_channel.store(false, Ordering::Relaxed);
+                dev.isotp_channel.store(false, Ordering::Relaxed);
             }
         });
 

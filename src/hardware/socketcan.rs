@@ -2,7 +2,7 @@
 
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{Arc, atomic::{AtomicBool, Ordering}},
     time::Instant,
 };
 
@@ -28,11 +28,11 @@ const SOCKET_CAN_CAPABILITIES: HardwareCapabilities = HardwareCapabilities {
 };
 
 /// SocketCAN device
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SocketCanDevice {
     info: HardwareInfo,
-    canbus_active: bool,
-    isotp_active: bool,
+    canbus_active: Arc<AtomicBool>,
+    isotp_active: Arc<AtomicBool>,
 }
 
 impl SocketCanDevice {
@@ -47,18 +47,16 @@ impl SocketCanDevice {
                 library_version: None,
                 library_location: None,
             },
-            canbus_active: false,
-            isotp_active: false,
+            canbus_active: Arc::new(AtomicBool::new(false)),
+            isotp_active: Arc::new(AtomicBool::new(false)),
         }
     }
 }
 
 impl Hardware for SocketCanDevice {
-    fn create_iso_tp_channel(
-        this: Arc<Mutex<Self>>,
-    ) -> super::HardwareResult<Box<dyn IsoTPChannel>> {
+    fn create_iso_tp_channel(&mut self) -> super::HardwareResult<Box<dyn IsoTPChannel>> {
         Ok(Box::new(SocketCanIsoTPChannel {
-            device: this,
+            device: self.clone(),
             channel: None,
             ids: (0, 0),
             cfg: IsoTPSettings::default(),
@@ -66,9 +64,9 @@ impl Hardware for SocketCanDevice {
         }))
     }
 
-    fn create_can_channel(this: Arc<Mutex<Self>>) -> super::HardwareResult<Box<dyn CanChannel>> {
+    fn create_can_channel(&mut self) -> super::HardwareResult<Box<dyn CanChannel>> {
         Ok(Box::new(SocketCanCanChannel {
-            device: this,
+            device: self.clone(),
             channel: None,
         }))
     }
@@ -86,11 +84,11 @@ impl Hardware for SocketCanDevice {
     }
 
     fn is_iso_tp_channel_open(&self) -> bool {
-        self.isotp_active
+        self.isotp_active.load(Ordering::Relaxed)
     }
 
     fn is_can_channel_open(&self) -> bool {
-        self.canbus_active
+        self.canbus_active.load(Ordering::Relaxed)
     }
 
     fn is_connected(&self) -> bool {
@@ -101,7 +99,7 @@ impl Hardware for SocketCanDevice {
 #[derive(Debug)]
 /// SocketCAN CAN channel
 pub struct SocketCanCanChannel {
-    device: Arc<Mutex<SocketCanDevice>>,
+    device: SocketCanDevice,
     channel: Option<socketcan::CANSocket>,
 }
 
@@ -122,12 +120,11 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         if self.channel.is_some() {
             return Ok(()); // Already open!
         }
-        let mut device = self.device.lock()?;
-        let channel = socketcan::CANSocket::open(&device.info.name)?;
+        let channel = socketcan::CANSocket::open(&self.device.info.name)?;
         channel.filter_accept_all()?;
         channel.set_nonblocking(false)?;
         self.channel = Some(channel);
-        device.canbus_active = true;
+        self.device.canbus_active.store(true, Ordering::Relaxed);
         Ok(())
     }
 
@@ -135,9 +132,8 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         if self.channel.is_none() {
             return Ok(());
         }
-        let mut device = self.device.lock()?;
         self.channel = None;
-        device.canbus_active = false;
+        self.device.canbus_active.store(false, Ordering::Relaxed);
         Ok(())
     }
 
@@ -199,7 +195,7 @@ impl Drop for SocketCanCanChannel {
 
 /// SocketCAN CAN channel
 pub struct SocketCanIsoTPChannel {
-    device: Arc<Mutex<SocketCanDevice>>,
+    device: SocketCanDevice,
     channel: Option<socketcan_isotp::IsoTpSocket>,
     /// Tx ID, Rx ID
     ids: (u32, u32),
@@ -233,7 +229,6 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             // Already open
             return Ok(());
         }
-        let mut device = self.device.lock()?;
         let mut flags: IsoTpBehaviour = IsoTpBehaviour::empty();
 
         if self.cfg.extended_addresses.is_some() {
@@ -277,7 +272,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
         let fc_opts = FlowControlOptions::new(self.cfg.block_size, self.cfg.st_min, 0);
 
         let socket = socketcan_isotp::IsoTpSocket::open_with_opts(
-            &device.info.name,
+            &self.device.info.name,
             rx_id,
             tx_id,
             Some(opts),
@@ -285,19 +280,18 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             Some(link_opts),
         )?;
         socket.set_nonblocking(true)?;
-        device.canbus_active = true;
+        self.device.isotp_active.store(true, Ordering::Relaxed);
         self.channel = Some(socket);
         Ok(())
     }
 
     fn close(&mut self) -> ChannelResult<()> {
-        let mut device = self.device.lock()?;
         if self.channel.is_none() {
             // Already shut
             return Ok(());
         }
         self.channel = None; // Closes channel
-        device.canbus_active = false;
+        self.device.isotp_active.store(false, Ordering::Relaxed);
         Ok(())
     }
 
@@ -374,7 +368,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 
                 let can_frame = CanFrame::new(can_id, &data, self.cfg.can_use_ext_addr);
 
-                let mut channel = Hardware::create_can_channel(self.device.clone())?;
+                let mut channel = self.device.create_can_channel()?;
                 channel.open()?;
                 channel.write_packets(vec![can_frame], timeout_ms)?;
                 drop(channel);
@@ -384,7 +378,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             }
         } else if ext_id.is_some() && self.cfg.extended_addresses.is_none() {
             // Create a temporary channel to send this one packet!
-            let mut c_2 = Hardware::create_iso_tp_channel(self.device.clone())?;
+            let mut c_2 = self.device.create_iso_tp_channel()?;
             let cfg = IsoTPSettings {
                 extended_addresses: Some((ext_id.unwrap(), 0)),
                 ..self.cfg
@@ -482,9 +476,9 @@ impl HardwareScanner<SocketCanDevice> for SocketCanScanner {
     fn open_device_by_index(
         &self,
         idx: usize,
-    ) -> super::HardwareResult<Arc<Mutex<SocketCanDevice>>> {
+    ) -> super::HardwareResult<SocketCanDevice> {
         match self.devices.get(idx) {
-            Some(hw) => Ok(Arc::new(Mutex::new(SocketCanDevice::new(hw.name.clone())))),
+            Some(hw) => Ok(SocketCanDevice::new(hw.name.clone())),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
@@ -492,9 +486,9 @@ impl HardwareScanner<SocketCanDevice> for SocketCanScanner {
     fn open_device_by_name(
         &self,
         name: &str,
-    ) -> super::HardwareResult<Arc<Mutex<SocketCanDevice>>> {
+    ) -> super::HardwareResult<SocketCanDevice> {
         match self.devices.iter().find(|x| x.name == name) {
-            Some(hw) => Ok(Arc::new(Mutex::new(SocketCanDevice::new(hw.name.clone())))),
+            Some(hw) => Ok(SocketCanDevice::new(hw.name.clone())),
             None => Err(HardwareError::DeviceNotFound),
         }
     }

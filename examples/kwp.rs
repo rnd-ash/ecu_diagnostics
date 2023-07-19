@@ -1,5 +1,5 @@
 use automotive_diag::kwp2000::{KwpSessionType, KwpSessionTypeByte};
-use std::time::Duration;
+use std::{time::Duration, sync::{Arc, RwLock}};
 
 use ecu_diagnostics::{
     channel::{self, IsoTPSettings},
@@ -37,8 +37,8 @@ fn print_diag_mode(server: &DynamicDiagSession) {
 fn main() {
     env_logger::init();
     let dev = ecu_diagnostics::hardware::socketcan::SocketCanScanner::new();
-    let d = dev.open_device_by_name("can0").unwrap();
-    let isotp = Hardware::create_iso_tp_channel(d).unwrap();
+    let mut d = dev.open_device_by_name("can0").unwrap();
+    let isotp = d.create_iso_tp_channel().unwrap();
 
     let mut protocol = Kwp2000Protocol::default();
     println!("Diagnostic server is {}!", protocol.get_protocol_name());
