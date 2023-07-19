@@ -44,7 +44,7 @@ Unlike OBD2, KWP2000 allows for much more complex operations, which could potent
 
  The specification implemented in this crate is the second edition, dated 01-12-2006.
 
-# NEW (As off version 0.91! UNIFIED DIAGNOSTIC SERVER!)
+# NEW (as of v0.91 UNIFIED DIAGNOSTIC SERVER)
 The individual diagnostic servers are now merged into 1 diagnostic server that can handle all the different protocols
 (Diagnostic protocol is specified at the servers creation). This dramatically reduces the crates bloat (Less copy/paste code),
 and the refactoring has also introduced some new features:
