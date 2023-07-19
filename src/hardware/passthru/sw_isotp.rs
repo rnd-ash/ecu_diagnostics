@@ -1,6 +1,6 @@
 use std::borrow::BorrowMut;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc;
+use std::sync::{mpsc, Mutex, Arc};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use std::vec;

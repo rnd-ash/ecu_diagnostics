@@ -10,8 +10,6 @@ pub mod passthru; // Not finished at all yet, hide from the crate
 #[cfg(all(feature = "socketcan", unix))]
 pub mod socketcan;
 
-use std::sync::{Arc, Mutex};
-
 use crate::channel::{CanChannel, IsoTPChannel};
 
 /// Hardware API result
