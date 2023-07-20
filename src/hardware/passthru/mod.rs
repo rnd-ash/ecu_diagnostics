@@ -391,10 +391,12 @@ impl PassthruDevice {
 impl Drop for PassthruDevice {
     #[allow(unused_must_use)] // If this function fails, then device is already closed, so don't care!
     fn drop(&mut self) {
-        log::debug!("Drop called for device");
-        if let Some(idx) = self.device_idx {
-            self.drv.lock().unwrap().close(idx);
-            self.device_idx = None;
+        if Arc::strong_count(&self.drv) == 1 {
+            log::debug!("Drop called for device");
+            if let Some(idx) = self.device_idx {
+                self.drv.lock().unwrap().close(idx);
+                self.device_idx = None;
+            }
         }
     }
 }
