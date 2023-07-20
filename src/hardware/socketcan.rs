@@ -514,6 +514,6 @@ impl From<socketcan_isotp::Error> for ChannelError {
 
 impl From<std::io::Error> for ChannelError {
     fn from(e: std::io::Error) -> Self {
-        Self::IOError(e)
+        Self::IOError(Arc::new(e))
     }
 }

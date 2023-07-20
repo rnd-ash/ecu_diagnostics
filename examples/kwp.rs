@@ -5,7 +5,7 @@ use ecu_diagnostics::{
     channel::{self, IsoTPSettings},
     dynamic_diag::{
         DiagProtocol, DiagServerAdvancedOptions, DiagServerBasicOptions, DiagSessionMode,
-        DynamicDiagSession, TimeoutConfig,
+        DynamicDiagSession, TimeoutConfig, DiagServerEmptyLogger,
     },
     hardware::{self, HardwareScanner, Hardware},
     kwp2000::Kwp2000Protocol,
@@ -79,6 +79,7 @@ fn main() {
             tp_ext_id: None,
             command_cooldown_ms: 100,
         }),
+        DiagServerEmptyLogger{}
     )
     .unwrap();
 

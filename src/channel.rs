@@ -14,11 +14,11 @@ use crate::hardware::HardwareError;
 /// Communication channel result
 pub type ChannelResult<T> = Result<T, ChannelError>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Error produced by a communication channel
 pub enum ChannelError {
     /// Underlying IO Error with channel
-    IOError(std::io::Error),
+    IOError(Arc<std::io::Error>),
     /// Timeout when writing data to the channel
     WriteTimeout,
     /// Timeout when reading from the channel

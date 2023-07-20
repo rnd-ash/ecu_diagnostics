@@ -59,6 +59,8 @@
 //! systems, due to the unofficial porting of the API in the [Macchina-J2534 project](https://github.com/rnd-ash/Macchina-J2534)
 //!
 
+use std::sync::Arc;
+
 use channel::ChannelError;
 use hardware::HardwareError;
 
@@ -75,7 +77,7 @@ pub use automotive_diag::ByteWrapper::*;
 /// Diagnostic server result
 pub type DiagServerResult<T> = Result<T, DiagError>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 /// Diagnostic server error
 pub enum DiagError {
     /// The Diagnostic server does not support the request
@@ -104,7 +106,7 @@ pub enum DiagError {
     /// This will be removed in Version 1
     NotImplemented(String),
     /// Device hardware error
-    HardwareError(HardwareError),
+    HardwareError(Arc<HardwareError>),
     /// ECU Param ID did not match the request, but the Service ID was correct
     MismatchedResponse(String),
 }
@@ -141,7 +143,7 @@ impl std::error::Error for DiagError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self {
             DiagError::ChannelError(e) => Some(e),
-            DiagError::HardwareError(e) => Some(e),
+            DiagError::HardwareError(e) => Some(e.as_ref()),
             _ => None,
         }
     }
@@ -155,7 +157,7 @@ impl From<ChannelError> for DiagError {
 
 impl From<HardwareError> for DiagError {
     fn from(x: HardwareError) -> Self {
-        Self::HardwareError(x)
+        Self::HardwareError(Arc::new(x))
     }
 }
 

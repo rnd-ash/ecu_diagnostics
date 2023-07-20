@@ -103,9 +103,6 @@ impl PtCombiChannel {
 
         let is_running = Arc::new(AtomicBool::new(true));
         let is_running_t = is_running.clone();
-
-        let dev_handle = dev.clone();
-
         let handle = std::thread::spawn(move || {
             let mut channel: Option<PassthruCanChannel> = None;
             let mut iso_tp_cfg: Option<IsoTPSettings> = None;

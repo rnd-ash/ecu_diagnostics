@@ -7,6 +7,9 @@ mod dpdu;
 #[cfg(feature = "passthru")]
 pub mod passthru; // Not finished at all yet, hide from the crate
 
+#[cfg(feature = "passthru")]
+use std::sync::Arc;
+
 #[cfg(all(feature = "socketcan", unix))]
 pub mod socketcan;
 
@@ -85,7 +88,7 @@ pub trait HardwareScanner<T: Hardware> {
     fn open_device_by_name(&self, name: &str) -> HardwareResult<T>;
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 /// Represents error that can be returned by Hardware API
 pub enum HardwareError {
     /// Low level device driver error
@@ -107,12 +110,13 @@ pub enum HardwareError {
 
     /// Lib loading error
     #[cfg(feature = "passthru")]
-    LibLoadError(libloading::Error),
+    LibLoadError(Arc<libloading::Error>),
 }
+
 #[cfg(feature = "passthru")]
 impl From<libloading::Error> for HardwareError {
     fn from(err: libloading::Error) -> Self {
-        Self::LibLoadError(err)
+        Self::LibLoadError(Arc::new(err))
     }
 }
 
@@ -141,7 +145,7 @@ impl std::error::Error for HardwareError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self {
             #[cfg(feature = "passthru")]
-            HardwareError::LibLoadError(l) => Some(l),
+            HardwareError::LibLoadError(l) => Some(l.as_ref()),
             _ => None,
         }
     }

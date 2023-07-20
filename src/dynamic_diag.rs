@@ -118,6 +118,32 @@ pub struct DiagServerAdvancedOptions {
     pub command_cooldown_ms: u32,
 }
 
+#[derive(Debug)]
+/// Diagnostic server event, used when using a [DiagServerLogger]
+pub enum ServerEvent {
+    /// Diag server started
+    ServerStart,
+    /// Diag server stopped
+    ServerExit,
+    /// Sent payload to ECU
+    BytesSendState(Vec<u8>, ChannelResult<()>),
+    /// Recv payload from ECU
+    BytesRecvState(ChannelResult<Vec<u8>>),
+}
+
+/// Diag server logger
+pub trait DiagServerLogger: Clone + Send + Sync {
+    /// When a diagnostic server event happens
+    fn on_event(&self, _evt: ServerEvent){}
+}
+
+#[derive(Debug, Copy, Clone)]
+/// Diag server basic logger (Use this if no logger is to be used in your application)
+pub struct DiagServerEmptyLogger{}
+
+impl DiagServerLogger for DiagServerEmptyLogger {
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Diagnostic session mode
 pub struct DiagSessionMode {
@@ -245,16 +271,18 @@ impl DynamicDiagSession {
     /// Creates a new diagnostic server with a given protocol and NRC format
     /// over an ISO-TP connection
     #[allow(unused_must_use, unused_assignments)]
-    pub fn new_over_iso_tp<P, NRC>(
+    pub fn new_over_iso_tp<P, NRC, L>(
         protocol: P,
         mut channel: Box<dyn IsoTPChannel>,
         channel_cfg: IsoTPSettings,
         basic_opts: DiagServerBasicOptions,
         advanced_opts: Option<DiagServerAdvancedOptions>,
+        mut logger: L
     ) -> DiagServerResult<Self>
     where
         P: DiagProtocol<NRC> + 'static,
         NRC: EcuNRC,
+        L: DiagServerLogger + 'static
     {
         // Create iso tp channel using provided HW interface. If this fails, we cannot setup KWP or UDS session!
         channel.set_iso_tp_cfg(channel_cfg)?;
@@ -281,6 +309,7 @@ impl DynamicDiagSession {
         let is_running_c = is_running.clone();
         std::thread::spawn(move || {
             let mut last_tp_time = Instant::now();
+            logger.on_event(ServerEvent::ServerStart);
             while is_running.load(Ordering::Relaxed) {
                 // Incomming ECU request
                 if let Ok(req) = rx_req.recv_timeout(Duration::from_millis(100)) {
@@ -298,7 +327,7 @@ impl DynamicDiagSession {
                                     log::warn!("Global session control is enabled but global TP ID is not specified");
                                 }
                             }
-                            let res = send_recv_ecu_req::<P, NRC>(
+                            let res = send_recv_ecu_req::<P, NRC, L>(
                                 tx_addr,
                                 ext_id,
                                 &req.payload,
@@ -308,6 +337,7 @@ impl DynamicDiagSession {
                                 0,
                                 &mut channel,
                                 &is_connected_inner,
+                                &mut logger
                             );
                             if res.is_ok() {
                                 // Send OK! We can set diag mode in the server side
@@ -319,7 +349,7 @@ impl DynamicDiagSession {
                             tx_resp.send(res);
                         }
                         DiagAction::EcuReset => {
-                            let res = send_recv_ecu_req::<P, NRC>(
+                            let res = send_recv_ecu_req::<P, NRC, L>(
                                 tx_addr,
                                 None,
                                 &req.payload,
@@ -329,6 +359,7 @@ impl DynamicDiagSession {
                                 0,
                                 &mut channel,
                                 &is_connected_inner,
+                                &mut logger
                             );
                             if res.is_ok() {
                                 log::debug!("ECU Reset detected. Setting default session mode");
@@ -343,7 +374,7 @@ impl DynamicDiagSession {
                             tx_resp.send(res);
                         }
                         _ => {
-                            let mut resp = send_recv_ecu_req::<P, NRC>(
+                            let mut resp = send_recv_ecu_req::<P, NRC, L>(
                                 tx_addr,
                                 None,
                                 &req.payload,
@@ -353,6 +384,7 @@ impl DynamicDiagSession {
                                 0,
                                 &mut channel,
                                 &is_connected_inner,
+                                &mut logger
                             );
                             if let DiagServerRx::EcuError { b, desc: _ } = &resp {
                                 if NRC::from(*b).is_wrong_diag_mode() {
@@ -374,7 +406,7 @@ impl DynamicDiagSession {
                                             log::warn!("Global session control is enabled but global TP ID is not specified");
                                         }
                                     }
-                                    if send_recv_ecu_req::<P, NRC>(
+                                    if send_recv_ecu_req::<P, NRC, L>(
                                         tx_addr,
                                         ext_id,
                                         &protocol.make_session_control_msg(
@@ -386,6 +418,7 @@ impl DynamicDiagSession {
                                         0,
                                         &mut channel,
                                         &is_connected_inner,
+                                        &mut logger
                                     )
                                     .is_ok()
                                     {
@@ -394,7 +427,7 @@ impl DynamicDiagSession {
                                             current_session_mode.clone();
                                         last_tp_time = Instant::now();
                                         // Resend our request
-                                        resp = send_recv_ecu_req::<P, NRC>(
+                                        resp = send_recv_ecu_req::<P, NRC, L>(
                                             tx_addr,
                                             None,
                                             &req.payload,
@@ -404,6 +437,7 @@ impl DynamicDiagSession {
                                             0,
                                             &mut channel,
                                             &is_connected_inner,
+                                            &mut logger
                                         );
                                     } else {
                                         // Diag session mode req failed. Set session data
@@ -435,7 +469,7 @@ impl DynamicDiagSession {
                             } else {
                                 basic_opts.send_id
                             };
-                            if send_recv_ecu_req::<P, NRC>(
+                            if send_recv_ecu_req::<P, NRC, L>(
                                 tx_addr,
                                 aops.tp_ext_id,
                                 &tx_payload.to_bytes(),
@@ -445,6 +479,7 @@ impl DynamicDiagSession {
                                 0,
                                 &mut channel,
                                 &is_connected_inner,
+                                &mut logger
                             )
                             .is_err()
                             {
@@ -459,6 +494,7 @@ impl DynamicDiagSession {
                     }
                 }
             }
+            logger.on_event(ServerEvent::ServerExit);
             // Thread has exited, so tear everything down!
             channel.close().unwrap();
             drop(channel)
@@ -576,7 +612,7 @@ impl Drop for DynamicDiagSession {
     }
 }
 
-fn send_recv_ecu_req<P, NRC>(
+fn send_recv_ecu_req<P, NRC, L>(
     tx_addr: u32,
     ext_id: Option<u8>,
     payload: &[u8], // If empty, we are only reading
@@ -586,10 +622,12 @@ fn send_recv_ecu_req<P, NRC>(
     cooldown: u32,
     channel: &mut Box<dyn IsoTPChannel>,
     connect_state: &AtomicBool,
+    logger: &mut L
 ) -> DiagServerRx
 where
     P: DiagProtocol<NRC>,
     NRC: EcuNRC,
+    L: DiagServerLogger
 {
     // Send the request, and transmit the send state!
     let mut res: ChannelResult<()> = Ok(());
@@ -610,6 +648,7 @@ where
     }
     match res {
         Ok(_) => {
+            logger.on_event(ServerEvent::BytesSendState(payload.to_vec(), Ok(())));
             if needs_response {
                 log::debug!("Sending OK, awaiting response from ECU");
                 // Notify sending has completed, we will now poll for the ECUs response!
@@ -621,7 +660,9 @@ where
                     .unwrap();
                 }
                 // Now poll for the ECU's response
-                match channel.read_bytes(basic_opts.timeout_cfg.read_timeout_ms) {
+                let r_state = channel.read_bytes(basic_opts.timeout_cfg.read_timeout_ms);
+                logger.on_event(ServerEvent::BytesRecvState(r_state.clone()));
+                match r_state {
                     Err(e) => {
                         log::error!("Error reading from channel. Request was {payload:02X?}");
                         connect_state.store(false, Ordering::Relaxed);
@@ -642,7 +683,7 @@ where
                                     // ECU waiting, so poll again for the response
                                     // to do that, call this function again with no payload
                                     log::debug!("ECU is busy, awaiting response");
-                                    send_recv_ecu_req::<P, NRC>(
+                                    send_recv_ecu_req::<P, NRC, L>(
                                         tx_addr,
                                         ext_id,
                                         &[],
@@ -652,12 +693,13 @@ where
                                         cooldown,
                                         channel,
                                         connect_state,
+                                        logger
                                     )
                                 } else if nrc_data.is_repeat_request() {
                                     // ECU wants us to ask again, so we wait a little bit, then call ourselves again
                                     log::debug!("ECU has asked for a repeat of the request");
                                     std::thread::sleep(Duration::from_millis(cooldown.into()));
-                                    send_recv_ecu_req::<P, NRC>(
+                                    send_recv_ecu_req::<P, NRC, L>(
                                         tx_addr,
                                         ext_id,
                                         payload,
@@ -667,6 +709,7 @@ where
                                         cooldown,
                                         channel,
                                         connect_state,
+                                        logger
                                     )
                                 } else {
                                     // Unhandled NRC
@@ -691,6 +734,7 @@ where
             }
         }
         Err(e) => {
+            logger.on_event(ServerEvent::BytesSendState(payload.to_vec(), Err(e.clone())));
             log::error!("Channel send error: {e}");
             // Final error here at send state :(
             connect_state.store(false, Ordering::Relaxed);
