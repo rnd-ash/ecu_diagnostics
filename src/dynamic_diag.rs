@@ -126,9 +126,9 @@ pub enum ServerEvent {
     /// Diag server stopped
     ServerExit,
     /// Sent payload to ECU
-    BytesSendState(Vec<u8>, ChannelResult<()>),
+    BytesSendState(u32, Vec<u8>, ChannelResult<()>),
     /// Recv payload from ECU
-    BytesRecvState(ChannelResult<Vec<u8>>),
+    BytesRecvState(u32, ChannelResult<Vec<u8>>),
 }
 
 /// Diag server logger
@@ -310,6 +310,7 @@ impl DynamicDiagSession {
         std::thread::spawn(move || {
             let mut last_tp_time = Instant::now();
             logger.on_event(ServerEvent::ServerStart);
+            let rx_addr = basic_opts.recv_id;
             while is_running.load(Ordering::Relaxed) {
                 // Incomming ECU request
                 if let Ok(req) = rx_req.recv_timeout(Duration::from_millis(100)) {
@@ -329,6 +330,7 @@ impl DynamicDiagSession {
                             }
                             let res = send_recv_ecu_req::<P, NRC, L>(
                                 tx_addr,
+                                rx_addr,
                                 ext_id,
                                 &req.payload,
                                 needs_response,
@@ -351,6 +353,7 @@ impl DynamicDiagSession {
                         DiagAction::EcuReset => {
                             let res = send_recv_ecu_req::<P, NRC, L>(
                                 tx_addr,
+                                rx_addr,
                                 None,
                                 &req.payload,
                                 req.response_require,
@@ -376,6 +379,7 @@ impl DynamicDiagSession {
                         _ => {
                             let mut resp = send_recv_ecu_req::<P, NRC, L>(
                                 tx_addr,
+                                rx_addr,
                                 None,
                                 &req.payload,
                                 req.response_require,
@@ -408,6 +412,7 @@ impl DynamicDiagSession {
                                     }
                                     if send_recv_ecu_req::<P, NRC, L>(
                                         tx_addr,
+                                        rx_addr,
                                         ext_id,
                                         &protocol.make_session_control_msg(
                                             &current_session_mode.clone().unwrap(),
@@ -429,6 +434,7 @@ impl DynamicDiagSession {
                                         // Resend our request
                                         resp = send_recv_ecu_req::<P, NRC, L>(
                                             tx_addr,
+                                            rx_addr,
                                             None,
                                             &req.payload,
                                             req.response_require,
@@ -471,6 +477,7 @@ impl DynamicDiagSession {
                             };
                             if send_recv_ecu_req::<P, NRC, L>(
                                 tx_addr,
+                                rx_addr,
                                 aops.tp_ext_id,
                                 &tx_payload.to_bytes(),
                                 aops.tester_present_require_response,
@@ -614,6 +621,7 @@ impl Drop for DynamicDiagSession {
 
 fn send_recv_ecu_req<P, NRC, L>(
     tx_addr: u32,
+    rx_addr: u32,
     ext_id: Option<u8>,
     payload: &[u8], // If empty, we are only reading
     needs_response: bool,
@@ -648,7 +656,9 @@ where
     }
     match res {
         Ok(_) => {
-            logger.on_event(ServerEvent::BytesSendState(payload.to_vec(), Ok(())));
+            if !payload.is_empty() {
+                logger.on_event(ServerEvent::BytesSendState(tx_addr, payload.to_vec(), Ok(())));
+            }
             if needs_response {
                 log::debug!("Sending OK, awaiting response from ECU");
                 // Notify sending has completed, we will now poll for the ECUs response!
@@ -661,7 +671,7 @@ where
                 }
                 // Now poll for the ECU's response
                 let r_state = channel.read_bytes(basic_opts.timeout_cfg.read_timeout_ms);
-                logger.on_event(ServerEvent::BytesRecvState(r_state.clone()));
+                logger.on_event(ServerEvent::BytesRecvState(rx_addr, r_state.clone()));
                 match r_state {
                     Err(e) => {
                         log::error!("Error reading from channel. Request was {payload:02X?}");
@@ -685,6 +695,7 @@ where
                                     log::debug!("ECU is busy, awaiting response");
                                     send_recv_ecu_req::<P, NRC, L>(
                                         tx_addr,
+                                        rx_addr,
                                         ext_id,
                                         &[],
                                         needs_response,
@@ -701,6 +712,7 @@ where
                                     std::thread::sleep(Duration::from_millis(cooldown.into()));
                                     send_recv_ecu_req::<P, NRC, L>(
                                         tx_addr,
+                                        rx_addr,
                                         ext_id,
                                         payload,
                                         needs_response,
@@ -734,7 +746,7 @@ where
             }
         }
         Err(e) => {
-            logger.on_event(ServerEvent::BytesSendState(payload.to_vec(), Err(e.clone())));
+            logger.on_event(ServerEvent::BytesSendState(rx_addr, payload.to_vec(), Err(e.clone())));
             log::error!("Channel send error: {e}");
             // Final error here at send state :(
             connect_state.store(false, Ordering::Relaxed);
