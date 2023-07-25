@@ -307,156 +307,167 @@ impl DynamicDiagSession {
 
         let is_running = Arc::new(AtomicBool::new(true));
         let is_running_c = is_running.clone();
+        let cooldown = advanced_opts.map(|x| x.command_cooldown_ms).unwrap_or(0) as u128;
         std::thread::spawn(move || {
             let mut last_tp_time = Instant::now();
+            let mut last_cmd_time = Instant::now();
             logger.on_event(ServerEvent::ServerStart);
             let rx_addr = basic_opts.recv_id;
             while is_running.load(Ordering::Relaxed) {
-                // Incomming ECU request
-                if let Ok(req) = rx_req.recv_timeout(Duration::from_millis(100)) {
-                    let mut tx_addr = basic_opts.send_id;
-                    match protocol.process_req_payload(&req.payload) {
-                        DiagAction::SetSessionMode(mode) => {
-                            let mut needs_response = true;
-                            let mut ext_id = None;
-                            if let Some(adv) = advanced_opts {
-                                if adv.global_session_control && adv.global_tp_id != 0 {
-                                    tx_addr = adv.global_tp_id;
-                                    ext_id = adv.tp_ext_id;
-                                    needs_response = false;
-                                } else if adv.global_session_control && adv.global_tp_id == 0 {
-                                    log::warn!("Global session control is enabled but global TP ID is not specified");
-                                }
-                            }
-                            let res = send_recv_ecu_req::<P, NRC, L>(
-                                tx_addr,
-                                rx_addr,
-                                ext_id,
-                                &req.payload,
-                                needs_response,
-                                Some(&mut tx_resp),
-                                basic_opts,
-                                0,
-                                &mut channel,
-                                &is_connected_inner,
-                                &mut logger
-                            );
-                            if res.is_ok() {
-                                // Send OK! We can set diag mode in the server side
-                                requested_session_mode = Some(mode);
-                                *noti_session_mode_t.write().unwrap() =
-                                    requested_session_mode.clone();
-                                last_tp_time = Instant::now();
-                            }
-                            tx_resp.send(res);
-                        }
-                        DiagAction::EcuReset => {
-                            let res = send_recv_ecu_req::<P, NRC, L>(
-                                tx_addr,
-                                rx_addr,
-                                None,
-                                &req.payload,
-                                req.response_require,
-                                Some(&mut tx_resp),
-                                basic_opts,
-                                0,
-                                &mut channel,
-                                &is_connected_inner,
-                                &mut logger
-                            );
-                            if res.is_ok() {
-                                log::debug!("ECU Reset detected. Setting default session mode");
-                                // Send OK! We have to set default session mode as the ECU has been rebooted
-                                // Internally, the 'current session' does not change, as diag server will try on the next
-                                // request to change modes back
-                                *noti_session_mode_t.write().unwrap() =
-                                    protocol.get_basic_session_mode();
-                                current_session_mode = protocol.get_basic_session_mode();
-                                std::thread::sleep(Duration::from_millis(500)); // Await ECU to reboot - TODO. Maybe we should let this be configured?
-                            }
-                            tx_resp.send(res);
-                        }
-                        _ => {
-                            let mut resp = send_recv_ecu_req::<P, NRC, L>(
-                                tx_addr,
-                                rx_addr,
-                                None,
-                                &req.payload,
-                                req.response_require,
-                                Some(&mut tx_resp),
-                                basic_opts,
-                                0,
-                                &mut channel,
-                                &is_connected_inner,
-                                &mut logger
-                            );
-                            if let DiagServerRx::EcuError { b, desc: _ } = &resp {
-                                if NRC::from(*b).is_wrong_diag_mode() {
-                                    log::debug!("Trying to switch ECU modes");
-                                    // Wrong diag mode. We need to see if we need to change modes
-                                    // Switch modes!
-                                    tx_resp.send(DiagServerRx::EcuBusy); // Until we have a hook for this specific scenerio
-                                                                         // Now create new diag server request message
-                                    let mut needs_response = true;
-                                    let mut ext_id = None;
-                                    if let Some(adv) = advanced_opts {
-                                        if adv.global_session_control && adv.global_tp_id != 0 {
-                                            tx_addr = adv.global_tp_id;
-                                            ext_id = adv.tp_ext_id;
-                                            needs_response = false;
-                                        } else if adv.global_session_control
-                                            && adv.global_tp_id == 0
-                                        {
-                                            log::warn!("Global session control is enabled but global TP ID is not specified");
-                                        }
+                // Incomming ECU request (Check only after cooldown)
+                let mut do_cmd = false;
+                if cooldown == 0 || last_cmd_time.elapsed().as_millis() >= cooldown {
+                    if let Ok(req) = rx_req.recv_timeout(Duration::from_millis(100)) {
+                        do_cmd = true;
+                        let mut tx_addr = basic_opts.send_id;
+                        match protocol.process_req_payload(&req.payload) {
+                            DiagAction::SetSessionMode(mode) => {
+                                let mut needs_response = true;
+                                let mut ext_id = None;
+                                if let Some(adv) = advanced_opts {
+                                    if adv.global_session_control && adv.global_tp_id != 0 {
+                                        tx_addr = adv.global_tp_id;
+                                        ext_id = adv.tp_ext_id;
+                                        needs_response = false;
+                                    } else if adv.global_session_control && adv.global_tp_id == 0 {
+                                        log::warn!("Global session control is enabled but global TP ID is not specified");
                                     }
-                                    if send_recv_ecu_req::<P, NRC, L>(
-                                        tx_addr,
-                                        rx_addr,
-                                        ext_id,
-                                        &protocol.make_session_control_msg(
-                                            &current_session_mode.clone().unwrap(),
-                                        ),
-                                        needs_response,
-                                        None, // None, internally handled
-                                        basic_opts,
-                                        0,
-                                        &mut channel,
-                                        &is_connected_inner,
-                                        &mut logger
-                                    )
-                                    .is_ok()
-                                    {
-                                        log::debug!("ECU mode switch OK. Resending the request");
-                                        *noti_session_mode_t.write().unwrap() =
-                                            current_session_mode.clone();
-                                        last_tp_time = Instant::now();
-                                        // Resend our request
-                                        resp = send_recv_ecu_req::<P, NRC, L>(
+                                }
+                                let res = send_recv_ecu_req::<P, NRC, L>(
+                                    tx_addr,
+                                    rx_addr,
+                                    ext_id,
+                                    &req.payload,
+                                    needs_response,
+                                    Some(&mut tx_resp),
+                                    basic_opts,
+                                    0,
+                                    &mut channel,
+                                    &is_connected_inner,
+                                    &mut logger
+                                );
+                                if res.is_ok() {
+                                    // Send OK! We can set diag mode in the server side
+                                    requested_session_mode = Some(mode);
+                                    *noti_session_mode_t.write().unwrap() =
+                                        requested_session_mode.clone();
+                                    last_tp_time = Instant::now();
+                                    last_cmd_time = Instant::now();
+                                }
+                                tx_resp.send(res);
+                            }
+                            DiagAction::EcuReset => {
+                                let res = send_recv_ecu_req::<P, NRC, L>(
+                                    tx_addr,
+                                    rx_addr,
+                                    None,
+                                    &req.payload,
+                                    req.response_require,
+                                    Some(&mut tx_resp),
+                                    basic_opts,
+                                    0,
+                                    &mut channel,
+                                    &is_connected_inner,
+                                    &mut logger
+                                );
+                                if res.is_ok() {
+                                    log::debug!("ECU Reset detected. Setting default session mode");
+                                    // Send OK! We have to set default session mode as the ECU has been rebooted
+                                    // Internally, the 'current session' does not change, as diag server will try on the next
+                                    // request to change modes back
+                                    *noti_session_mode_t.write().unwrap() =
+                                        protocol.get_basic_session_mode();
+                                    current_session_mode = protocol.get_basic_session_mode();
+                                    std::thread::sleep(Duration::from_millis(500)); // Await ECU to reboot - TODO. Maybe we should let this be configured?
+                                    last_cmd_time = Instant::now();
+                                }
+                                tx_resp.send(res);
+                            }
+                            _ => {
+                                let mut resp = send_recv_ecu_req::<P, NRC, L>(
+                                    tx_addr,
+                                    rx_addr,
+                                    None,
+                                    &req.payload,
+                                    req.response_require,
+                                    Some(&mut tx_resp),
+                                    basic_opts,
+                                    0,
+                                    &mut channel,
+                                    &is_connected_inner,
+                                    &mut logger
+                                );
+                                if let DiagServerRx::EcuError { b, desc: _ } = &resp {
+                                    if NRC::from(*b).is_wrong_diag_mode() {
+                                        log::debug!("Trying to switch ECU modes");
+                                        // Wrong diag mode. We need to see if we need to change modes
+                                        // Switch modes!
+                                        tx_resp.send(DiagServerRx::EcuBusy); // Until we have a hook for this specific scenerio
+                                                                            // Now create new diag server request message
+                                        let mut needs_response = true;
+                                        let mut ext_id = None;
+                                        if let Some(adv) = advanced_opts {
+                                            if adv.global_session_control && adv.global_tp_id != 0 {
+                                                tx_addr = adv.global_tp_id;
+                                                ext_id = adv.tp_ext_id;
+                                                needs_response = false;
+                                            } else if adv.global_session_control
+                                                && adv.global_tp_id == 0
+                                            {
+                                                log::warn!("Global session control is enabled but global TP ID is not specified");
+                                            }
+                                        }
+                                        if send_recv_ecu_req::<P, NRC, L>(
                                             tx_addr,
                                             rx_addr,
-                                            None,
-                                            &req.payload,
-                                            req.response_require,
-                                            Some(&mut tx_resp),
+                                            ext_id,
+                                            &protocol.make_session_control_msg(
+                                                &current_session_mode.clone().unwrap(),
+                                            ),
+                                            needs_response,
+                                            None, // None, internally handled
                                             basic_opts,
                                             0,
                                             &mut channel,
                                             &is_connected_inner,
                                             &mut logger
-                                        );
-                                    } else {
-                                        // Diag session mode req failed. Set session data
-                                        *noti_session_mode_t.write().unwrap() =
-                                            protocol.get_basic_session_mode();
-                                        current_session_mode = protocol.get_basic_session_mode()
+                                        )
+                                        .is_ok()
+                                        {
+                                            log::debug!("ECU mode switch OK. Resending the request");
+                                            *noti_session_mode_t.write().unwrap() =
+                                                current_session_mode.clone();
+                                            last_tp_time = Instant::now();
+                                            // Resend our request
+                                            resp = send_recv_ecu_req::<P, NRC, L>(
+                                                tx_addr,
+                                                rx_addr,
+                                                None,
+                                                &req.payload,
+                                                req.response_require,
+                                                Some(&mut tx_resp),
+                                                basic_opts,
+                                                0,
+                                                &mut channel,
+                                                &is_connected_inner,
+                                                &mut logger
+                                            );
+                                        } else {
+                                            // Diag session mode req failed. Set session data
+                                            *noti_session_mode_t.write().unwrap() =
+                                                protocol.get_basic_session_mode();
+                                            current_session_mode = protocol.get_basic_session_mode()
+                                        }
                                     }
+                                } else if let DiagServerRx::EcuResponse(_) = &resp {
+                                    last_cmd_time = Instant::now();
                                 }
+                                tx_resp.send(resp);
                             }
-                            tx_resp.send(resp);
                         }
-                    }
-                } else {
+                    } 
+                }
+                if !do_cmd {
                     if current_session_mode != requested_session_mode {
                         current_session_mode = requested_session_mode.clone();
                     }
