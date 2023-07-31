@@ -14,51 +14,39 @@ use crate::hardware::HardwareError;
 /// Communication channel result
 pub type ChannelResult<T> = Result<T, ChannelError>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 /// Error produced by a communication channel
 pub enum ChannelError {
     /// Underlying IO Error with channel
-    IOError(Arc<std::io::Error>),
+    #[error("Device IO error")]
+    IOError(#[from] #[source] Arc<std::io::Error>),
     /// Timeout when writing data to the channel
+    #[error("Write timeout")]
     WriteTimeout,
     /// Timeout when reading from the channel
+    #[error("Read timeout")]
     ReadTimeout,
     /// The channel's Rx buffer is empty. Only applies when read timeout is 0
+    #[error("No data in receive buffer")]
     BufferEmpty,
     /// The channels Tx buffer is full
+    #[error("Send buffer is full")]
     BufferFull,
     /// Unsupported channel request
+    #[error("Device unsupported request")]
     UnsupportedRequest,
     /// The interface is not open
+    #[error("Interface was not opened before request")]
     InterfaceNotOpen,
     /// Underlying API error with hardware
-    HardwareError(HardwareError),
-    /// Channel is not open, so cannot read/write data to it!
-    NotOpen,
+    #[error("Device hardware API error")]
+    HardwareError(#[from] #[source] HardwareError),
     /// Channel not configured prior to opening
+    #[error("Channel configuration error")]
     ConfigurationError,
     /// Other Channel error
+    #[error("Unknown channel error: {0}")]
     Other(String),
-}
-
-impl std::fmt::Display for ChannelError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ChannelError::IOError(e) => write!(f, "IO error: {e}"),
-            ChannelError::UnsupportedRequest => write!(f, "unsupported channel request"),
-            ChannelError::ReadTimeout => write!(f, "timeout reading from channel"),
-            ChannelError::WriteTimeout => write!(f, "timeout writing to channel"),
-            ChannelError::BufferFull => write!(f, "channel's Transmit buffer is full"),
-            ChannelError::BufferEmpty => write!(f, "channel's Receive buffer is empty"),
-            ChannelError::InterfaceNotOpen => write!(f, "channel's interface is not open"),
-            ChannelError::HardwareError(err) => write!(f, "Channel hardware error: {err}"),
-            ChannelError::NotOpen => write!(f, "Channel has not been opened"),
-            ChannelError::Other(e) => write!(f, "{e}"),
-            ChannelError::ConfigurationError => {
-                write!(f, "Channel opened prior to being configured")
-            }
-        }
-    }
 }
 
 impl<T> From<PoisonError<T>> for ChannelError {
@@ -109,24 +97,6 @@ impl<T> From<mpsc::SendError<T>> for HardwareError {
 impl<T> From<mpsc::SendError<T>> for ChannelError {
     fn from(err: mpsc::SendError<T>) -> Self {
         ChannelError::HardwareError(HardwareError::from(err))
-    }
-}
-
-impl From<HardwareError> for ChannelError {
-    fn from(err: HardwareError) -> Self {
-        Self::HardwareError(err)
-    }
-}
-
-impl std::error::Error for ChannelError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        if let Self::IOError(io_err) = self {
-            Some(io_err)
-        } else if let Self::HardwareError(err) = self {
-            Some(err)
-        } else {
-            None
-        }
     }
 }
 

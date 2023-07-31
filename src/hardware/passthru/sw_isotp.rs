@@ -138,7 +138,7 @@ impl PtCombiChannel {
                             if iso_tp_cfg.is_none() || iso_tp_filter.is_none() {
                                 tx_isotp_send_res.send(Err(ChannelError::ConfigurationError))
                             } else if channel.is_none() {
-                                tx_isotp_send_res.send(Err(ChannelError::NotOpen))
+                                tx_isotp_send_res.send(Err(ChannelError::InterfaceNotOpen))
                             } else {
                                 let cfg = iso_tp_cfg.unwrap();
                                 let can = channel.as_mut().unwrap();

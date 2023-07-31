@@ -496,7 +496,7 @@ pub struct PassthruCanChannel {
 impl PassthruCanChannel {
     fn get_channel_id(&self) -> ChannelResult<u32> {
         match self.channel_id {
-            None => Err(ChannelError::NotOpen),
+            None => Err(ChannelError::InterfaceNotOpen),
             Some(x) => Ok(x),
         }
     }
@@ -648,7 +648,7 @@ pub struct PassthruIsoTpChannel {
 impl PassthruIsoTpChannel {
     fn get_channel_id(&self) -> ChannelResult<u32> {
         match self.channel_id {
-            None => Err(ChannelError::NotOpen),
+            None => Err(ChannelError::InterfaceNotOpen),
             Some(x) => Ok(x),
         }
     }

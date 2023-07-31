@@ -88,10 +88,11 @@ pub trait HardwareScanner<T: Hardware> {
     fn open_device_by_name(&self, name: &str) -> HardwareResult<T>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
 /// Represents error that can be returned by Hardware API
 pub enum HardwareError {
     /// Low level device driver error
+    #[error("Device library API error. Code {code}, Description: '{desc}'")]
     APIError {
         /// API Error code
         code: u32,
@@ -100,54 +101,28 @@ pub enum HardwareError {
     },
     /// Indicates that a conflicting channel type was opened on a device which does not
     /// support multiple channels of the same underlying network to be open at once.
+    #[error("Channel type conflicts with an already open channel")]
     ConflictingChannel,
     /// Indicates a channel type is not supported by the API
+    #[error("Channel type not supported on this hardware")]
     ChannelNotSupported,
     /// Hardware not found
+    #[error("Device not found")]
     DeviceNotFound,
     /// Function called on device that has not yet been opened
+    #[error("Device was not opened")]
     DeviceNotOpen,
 
     /// Lib loading error
     #[cfg(feature = "passthru")]
-    LibLoadError(Arc<libloading::Error>),
+    #[error("Device API library load error")]
+    LibLoadError(#[from] #[source] Arc<libloading::Error>),
 }
 
 #[cfg(feature = "passthru")]
 impl From<libloading::Error> for HardwareError {
     fn from(err: libloading::Error) -> Self {
         Self::LibLoadError(Arc::new(err))
-    }
-}
-
-impl std::fmt::Display for HardwareError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            HardwareError::APIError { code, desc } => write!(
-                f,
-                "Hardware API Error. Code {code}, Description: {desc}"
-            ),
-            HardwareError::ConflictingChannel => {
-                write!(f, "Conflicting communication channel already open")
-            }
-            HardwareError::ChannelNotSupported => {
-                write!(f, "Channel type is not supported by hardware")
-            }
-            HardwareError::DeviceNotFound => write!(f, "Device not found"),
-            HardwareError::DeviceNotOpen => write!(f, "Hardware device not open"),
-            #[cfg(feature = "passthru")]
-            HardwareError::LibLoadError(e) => write!(f, "LibLoading error: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for HardwareError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match &self {
-            #[cfg(feature = "passthru")]
-            HardwareError::LibLoadError(l) => Some(l.as_ref()),
-            _ => None,
-        }
     }
 }
 

@@ -77,12 +77,14 @@ pub use automotive_diag::ByteWrapper::*;
 /// Diagnostic server result
 pub type DiagServerResult<T> = Result<T, DiagError>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
 /// Diagnostic server error
 pub enum DiagError {
     /// The Diagnostic server does not support the request
+    #[error("Diagnostic server does not support the request")]
     NotSupported,
     /// Diagnostic error code from the ECU itself
+    #[error("ECU Negative response. Error 0x{:02X?}, definition: {:?}", code, def)]
     ECUError {
         /// Raw Negative response code from ECU
         code: u8,
@@ -90,74 +92,37 @@ pub enum DiagError {
         def: Option<String>,
     },
     /// Response empty
+    #[error("ECU did not respond to the request")]
     EmptyResponse,
     /// ECU Responded but send a message that wasn't a reply for the sent message
+    #[error("ECU response is out of order")]
     WrongMessage,
     /// Diagnostic server terminated!?
+    #[error("Diagnostic server was terminated before the request")]
     ServerNotRunning,
     /// ECU Responded with a message, but the length was incorrect
+    #[error("ECU response size was not the correct length")]
     InvalidResponseLength,
     /// A parameter given to the function is invalid. Check the function's documentation
     /// for more information
+    #[error("Diagnostic function parameter invalid")]
     ParameterInvalid,
     /// Error with underlying communication channel
-    ChannelError(ChannelError),
-    /// Denotes a TODO action (Non-implemented function stub)
-    /// This will be removed in Version 1
-    NotImplemented(String),
+    #[error("Diagnostic server hardware channel error")]
+    ChannelError(#[from] #[source] ChannelError),
     /// Device hardware error
-    HardwareError(Arc<HardwareError>),
-    /// ECU Param ID did not match the request, but the Service ID was correct
-    MismatchedResponse(String),
-}
-
-impl std::fmt::Display for DiagError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            DiagError::NotSupported => write!(f, "request not supported"),
-            DiagError::ECUError { code, def } => {
-                if let Some(d) = def {
-                    write!(f, "ECU error 0x{code:02X} ({d})")
-                } else {
-                    write!(f, "ECU error 0x{code:02X}")
-                }
-            }
-            DiagError::EmptyResponse => write!(f, "ECU provided an empty response"),
-            DiagError::WrongMessage => write!(f, "ECU response message did not match request"),
-            DiagError::ServerNotRunning => write!(f, "diagnostic server not running"),
-            DiagError::ParameterInvalid => write!(f, "a parameter provided was invalid"),
-            DiagError::InvalidResponseLength => {
-                write!(f, "ECU response message was of invalid length")
-            }
-            DiagError::ChannelError(err) => write!(f, "underlying channel error: {err}"),
-            DiagError::NotImplemented(s) => {
-                write!(f, "server encountered an unimplemented function: {s}")
-            }
-            DiagError::HardwareError(e) => write!(f, "Hardware error: {e}"),
-            DiagError::MismatchedResponse(e) => write!(f, "Param mismatched response: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for DiagError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match &self {
-            DiagError::ChannelError(e) => Some(e),
-            DiagError::HardwareError(e) => Some(e.as_ref()),
-            _ => None,
-        }
-    }
-}
-
-impl From<ChannelError> for DiagError {
-    fn from(x: ChannelError) -> Self {
-        Self::ChannelError(x)
-    }
-}
-
-impl From<HardwareError> for DiagError {
-    fn from(x: HardwareError) -> Self {
-        Self::HardwareError(Arc::new(x))
+    #[error("Diagnostic server hardware error")]
+    HardwareError(#[from] #[source] Arc<HardwareError>),
+    /// Feauture is not iumplemented yet
+    #[error("Diagnostic server feature is unimplemented: '{0}'")]
+    NotImplemented(String),
+    /// Mismatched PID response ID
+    #[error("Requested Ident 0x{:04X?}, but received ident 0x{:04X?}", want, received)]
+    MismatchedIdentResponse {
+        /// Requested PID
+        want: u16,
+        /// Received PID from ECU
+        received: u16
     }
 }
 
