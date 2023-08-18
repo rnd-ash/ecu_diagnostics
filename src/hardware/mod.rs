@@ -5,7 +5,7 @@
 mod dpdu;
 
 #[cfg(feature = "passthru")]
-pub mod passthru; // Not finished at all yet, hide from the crate
+pub mod passthru;
 
 #[cfg(feature = "passthru")]
 use std::sync::Arc;
@@ -13,7 +13,13 @@ use std::sync::Arc;
 #[cfg(all(feature = "socketcan", unix))]
 pub mod socketcan;
 
+#[cfg(all(feature = "pcan-usb", windows))]
+pub mod pcan_usb;
+
 use crate::channel::{CanChannel, IsoTPChannel};
+
+#[cfg(all(feature = "pcan-usb", windows))]
+use self::pcan_usb::pcan_types::PCanErrorTy;
 
 /// Hardware API result
 pub type HardwareResult<T> = Result<T, HardwareError>;
@@ -126,6 +132,22 @@ impl From<libloading::Error> for HardwareError {
     }
 }
 
+#[cfg(all(feature = "pcan-usb", windows))]
+impl From<PCanErrorTy> for HardwareError {
+    fn from(value: PCanErrorTy) -> Self {
+        match value {
+            PCanErrorTy::StandardError(ty) => {
+                match ty {
+                    _ => Self::APIError { code: ty as u32, desc: ty.to_string() }.into()
+                }
+            },
+            PCanErrorTy::Unknown(e) => {
+                Self::APIError { code: e as u32, desc: value.to_string() }.into()
+            },
+        }
+    }
+}
+
 /// Contains details about what communication protocols
 /// are supported by the physical hardware
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -144,4 +166,41 @@ pub struct HardwareCapabilities {
     pub sci: bool,
     /// Supports IP protocols (Diagnostic Over IP)
     pub ip: bool,
+}
+
+/// Return is (Mask, filter)
+pub (crate) fn ids_to_filter_mask(ids: &[u32], use_ext_can: bool) -> (u32, u32) {
+    if ids.len() == 0 {
+        return (0,0); // Allow anything filter
+    }
+    let mut m: u32 = ids[0]; // Mask
+    let mut f: u32 = ids[0]; // Filter
+
+    for id in ids {
+        f &= id;
+        m |= id;
+    }
+    m ^= f;
+
+    if use_ext_can {
+        m ^= 0x1FFFFFFF;
+    } else {
+        m ^= 0x7FF;
+    }
+    (m, f)
+}
+
+#[cfg(test)]
+pub mod hardware_tests {
+    use super::ids_to_filter_mask;
+
+
+    #[test]
+    pub fn test_filter_mask_gen() {
+        let ids = [0x1E0, 0x1E1, 0x1E9, 0x7E0];
+        let (m, f) = ids_to_filter_mask(&ids, false);
+        for id in ids {
+            assert_eq!(m & id, f)
+        }
+    }
 }

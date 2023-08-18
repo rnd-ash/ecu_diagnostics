@@ -96,16 +96,23 @@ The Hardware API contains a common interface for scanning for compatible devices
 for creating Channels for diagnostic servers using the hardware
 
 ### Passthru (SAE J2534)
-* ISO-TP
+* ISO-TP (Software-ISOTP module AND hardware module)
 * CAN
 * Read Battery voltage
 
-### SocketCAN
-* ISO-TP
+### SocketCAN (UNIX only)
+* ISO-TP (Hardware protocol)
+* CAN
+
+### PCAN-USB (Windows only)
+* ISO-TP (Software-ISOTP module)
 * CAN
 
 ### D-PDU (ISO 22900-2)
 TBA
+
+### Software-ISOTP module
+Creates a wrapper around a CAN channel in order to use it for ISO-TP communication
 
 
 # Notable contributions

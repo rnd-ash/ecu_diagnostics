@@ -11,6 +11,9 @@ use std::{
 
 use crate::hardware::HardwareError;
 
+#[cfg(windows)]
+use crate::hardware::pcan_usb::pcan_types::{PCANError, PCanErrorTy};
+
 /// Communication channel result
 pub type ChannelResult<T> = Result<T, ChannelError>;
 
@@ -38,6 +41,9 @@ pub enum ChannelError {
     /// The interface is not open
     #[error("Interface was not opened before request")]
     InterfaceNotOpen,
+    /// Too many Channel filters active
+    #[error("No more free filters")]
+    FilterCountExceeded,
     /// Underlying API error with hardware
     #[error("Device hardware API error")]
     HardwareError(#[from] #[source] HardwareError),
@@ -47,6 +53,22 @@ pub enum ChannelError {
     /// Other Channel error
     #[error("Unknown channel error: {0}")]
     Other(String),
+}
+
+#[cfg(windows)]
+impl From<PCanErrorTy> for ChannelError {
+    fn from(value: PCanErrorTy) -> Self {
+        match value {
+            PCanErrorTy::StandardError(se) => {
+                match se {
+                    PCANError::QrcvEmpty => ChannelError::BufferEmpty,
+                    PCANError::QxmtFull => ChannelError::BufferFull,
+                    _ => ChannelError::HardwareError(HardwareError::from(value))
+                }
+            },
+            PCanErrorTy::Unknown(_) => ChannelError::HardwareError(HardwareError::from(value))
+        }
+    }
 }
 
 impl<T> From<PoisonError<T>> for ChannelError {
