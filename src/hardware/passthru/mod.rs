@@ -20,7 +20,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{ffi::c_void, time::Instant};
 
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, Mutex};
 
 #[cfg(windows)]
 use winreg::enums::*;
@@ -37,17 +37,15 @@ use j2534_rust::{
 
 use crate::channel::{
     CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet,
-    PacketChannel, PayloadChannel,
+    PacketChannel, PayloadChannel, FilterPacketChannel,
 };
+use crate::hardware::ids_to_filter_mask;
 
 use self::lib_funcs::PassthruDrv;
 
 use super::{HardwareCapabilities, HardwareError, HardwareInfo, HardwareResult};
 
 mod lib_funcs;
-mod sw_isotp;
-
-pub use sw_isotp::PtCombiChannel;
 
 /// Device scanner for Passthru supported devices
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -268,7 +266,6 @@ pub struct PassthruDevice {
     device_idx: Option<u32>,
     can_channel: Arc<AtomicBool>,
     isotp_channel: Arc<AtomicBool>,
-    software_mode: Arc<AtomicBool>,
     connected_ok: Arc<AtomicBool>,
 }
 
@@ -290,7 +287,6 @@ impl PassthruDevice {
             device_idx: Some(idx),
             can_channel: Arc::new(AtomicBool::new(false)),
             isotp_channel: Arc::new(AtomicBool::new(false)),
-            software_mode: Arc::new(AtomicBool::new(false)),
             connected_ok: Arc::new(AtomicBool::new(true)),
         };
         if let Ok(version) = lck.get_version(idx) {
@@ -361,21 +357,13 @@ impl PassthruDevice {
     /// Note that this toggled state will only affect newly created channels, currently
     /// opened channels will not be affected, so it would be best to close them prior to
     /// toggling this function
-    pub fn toggle_sw_channel(&mut self, state: bool) {
-        self.software_mode.store(state, Ordering::Relaxed);
-    }
-
-    /// Do it on raw device
-    pub fn toggle_sw_channel_raw(dev: &mut Arc<RwLock<PassthruDevice>>, state: bool) {
-        dev.write().unwrap().toggle_sw_channel(state)
-    }
 
     pub(crate) fn make_can_channel_raw(&mut self) -> HardwareResult<PassthruCanChannel> {
         {
             if !self.info.capabilities.can {
                 return Err(HardwareError::ChannelNotSupported);
             }
-            if self.can_channel.load(Ordering::Relaxed) && !self.software_mode.load(Ordering::Relaxed) {
+            if self.can_channel.load(Ordering::Relaxed) {
                 return Err(HardwareError::ConflictingChannel);
             }
         }
@@ -403,11 +391,6 @@ impl Drop for PassthruDevice {
 
 impl super::Hardware for PassthruDevice {
     fn create_iso_tp_channel(&mut self) -> HardwareResult<Box<dyn IsoTPChannel>> {
-        // If in sw mode
-        if self.software_mode.load(Ordering::Relaxed) {
-            return Ok(Box::new(PtCombiChannel::new(self.clone())?));
-        }
-        // Not in software mode
         {
             if !self.info.capabilities.iso_tp {
                 return Err(HardwareError::ChannelNotSupported);
@@ -427,10 +410,6 @@ impl super::Hardware for PassthruDevice {
     }
 
     fn create_can_channel(&mut self) -> HardwareResult<Box<dyn CanChannel>> {
-        // If in sw mode
-        if self.software_mode.load(Ordering::Relaxed) {
-            return Ok(Box::new(PtCombiChannel::new(self.clone())?));
-        }
         let can_channel = self.make_can_channel_raw()?;
         Ok(Box::new(can_channel))
     }

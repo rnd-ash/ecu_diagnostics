@@ -4,6 +4,9 @@
 
 mod dpdu;
 
+
+pub mod software_isotp;
+
 #[cfg(feature = "passthru")]
 pub mod passthru;
 
