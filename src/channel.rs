@@ -241,6 +241,15 @@ pub trait PacketChannel<T: Packet>: Send + Sync {
     fn clear_tx_buffer(&mut self) -> ChannelResult<()>;
 }
 
+/// An extension to [PacketChannel] that allows for specified filtering of packet IDs
+pub trait FilterPacketChannel<T: Packet>: PacketChannel<T> {
+    /// Allow a filter for specific packet IDs
+    /// If successful, a unique ID to this filter is returned
+    fn add_filter(&mut self, allowed_ids: &[u32]) -> ChannelResult<u32>;
+    /// Removes a filter created by [FilterPacketChannel::add_filter]
+    fn remove_filter(&mut self, filter_id: u32) -> ChannelResult<()>;
+}
+
 /// Packet channel for sending and receiving individual CAN Frames
 pub trait CanChannel: PacketChannel<CanFrame> {
     /// Sets the CAN network configuration
