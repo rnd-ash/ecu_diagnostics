@@ -1,20 +1,18 @@
-
 use enum_repr::EnumRepr;
 use thiserror::Error;
 use winapi::shared::minwindef::{DWORD, WORD};
 
 use crate::{channel::ChannelError, hardware::HardwareError};
 
-
 const MAX_LENGTH_HARDWARE_NAME: usize = 33;
 const MAX_LENGTH_VERSION_STRING: usize = 256;
 
 pub enum PcanEnumWrapper<T, E> {
     Std(T),
-    Unknown(E)
+    Unknown(E),
 }
 
-pub (crate) const ALL_USB_DEVICES: &[PcanUSB] = &[
+pub(crate) const ALL_USB_DEVICES: &[PcanUSB] = &[
     PcanUSB::USB1,
     PcanUSB::USB2,
     PcanUSB::USB3,
@@ -66,7 +64,7 @@ pub enum PcanMessageType {
     Esi = 0x10,
     Echo = 0x20,
     ErrFrame = 0x40,
-    Status = 0x80,   
+    Status = 0x80,
 }
 
 pub type PcanMessageTypeWrapper = PcanEnumWrapper<PcanMessageType, u8>;
@@ -74,14 +72,14 @@ pub type PcanMessageTypeWrapper = PcanEnumWrapper<PcanMessageType, u8>;
 #[repr(u8)]
 pub enum PcanServiceState {
     Stopped = 0x01,
-    Running = 0x04
+    Running = 0x04,
 }
 
 pub type PcanServiceStateWrapper = PcanEnumWrapper<PcanServiceState, u8>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
 #[EnumRepr(type = "u32")]
-pub (crate) enum PCANParameter {
+pub(crate) enum PCANParameter {
     DeviceID = 0x01,
     FiveVoltPower = 0x02,
     ReceiveEvent = 0x03,
@@ -126,7 +124,7 @@ pub (crate) enum PCANParameter {
     AttachedChannelCount = 0x2A,
     AttachedChannels = 0x2B,
     AllowEchoFrames = 0x2C,
-    DevicePartNumber = 0x2D
+    DevicePartNumber = 0x2D,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
@@ -145,7 +143,7 @@ pub enum PCANBaud {
     Can33Kbps = 0x8B2F,
     Can20Kbps = 0x532F,
     Can10Kbps = 0x672F,
-    Can5Kbps = 0x7F7F
+    Can5Kbps = 0x7F7F,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Error)]
@@ -212,7 +210,7 @@ pub enum MsgType {
     Esi = 0x10,
     Echo = 0x20,
     ErrFrae = 0x40,
-    Status = 0x80
+    Status = 0x80,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Error)]
@@ -220,33 +218,33 @@ pub enum PCanErrorTy {
     #[error(transparent)]
     StandardError(#[from] PCANError),
     #[error("An unknown error code of 0x{0:08X?} was returned by the PCAN API")]
-    Unknown(i32)
+    Unknown(i32),
 }
 
-pub type PCanResult<T> = Result<T, PCanErrorTy>; 
+pub type PCanResult<T> = Result<T, PCanErrorTy>;
 
 #[repr(C)]
 #[derive(Debug)]
 pub struct TpCanMsg {
-    pub (crate) id: DWORD,
-    pub (crate) msg_type: MsgType,
-    pub (crate) len: u8,
-    pub (crate) data: [u8; 8]
+    pub(crate) id: DWORD,
+    pub(crate) msg_type: MsgType,
+    pub(crate) len: u8,
+    pub(crate) data: [u8; 8],
 }
 
 #[repr(C)]
 pub struct TpCanTimestamp {
-    pub (crate) millis: DWORD,
-    pub (crate) millis_overflow: WORD,
-    pub (crate) micros: WORD
+    pub(crate) millis: DWORD,
+    pub(crate) millis_overflow: WORD,
+    pub(crate) micros: WORD,
 }
 
 #[repr(C)]
 pub struct TpCanMsgFD {
-    pub (crate) id: DWORD,
-    pub (crate) msg_type: MsgType,
-    pub (crate) dlc: u8,
-    pub (crate) data: [u8; 64]
+    pub(crate) id: DWORD,
+    pub(crate) msg_type: MsgType,
+    pub(crate) dlc: u8,
+    pub(crate) data: [u8; 64],
 }
 
 #[repr(C)]
@@ -257,5 +255,5 @@ pub struct TpCanChannelInformation {
     device_features: DWORD,
     device_name: [u8; MAX_LENGTH_HARDWARE_NAME],
     device_id: DWORD,
-    channel_condition: DWORD
+    channel_condition: DWORD,
 }

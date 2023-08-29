@@ -1,17 +1,37 @@
 //! Diagnostic implementation for the PCAN-USB API
-//! 
+//!
 //! NOTE: This is only for Windows. For Linux, you can use PCAN-USB with the native SocketCAN driver
 
 mod lib_funcs;
-pub (crate) mod pcan_types;
+pub(crate) mod pcan_types;
 
-use std::{sync::{Arc, atomic::{AtomicBool, Ordering}}, borrow::BorrowMut, time::Instant, ops::Deref};
+use std::{
+    borrow::BorrowMut,
+    ops::Deref,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Instant,
+};
 
-use crate::{hardware::{HardwareCapabilities, pcan_usb::pcan_types::{ALL_USB_DEVICES, PCANError}}, channel::{PacketChannel, CanChannel, CanFrame, IsoTPChannel, ChannelResult, ChannelError, FilterPacketChannel, Packet}};
+use crate::{
+    channel::{
+        CanChannel, CanFrame, ChannelError, ChannelResult, FilterPacketChannel, IsoTPChannel,
+        Packet, PacketChannel,
+    },
+    hardware::{
+        pcan_usb::pcan_types::{PCANError, ALL_USB_DEVICES},
+        HardwareCapabilities,
+    },
+};
 
-use self::{lib_funcs::PCanDrv, pcan_types::{PcanUSB, PCANBaud}};
+use self::{
+    lib_funcs::PCanDrv,
+    pcan_types::{PCANBaud, PcanUSB},
+};
 
-use super::{HardwareInfo, HardwareScanner, Hardware, HardwareError, HardwareResult};
+use super::{Hardware, HardwareError, HardwareInfo, HardwareResult, HardwareScanner};
 
 #[derive(Clone, Debug)]
 /// PCAN USB device
@@ -19,11 +39,15 @@ pub struct PcanUsbDevice {
     info: HardwareInfo,
     dev_handle: PcanUSB,
     driver: PCanDrv,
-    can_channel: Arc<AtomicBool>
+    can_channel: Arc<AtomicBool>,
 }
 
 impl PcanUsbDevice {
-    pub (crate) fn new(handle: PcanUSB, info: HardwareInfo, driver: PCanDrv) -> HardwareResult<Self> {
+    pub(crate) fn new(
+        handle: PcanUSB,
+        info: HardwareInfo,
+        driver: PCanDrv,
+    ) -> HardwareResult<Self> {
         // Destroy any handle if it exists (Device reset)
         let res = driver.reset_handle(handle as u16);
         if let Err(HardwareError::APIError { code, desc: _ }) = res {
@@ -36,7 +60,7 @@ impl PcanUsbDevice {
             info,
             dev_handle: handle,
             driver,
-            can_channel: Arc::new(AtomicBool::new(false))
+            can_channel: Arc::new(AtomicBool::new(false)),
         })
     }
 }
@@ -65,7 +89,7 @@ impl Hardware for PcanUsbDevice {
                 dev_handle: self.dev_handle,
                 open: false,
                 driver: self.driver.clone(),
-                device_state: self.can_channel.clone()
+                device_state: self.can_channel.clone(),
             };
             Ok(Box::new(s))
         }
@@ -96,18 +120,16 @@ impl Hardware for PcanUsbDevice {
     }
 }
 
-
-
 #[derive(Debug, Clone)]
 /// PCAN USB device
 pub struct PcanUsbpacketChannel {
-    pub (crate) baud: Option<PCANBaud>,
-    pub (crate) use_ext: Option<bool>,
-    pub (crate) filter_active: bool,
+    pub(crate) baud: Option<PCANBaud>,
+    pub(crate) use_ext: Option<bool>,
+    pub(crate) filter_active: bool,
     dev_handle: PcanUSB,
     driver: PCanDrv,
     device_state: Arc<AtomicBool>,
-    open: bool
+    open: bool,
 }
 
 impl Drop for PcanUsbpacketChannel {
@@ -118,7 +140,6 @@ impl Drop for PcanUsbpacketChannel {
 
 impl CanChannel for PcanUsbpacketChannel {
     fn set_can_cfg(&mut self, baud: u32, use_extended: bool) -> ChannelResult<()> {
-
         let baud_ty = match baud {
             1_000_000 => PCANBaud::Can1Mbps,
             800_000 => PCANBaud::Can800Kbps,
@@ -134,7 +155,7 @@ impl CanChannel for PcanUsbpacketChannel {
             20_000 => PCANBaud::Can20Kbps,
             10_000 => PCANBaud::Can10Kbps,
             5_000 => PCANBaud::Can5Kbps,
-            _ => return Err(ChannelError::ConfigurationError)
+            _ => return Err(ChannelError::ConfigurationError),
         };
 
         self.baud = Some(baud_ty);
@@ -161,7 +182,10 @@ impl PacketChannel<CanFrame> for PcanUsbpacketChannel {
 
     fn close(&mut self) -> ChannelResult<()> {
         if self.open {
-            let res = self.driver.reset_handle(self.dev_handle as u16).map_err(|e| e.into());
+            let res = self
+                .driver
+                .reset_handle(self.dev_handle as u16)
+                .map_err(|e| e.into());
             self.open = false;
             res
         } else {
@@ -175,7 +199,7 @@ impl PacketChannel<CanFrame> for PcanUsbpacketChannel {
             self.driver.write(self.dev_handle, frame)?;
             // Write timeout
             if timeout_ms != 0 && start.elapsed().as_millis() > timeout_ms as u128 {
-                return Err(ChannelError::WriteTimeout)
+                return Err(ChannelError::WriteTimeout);
             }
         }
         Ok(())
@@ -189,23 +213,19 @@ impl PacketChannel<CanFrame> for PcanUsbpacketChannel {
             match res {
                 Ok(f) => {
                     read_packets.push(f);
-                },
-                Err(ChannelError::BufferEmpty) => {
-                    return Ok(read_packets)
-                },
-                Err(e) => {
-                    return Err(e)
                 }
+                Err(ChannelError::BufferEmpty) => return Ok(read_packets),
+                Err(e) => return Err(e),
             }
             if read_packets.len() == max {
-                return Ok(read_packets)
+                return Ok(read_packets);
             }
             if timeout_ms != 0 && start.elapsed().as_millis() > timeout_ms as u128 {
                 return if read_packets.len() == 0 {
                     Err(ChannelError::BufferEmpty)
                 } else {
                     Ok(read_packets)
-                }
+                };
             }
         }
     }
@@ -219,19 +239,18 @@ impl PacketChannel<CanFrame> for PcanUsbpacketChannel {
     }
 }
 
-
 /// PCAN USB device scanner
 #[derive(Debug, Clone)]
 pub struct PcanUsbScanner {
     driver: HardwareResult<PCanDrv>,
-    cache: Vec<(PcanUSB, HardwareInfo)>
+    cache: Vec<(PcanUSB, HardwareInfo)>,
 }
 
 impl Default for PcanUsbScanner {
     fn default() -> Self {
-        let mut s = Self { 
+        let mut s = Self {
             driver: PCanDrv::load_lib().map_err(|e| e.into()),
-            cache: vec![]
+            cache: vec![],
         };
         s.scan_devices();
         s
@@ -245,15 +264,15 @@ impl PcanUsbScanner {
                 let mut res = vec![];
                 for dev in ALL_USB_DEVICES {
                     if let Ok((name, version)) = drv.get_device_info(dev) {
-                        res.push(
-                            (*dev, HardwareInfo 
-                            { 
-                                name: format!("PCAN-USB_0x{:04X}", *dev as u32), 
+                        res.push((
+                            *dev,
+                            HardwareInfo {
+                                name: format!("PCAN-USB_0x{:04X}", *dev as u32),
                                 vendor: Some(format!("PEAK-System Technik GmbH")),
-                                device_fw_version: Some(name), 
-                                api_version: Some(version.clone()), 
-                                library_version: Some(version), 
-                                library_location: Some(drv.get_path().to_string()), 
+                                device_fw_version: Some(name),
+                                api_version: Some(version.clone()),
+                                library_version: Some(version),
+                                library_location: Some(drv.get_path().to_string()),
                                 capabilities: HardwareCapabilities {
                                     iso_tp: false,
                                     can: true,
@@ -262,13 +281,13 @@ impl PcanUsbScanner {
                                     sae_j1850: false,
                                     sci: false,
                                     ip: false,
-                                }
-                            })
-                        )
+                                },
+                            },
+                        ))
                     }
                 }
                 self.cache = res;
-            },
+            }
             Err(_) => self.cache = vec![],
         }
     }
@@ -276,7 +295,6 @@ impl PcanUsbScanner {
     fn open_handle(&self, handle: &PcanUSB, info: HardwareInfo) -> HardwareResult<PcanUsbDevice> {
         PcanUsbDevice::new(*handle, info, self.driver.as_ref().unwrap().clone())
     }
-
 }
 
 impl HardwareScanner<PcanUsbDevice> for PcanUsbScanner {
@@ -288,7 +306,7 @@ impl HardwareScanner<PcanUsbDevice> for PcanUsbScanner {
         match self.cache.get(idx) {
             Some((handle, info)) => {
                 return self.open_handle(&handle, info.clone());
-            },
+            }
             None => Err(HardwareError::DeviceNotFound),
         }
     }
