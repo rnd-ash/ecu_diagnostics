@@ -33,7 +33,14 @@ pub trait Hardware: Clone {
     /// Creates an ISO-TP channel on the devices.
     /// This channel will live for as long as the hardware trait. Upon being dropped,
     /// the channel will automatically be closed, if it has been opened.
-    fn create_iso_tp_channel(&mut self) -> HardwareResult<Box<dyn IsoTPChannel>>;
+    ///
+    /// `force_native` - Force the use the protocol ISO-TP channel if the hardware supports it.
+    ///                  If the channel does not support native ISOTP, but this is set to true,
+    ///                  then UnsupportedChannel error will be raised.
+    fn create_iso_tp_channel(
+        &mut self,
+        force_native: bool,
+    ) -> HardwareResult<Box<dyn IsoTPChannel>>;
 
     /// Creates a CAN Channel on the devices.
     /// This channel will live for as long as the hardware trait. Upon being dropped,
@@ -158,12 +165,23 @@ impl From<PCanErrorTy> for HardwareError {
     }
 }
 
+/// ISOTP layer type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum IsoTpChannelType {
+    /// ISO-TP is NOT supported at all by the hardware
+    None,
+    /// ISO-TP is emulated via a CAN channel in the ECU-diagnostics crate
+    Emulated,
+    /// ISO-TP is supported by the hardware and protocol (Natively)
+    Protocol,
+}
+
 /// Contains details about what communication protocols
 /// are supported by the physical hardware
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HardwareCapabilities {
     /// Supports ISO-TP
-    pub iso_tp: bool,
+    pub iso_tp: IsoTpChannelType,
     /// Supports CANBUS
     pub can: bool,
     /// Supports standard Kline OBD (ISO9141)

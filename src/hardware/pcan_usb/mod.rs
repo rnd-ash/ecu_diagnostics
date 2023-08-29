@@ -6,8 +6,6 @@ mod lib_funcs;
 pub(crate) mod pcan_types;
 
 use std::{
-    borrow::BorrowMut,
-    ops::Deref,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -16,10 +14,7 @@ use std::{
 };
 
 use crate::{
-    channel::{
-        CanChannel, CanFrame, ChannelError, ChannelResult, FilterPacketChannel, IsoTPChannel,
-        Packet, PacketChannel,
-    },
+    channel::{CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, PacketChannel},
     hardware::{
         pcan_usb::pcan_types::{PCANError, ALL_USB_DEVICES},
         HardwareCapabilities,
@@ -31,7 +26,10 @@ use self::{
     pcan_types::{PCANBaud, PcanUSB},
 };
 
-use super::{Hardware, HardwareError, HardwareInfo, HardwareResult, HardwareScanner};
+use super::{
+    software_isotp::SoftwareIsoTpChannel, Hardware, HardwareError, HardwareInfo, HardwareResult,
+    HardwareScanner, IsoTpChannelType,
+};
 
 #[derive(Clone, Debug)]
 /// PCAN USB device
@@ -72,8 +70,18 @@ impl Drop for PcanUsbDevice {
 }
 
 impl Hardware for PcanUsbDevice {
-    fn create_iso_tp_channel(&mut self) -> HardwareResult<Box<dyn IsoTPChannel>> {
-        Err(HardwareError::ChannelNotSupported)
+    fn create_iso_tp_channel(
+        &mut self,
+        force_native: bool,
+    ) -> HardwareResult<Box<dyn IsoTPChannel>> {
+        if force_native {
+            Err(HardwareError::ChannelNotSupported)
+        } else {
+            // Use software
+            let can_channel = self.create_can_channel()?;
+            let sw = SoftwareIsoTpChannel::new(can_channel);
+            Ok(Box::new(sw))
+        }
     }
 
     fn create_can_channel(&mut self) -> HardwareResult<Box<dyn CanChannel>> {
@@ -274,7 +282,7 @@ impl PcanUsbScanner {
                                 library_version: Some(version),
                                 library_location: Some(drv.get_path().to_string()),
                                 capabilities: HardwareCapabilities {
-                                    iso_tp: false,
+                                    iso_tp: IsoTpChannelType::Emulated,
                                     can: true,
                                     kline: false,
                                     kline_kwp: false,

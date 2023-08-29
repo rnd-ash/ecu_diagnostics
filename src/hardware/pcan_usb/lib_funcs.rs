@@ -1,7 +1,6 @@
 use libloading::Library;
 use std::ffi::{c_void, CStr};
 use std::fmt;
-use std::mem::size_of;
 use std::path::Path;
 use std::sync::Arc;
 use winapi::shared::minwindef::{DWORD, WORD};

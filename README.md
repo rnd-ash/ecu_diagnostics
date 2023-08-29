@@ -112,9 +112,19 @@ for creating Channels for diagnostic servers using the hardware
 TBA
 
 ### Software-ISOTP module
-Creates a wrapper around a CAN channel in order to use it for ISO-TP communication
+Creates a wrapper around a CAN channel in order to use it for ISO-TP communication. 
+
+This can be used for protocols that support the creation of a CAN channel, but do NOT
+natively support the ISO-TP protocol.
+
+The creation of iso-tp channels has been altered to automatically use this module should
+the native API not be supported by the hardware, to make this crate more versitile.
+
+#### Current limitations
+* No extended addressing support
 
 
 # Notable contributions
 * @LLBlumire
 * @nyurik (Created the [automotive_diag](https://github.com/nyurik/automotive_diag) crate, which this project now relies on)
+* @VladLupashevskyi - Testing and some minor bug fixing behind the scenes

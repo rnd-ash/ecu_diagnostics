@@ -18,10 +18,12 @@ use crate::channel::{
     PacketChannel, PayloadChannel,
 };
 
-use super::{Hardware, HardwareCapabilities, HardwareError, HardwareInfo, HardwareScanner};
+use super::{
+    Hardware, HardwareCapabilities, HardwareError, HardwareInfo, HardwareScanner, IsoTpChannelType,
+};
 
 const SOCKET_CAN_CAPABILITIES: HardwareCapabilities = HardwareCapabilities {
-    iso_tp: true,
+    iso_tp: IsoTpChannelType::Protocol,
     can: true,
     ip: false,
     sae_j1850: false,
@@ -57,7 +59,10 @@ impl SocketCanDevice {
 }
 
 impl Hardware for SocketCanDevice {
-    fn create_iso_tp_channel(&mut self) -> super::HardwareResult<Box<dyn IsoTPChannel>> {
+    fn create_iso_tp_channel(
+        &mut self,
+        _force_native: bool,
+    ) -> super::HardwareResult<Box<dyn IsoTPChannel>> {
         Ok(Box::new(SocketCanIsoTPChannel {
             device: self.clone(),
             channel: None,
@@ -381,7 +386,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             }
         } else if ext_id.is_some() && self.cfg.extended_addresses.is_none() {
             // Create a temporary channel to send this one packet!
-            let mut c_2 = self.device.create_iso_tp_channel()?;
+            let mut c_2 = self.device.create_iso_tp_channel(true)?;
             let cfg = IsoTPSettings {
                 extended_addresses: Some((ext_id.unwrap(), 0)),
                 ..self.cfg

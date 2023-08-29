@@ -2,8 +2,6 @@ use enum_repr::EnumRepr;
 use thiserror::Error;
 use winapi::shared::minwindef::{DWORD, WORD};
 
-use crate::{channel::ChannelError, hardware::HardwareError};
-
 const MAX_LENGTH_HARDWARE_NAME: usize = 33;
 const MAX_LENGTH_VERSION_STRING: usize = 256;
 

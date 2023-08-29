@@ -43,7 +43,8 @@ use crate::hardware::ids_to_filter_mask;
 
 use self::lib_funcs::PassthruDrv;
 
-use super::{HardwareCapabilities, HardwareError, HardwareInfo, HardwareResult};
+use super::software_isotp::SoftwareIsoTpChannel;
+use super::{HardwareCapabilities, HardwareError, HardwareInfo, HardwareResult, IsoTpChannelType};
 
 mod lib_funcs;
 
@@ -238,6 +239,13 @@ impl PassthruInfo {
 
 impl From<&PassthruInfo> for HardwareInfo {
     fn from(x: &PassthruInfo) -> Self {
+        let mut isotp_caps = IsoTpChannelType::None;
+        if x.can {
+            isotp_caps = IsoTpChannelType::Emulated;
+        }
+        if x.iso15765 {
+            isotp_caps = IsoTpChannelType::Protocol;
+        }
         HardwareInfo {
             name: x.name.clone(),
             vendor: Some(x.vendor.clone()),
@@ -246,7 +254,7 @@ impl From<&PassthruInfo> for HardwareInfo {
             library_version: None,
             library_location: Some(x.function_lib.clone()),
             capabilities: HardwareCapabilities {
-                iso_tp: x.iso15765,
+                iso_tp: isotp_caps,
                 can: x.can,
                 kline: x.iso9141,
                 kline_kwp: x.iso14230,
@@ -390,23 +398,42 @@ impl Drop for PassthruDevice {
 }
 
 impl super::Hardware for PassthruDevice {
-    fn create_iso_tp_channel(&mut self) -> HardwareResult<Box<dyn IsoTPChannel>> {
+    fn create_iso_tp_channel(
+        &mut self,
+        force_native: bool,
+    ) -> HardwareResult<Box<dyn IsoTPChannel>> {
         {
-            if !self.info.capabilities.iso_tp {
-                return Err(HardwareError::ChannelNotSupported);
+            let mut caps = self.info.capabilities.iso_tp;
+
+            // Override and force Software ISOTP
+            if self.info.capabilities.iso_tp == IsoTpChannelType::Protocol && !force_native {
+                caps = IsoTpChannelType::Emulated;
             }
-            if self.can_channel.load(Ordering::Relaxed) {
-                return Err(HardwareError::ConflictingChannel);
+
+            match caps {
+                IsoTpChannelType::None => {
+                    return Err(HardwareError::ChannelNotSupported);
+                }
+                IsoTpChannelType::Emulated => {
+                    let can = self.create_can_channel()?;
+                    let sw = SoftwareIsoTpChannel::new(can);
+                    Ok(Box::new(sw))
+                }
+                IsoTpChannelType::Protocol => {
+                    if self.can_channel.load(Ordering::Relaxed) {
+                        return Err(HardwareError::ConflictingChannel);
+                    }
+                    let iso_tp_channel = PassthruIsoTpChannel {
+                        device: self.clone(),
+                        channel_id: None,
+                        cfg: IsoTPSettings::default(),
+                        ids: (0, 0),
+                        cfg_complete: false,
+                    };
+                    Ok(Box::new(iso_tp_channel))
+                }
             }
         }
-        let iso_tp_channel = PassthruIsoTpChannel {
-            device: self.clone(),
-            channel_id: None,
-            cfg: IsoTPSettings::default(),
-            ids: (0, 0),
-            cfg_complete: false,
-        };
-        Ok(Box::new(iso_tp_channel))
     }
 
     fn create_can_channel(&mut self) -> HardwareResult<Box<dyn CanChannel>> {
