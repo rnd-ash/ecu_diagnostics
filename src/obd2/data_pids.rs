@@ -346,7 +346,7 @@ impl DataPidWrapper {
                     ObdValue::new(
                         "Oxygen sensor 2 voltage",
                         ObdUnitType::Volts(
-                            ((r[2] as u32) << 8 | r[3] as u32) as f32 * 0.000_1220703125,
+                            ((r[2] as u32) << 8 | r[3] as u32) as f32 * 0.000_122_070_312_5,
                         ),
                     ),
                 ])

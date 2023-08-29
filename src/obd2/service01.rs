@@ -63,7 +63,7 @@ impl<'a> Service01<'a> {
 
     /// Query's a data PID from Service 01
     pub fn query_pid(&self, pid: DataPidWrapper) -> DiagServerResult<Vec<ObdValue>> {
-        pid.get_value(&self.server, None)
+        pid.get_value(self.server, None)
     }
 }
 
