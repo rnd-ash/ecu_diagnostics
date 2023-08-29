@@ -36,8 +36,8 @@ use j2534_rust::{
 };
 
 use crate::channel::{
-    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet,
-    PacketChannel, PayloadChannel, FilterPacketChannel,
+    CanChannel, CanFrame, ChannelError, ChannelResult, FilterPacketChannel, IsoTPChannel,
+    IsoTPSettings, Packet, PacketChannel, PayloadChannel,
 };
 use crate::hardware::ids_to_filter_mask;
 
@@ -492,40 +492,41 @@ impl CanChannel for PassthruCanChannel {
 impl FilterPacketChannel<CanFrame> for PassthruCanChannel {
     fn add_filter(&mut self, allowed_ids: &[u32]) -> ChannelResult<u32> {
         let channel_id = self.channel_id.ok_or(ChannelError::InterfaceNotOpen)?;
-        self.device.safe_passthru_op(|_, device| {
+        self.device
+            .safe_passthru_op(|_, device| {
+                let (mask_id, filter_id) = ids_to_filter_mask(allowed_ids, self.use_ext);
 
-            let (mask_id, filter_id) = ids_to_filter_mask(allowed_ids, self.use_ext);
+                let mut mask = PASSTHRU_MSG {
+                    protocol_id: Protocol::CAN as u32,
+                    data_size: 4,
+                    ..Default::default()
+                };
+                mask.data[0] = mask_id as u8;
+                mask.data[1] = (mask_id >> 8) as u8;
+                mask.data[2] = (mask_id >> 16) as u8;
+                mask.data[3] = (mask_id >> 24) as u8;
 
-            let mut mask = PASSTHRU_MSG {
-                protocol_id: Protocol::CAN as u32,
-                data_size: 4,
-                ..Default::default()
-            };
-            mask.data[0] = (mask_id >> 0) as u8;
-            mask.data[1] = (mask_id >> 8) as u8;
-            mask.data[2] = (mask_id >> 16) as u8;
-            mask.data[3] = (mask_id >> 24) as u8;
+                let mut pattern = PASSTHRU_MSG {
+                    protocol_id: Protocol::CAN as u32,
+                    data_size: 4,
+                    ..Default::default()
+                };
 
-            let mut pattern = PASSTHRU_MSG {
-                protocol_id: Protocol::CAN as u32,
-                data_size: 4,
-                ..Default::default()
-            };
+                pattern.data[0] = filter_id as u8;
+                pattern.data[1] = (filter_id >> 8) as u8;
+                pattern.data[2] = (filter_id >> 16) as u8;
+                pattern.data[3] = (filter_id >> 24) as u8;
 
-            pattern.data[0] = (filter_id >> 0) as u8;
-            pattern.data[1] = (filter_id >> 8) as u8;
-            pattern.data[2] = (filter_id >> 16) as u8;
-            pattern.data[3] = (filter_id >> 24) as u8;
-
-            device.start_msg_filter(channel_id, FilterType::PASS_FILTER, &mask, &pattern, None)
-        }).map_err(|e| e.into())
+                device.start_msg_filter(channel_id, FilterType::PASS_FILTER, &mask, &pattern, None)
+            })
+            .map_err(|e| e.into())
     }
 
     fn remove_filter(&mut self, filter_id: u32) -> ChannelResult<()> {
         let channel_id = self.channel_id.ok_or(ChannelError::InterfaceNotOpen)?;
-        self.device.safe_passthru_op(|_, device| {
-            device.stop_msg_filter(channel_id, filter_id)
-        }).map_err(|e| e.into())
+        self.device
+            .safe_passthru_op(|_, device| device.stop_msg_filter(channel_id, filter_id))
+            .map_err(|e| e.into())
     }
 }
 
@@ -541,7 +542,8 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             flags |= ConnectFlags::CAN_29BIT_ID;
         }
         // Initialize the interface
-        let channel_id = self.device
+        let channel_id = self
+            .device
             .safe_passthru_op(|device_id, device| {
                 device.connect(device_id, Protocol::CAN, flags.bits(), self.baud)
             })
@@ -687,7 +689,8 @@ impl PayloadChannel for PassthruIsoTpChannel {
         }
 
         // Initialize the interface
-        let channel_id = self.device
+        let channel_id = self
+            .device
             .safe_passthru_op(|device_id, device| {
                 device.connect(
                     device_id,

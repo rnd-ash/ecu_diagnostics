@@ -22,7 +22,11 @@ pub type ChannelResult<T> = Result<T, ChannelError>;
 pub enum ChannelError {
     /// Underlying IO Error with channel
     #[error("Device IO error")]
-    IOError(#[from] #[source] Arc<std::io::Error>),
+    IOError(
+        #[from]
+        #[source]
+        Arc<std::io::Error>,
+    ),
     /// Timeout when writing data to the channel
     #[error("Write timeout")]
     WriteTimeout,
@@ -46,7 +50,11 @@ pub enum ChannelError {
     FilterCountExceeded,
     /// Underlying API error with hardware
     #[error("Device hardware API error")]
-    HardwareError(#[from] #[source] HardwareError),
+    HardwareError(
+        #[from]
+        #[source]
+        HardwareError,
+    ),
     /// Channel not configured prior to opening
     #[error("Channel configuration error")]
     ConfigurationError,
@@ -59,14 +67,12 @@ pub enum ChannelError {
 impl From<PCanErrorTy> for ChannelError {
     fn from(value: PCanErrorTy) -> Self {
         match value {
-            PCanErrorTy::StandardError(se) => {
-                match se {
-                    PCANError::QrcvEmpty => ChannelError::BufferEmpty,
-                    PCANError::QxmtFull => ChannelError::BufferFull,
-                    _ => ChannelError::HardwareError(HardwareError::from(value))
-                }
+            PCanErrorTy::StandardError(se) => match se {
+                PCANError::QrcvEmpty => ChannelError::BufferEmpty,
+                PCANError::QxmtFull => ChannelError::BufferFull,
+                _ => ChannelError::HardwareError(HardwareError::from(value)),
             },
-            PCanErrorTy::Unknown(_) => ChannelError::HardwareError(HardwareError::from(value))
+            PCanErrorTy::Unknown(_) => ChannelError::HardwareError(HardwareError::from(value)),
         }
     }
 }

@@ -2,7 +2,10 @@
 
 use std::{
     path::PathBuf,
-    sync::{Arc, atomic::{AtomicBool, Ordering}},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::Instant,
 };
 
@@ -473,20 +476,14 @@ impl HardwareScanner<SocketCanDevice> for SocketCanScanner {
         self.devices.clone()
     }
 
-    fn open_device_by_index(
-        &self,
-        idx: usize,
-    ) -> super::HardwareResult<SocketCanDevice> {
+    fn open_device_by_index(&self, idx: usize) -> super::HardwareResult<SocketCanDevice> {
         match self.devices.get(idx) {
             Some(hw) => Ok(SocketCanDevice::new(hw.name.clone())),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
 
-    fn open_device_by_name(
-        &self,
-        name: &str,
-    ) -> super::HardwareResult<SocketCanDevice> {
+    fn open_device_by_name(&self, name: &str) -> super::HardwareResult<SocketCanDevice> {
         match self.devices.iter().find(|x| x.name == name) {
             Some(hw) => Ok(SocketCanDevice::new(hw.name.clone())),
             None => Err(HardwareError::DeviceNotFound),

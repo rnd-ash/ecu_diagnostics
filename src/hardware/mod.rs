@@ -4,7 +4,6 @@
 
 mod dpdu;
 
-
 pub mod software_isotp;
 
 #[cfg(feature = "passthru")]
@@ -125,7 +124,11 @@ pub enum HardwareError {
     /// Lib loading error
     #[cfg(feature = "passthru")]
     #[error("Device API library load error")]
-    LibLoadError(#[from] #[source] Arc<libloading::Error>),
+    LibLoadError(
+        #[from]
+        #[source]
+        Arc<libloading::Error>,
+    ),
 }
 
 #[cfg(feature = "passthru")]
@@ -139,14 +142,18 @@ impl From<libloading::Error> for HardwareError {
 impl From<PCanErrorTy> for HardwareError {
     fn from(value: PCanErrorTy) -> Self {
         match value {
-            PCanErrorTy::StandardError(ty) => {
-                match ty {
-                    _ => Self::APIError { code: ty as u32, desc: ty.to_string() }.into()
+            PCanErrorTy::StandardError(ty) => match ty {
+                _ => Self::APIError {
+                    code: ty as u32,
+                    desc: ty.to_string(),
                 }
+                .into(),
             },
-            PCanErrorTy::Unknown(e) => {
-                Self::APIError { code: e as u32, desc: value.to_string() }.into()
-            },
+            PCanErrorTy::Unknown(e) => Self::APIError {
+                code: e as u32,
+                desc: value.to_string(),
+            }
+            .into(),
         }
     }
 }
@@ -172,9 +179,9 @@ pub struct HardwareCapabilities {
 }
 
 /// Return is (Mask, filter)
-pub (crate) fn ids_to_filter_mask(ids: &[u32], use_ext_can: bool) -> (u32, u32) {
-    if ids.len() == 0 {
-        return (0,0); // Allow anything filter
+pub(crate) fn ids_to_filter_mask(ids: &[u32], use_ext_can: bool) -> (u32, u32) {
+    if ids.is_empty() {
+        return (0, 0); // Allow anything filter
     }
     let mut m: u32 = ids[0]; // Mask
     let mut f: u32 = ids[0]; // Filter
@@ -196,7 +203,6 @@ pub (crate) fn ids_to_filter_mask(ids: &[u32], use_ext_can: bool) -> (u32, u32) 
 #[cfg(test)]
 pub mod hardware_tests {
     use super::ids_to_filter_mask;
-
 
     #[test]
     pub fn test_filter_mask_gen() {
