@@ -76,7 +76,7 @@ pub enum PcanServiceState {
 pub type PcanServiceStateWrapper = PcanEnumWrapper<PcanServiceState, u8>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
-#[EnumRepr(type = "u32")]
+#[EnumRepr(type = "u8")]
 pub(crate) enum PCANParameter {
     DeviceID = 0x01,
     FiveVoltPower = 0x02,
