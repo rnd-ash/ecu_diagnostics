@@ -122,7 +122,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         }
         let channel = socketcan::CANSocket::open(&self.device.info.name)?;
         channel.filter_accept_all()?;
-        channel.set_nonblocking(true)?;
+        channel.set_nonblocking(false)?;
         self.channel = Some(channel);
         self.device.canbus_active.store(true, Ordering::Relaxed);
         Ok(())
@@ -153,6 +153,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         let timeout = std::cmp::max(1, timeout_ms) as u128;
         let mut result: Vec<CanFrame> = Vec::with_capacity(max);
         self.safe_with_iface(|iface| {
+            iface.set_read_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
             let start = Instant::now();
             let mut read: socketcan::CANFrame;
             while start.elapsed().as_millis() <= timeout {
