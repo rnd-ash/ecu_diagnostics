@@ -122,7 +122,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         }
         let channel = socketcan::CANSocket::open(&self.device.info.name)?;
         channel.filter_accept_all()?;
-        channel.set_nonblocking(false)?;
+        channel.set_nonblocking(true)?;
         self.channel = Some(channel);
         self.device.canbus_active.store(true, Ordering::Relaxed);
         Ok(())
