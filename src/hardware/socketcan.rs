@@ -6,10 +6,7 @@ use std::{
     time::Instant, io::ErrorKind, borrow::BorrowMut,
 };
 
-use socketcan::{Socket, EmbeddedFrame};
-use socketcan::ExtendedId as SocketCanExtId;
-use socketcan::StandardId as SocketCanStdId;
-use socketcan::Id as SocketCanId;
+use socketcan::Socket;
 
 use socketcan::CanFrame as SocketCanCanFrame;
 use socketcan_isotp::{
@@ -17,7 +14,7 @@ use socketcan_isotp::{
 };
 
 use crate::channel::{
-    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet,
+    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings,
     PacketChannel, PayloadChannel,
 };
 
@@ -73,8 +70,7 @@ impl Hardware for SocketCanDevice {
     fn create_can_channel(&mut self) -> super::HardwareResult<Box<dyn CanChannel>> {
         Ok(Box::new(SocketCanCanChannel {
             device: self.clone(),
-            tx_channel: None,
-            rx_channel: None
+            channel: None,
         }))
     }
 
@@ -107,26 +103,15 @@ impl Hardware for SocketCanDevice {
 /// SocketCAN CAN channel
 pub struct SocketCanCanChannel {
     device: SocketCanDevice,
-    tx_channel: Option<socketcan::CanSocket>,
-    rx_channel: Option<socketcan::CanSocket>
+    channel: Option<socketcan::CanSocket>,
 }
 
 impl SocketCanCanChannel {
-    fn safe_with_rx_iface<X, T: FnOnce(&mut socketcan::CanSocket) -> ChannelResult<X>>(
+    fn safe_with_iface<X, T: FnOnce(&mut socketcan::CanSocket) -> ChannelResult<X>>(
         &mut self,
         function: T,
     ) -> ChannelResult<X> {
-        match self.rx_channel.borrow_mut() {
-            Some(channel) => function(channel),
-            None => Err(ChannelError::InterfaceNotOpen),
-        }
-    }
-
-    fn safe_with_tx_iface<X, T: FnOnce(&mut socketcan::CanSocket) -> ChannelResult<X>>(
-        &mut self,
-        function: T,
-    ) -> ChannelResult<X> {
-        match self.tx_channel.borrow_mut() {
+        match self.channel.borrow_mut() {
             Some(channel) => function(channel),
             None => Err(ChannelError::InterfaceNotOpen),
         }
@@ -135,49 +120,39 @@ impl SocketCanCanChannel {
 
 impl PacketChannel<CanFrame> for SocketCanCanChannel {
     fn open(&mut self) -> ChannelResult<()> {
-        if self.rx_channel.is_some() && self.tx_channel.is_some() {
+        if self.channel.is_some() {
             return Ok(()); // Already open!
         }
-        let tx_channel = socketcan::CanSocket::open(&self.device.info.name)?;
-        let rx_channel = socketcan::CanSocket::open(&self.device.info.name)?;
-        tx_channel.set_filter_drop_all()?; // Tx channel must not receive anything
-        tx_channel.set_error_filter_drop_all()?;
+        let channel = socketcan::CanSocket::open(&self.device.info.name)?;
 
-        rx_channel.set_error_filter_drop_all()?;
-        rx_channel.set_filter_accept_all()?;
+        channel.set_error_filter_drop_all()?;
+        channel.set_filter_accept_all()?;
 
-        self.tx_channel = Some(tx_channel);
-        self.rx_channel = Some(rx_channel);
+        self.channel = Some(channel);
         self.device.canbus_active.store(true, Ordering::Relaxed);
         Ok(())
     }
 
     fn close(&mut self) -> ChannelResult<()> {
-        if self.tx_channel.is_none() && self.rx_channel.is_none() {
+        if self.channel.is_none() {
             return Ok(());
         }
-        self.rx_channel = None;
-        self.tx_channel = None;
+        self.channel = None;
         self.device.canbus_active.store(false, Ordering::Relaxed);
         Ok(())
     }
 
     fn write_packets(&mut self, packets: Vec<CanFrame>, timeout_ms: u32) -> ChannelResult<()> {
-        self.safe_with_tx_iface(|iface| {
+        self.safe_with_iface(|iface| {
             if timeout_ms == 0 {
-                iface.set_nonblocking(true);
+                iface.set_nonblocking(true)?;
             } else {
-                iface.set_nonblocking(false);
+                iface.set_nonblocking(false)?;
                 iface.set_write_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
             }
             let mut cf: SocketCanCanFrame;
-            for p in &packets {
-                let id = match p.is_extended() {
-                    true => SocketCanId::Extended(SocketCanExtId::new(p.get_address()).unwrap()),
-                    false => SocketCanId::Standard(SocketCanStdId::new(p.get_address() as u16).unwrap())
-                };
-
-                cf = SocketCanCanFrame::new(id, p.get_data()).unwrap();
+            for p in packets {
+                cf = SocketCanCanFrame::Data(p.into());
                 iface.write_frame(&cf)?;
             }
             Ok(())
@@ -185,7 +160,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
     }
 
     fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<CanFrame>> {
-        self.safe_with_rx_iface(|iface| {
+        self.safe_with_iface(|iface| {
             let mut result: Vec<CanFrame> = Vec::new();
             if timeout_ms == 0 {
                 iface.set_nonblocking(true)?;
