@@ -3,7 +3,7 @@
 use std::{
     path::PathBuf,
     sync::{Arc, atomic::{AtomicBool, Ordering}},
-    time::Instant,
+    time::Instant, io::ErrorKind,
 };
 
 use socketcan_isotp::{
@@ -153,11 +153,19 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         let timeout = std::cmp::max(1, timeout_ms) as u128;
         let mut result: Vec<CanFrame> = Vec::with_capacity(max);
         self.safe_with_iface(|iface| {
-            iface.set_read_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
+            iface.set_read_timeout(std::time::Duration::from_millis(timeout as u64))?;
             let start = Instant::now();
-            let mut read: socketcan::CANFrame;
             while start.elapsed().as_millis() <= timeout {
-                read = iface.read_frame()?;
+                let read = match iface.read_frame() {
+                    Ok(f) => Ok(f),
+                    Err(e) => {
+                        if e.kind() == ErrorKind::WouldBlock {
+                            continue; // Ignore this error
+                        } else {
+                            Err(e)
+                        }
+                    }
+                }?;
                 result.push(CanFrame::new(read.id(), read.data(), read.is_extended()));
                 // Read complete
                 if result.len() == max {
