@@ -150,31 +150,44 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
     }
 
     fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<CanFrame>> {
-        let timeout = std::cmp::max(1, timeout_ms) as u128;
-        let mut result: Vec<CanFrame> = Vec::with_capacity(max);
-        self.safe_with_iface(|iface| {
-            iface.set_read_timeout(std::time::Duration::from_millis(timeout as u64))?;
-            let start = Instant::now();
-            while start.elapsed().as_millis() <= timeout {
-                let read = match iface.read_frame() {
-                    Ok(f) => Ok(f),
-                    Err(e) => {
-                        if e.kind() == ErrorKind::WouldBlock {
-                            continue; // Ignore this error
-                        } else {
-                            Err(e)
-                        }
+        if timeout_ms == 0 {
+            let mut res = Vec::new();
+            self.safe_with_iface(|iface| {
+                while let Ok(c) = iface.read_frame() {
+                    res.push(c);
+                    if res.len() == max {
+                        break;
                     }
-                }?;
-                result.push(CanFrame::new(read.id(), read.data(), read.is_extended()));
-                // Read complete
-                if result.len() == max {
-                    return Ok(());
                 }
-            }
-            Ok(())
-        })?;
-        result.shrink_to_fit(); // Deallocate unneeded memory
+                Ok(res)
+            });
+        } else {
+            let timeout = std::cmp::max(1, timeout_ms) as u128;
+            let mut result: Vec<CanFrame> = Vec::with_capacity(max);
+            self.safe_with_iface(|iface| {
+                iface.set_read_timeout(std::time::Duration::from_millis(timeout as u64))?;
+                let start = Instant::now();
+                while start.elapsed().as_millis() <= timeout {
+                    let read = match iface.read_frame() {
+                        Ok(f) => Ok(f),
+                        Err(e) => {
+                            if e.kind() == ErrorKind::WouldBlock {
+                                continue; // Ignore this error
+                            } else {
+                                Err(e)
+                            }
+                        }
+                    }?;
+                    result.push(CanFrame::new(read.id(), read.data(), read.is_extended()));
+                    // Read complete
+                    if result.len() == max {
+                        return Ok(());
+                    }
+                }
+                Ok(())
+            })?;
+            result.shrink_to_fit(); // Deallocate unneeded memory
+        }
         Ok(result)
     }
 
