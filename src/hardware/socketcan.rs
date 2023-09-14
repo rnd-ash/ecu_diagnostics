@@ -151,16 +151,16 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
 
     fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<CanFrame>> {
         if timeout_ms == 0 {
-            let mut res = Vec::new();
             self.safe_with_iface(|iface| {
-                while let Ok(c) = iface.read_frame() {
-                    res.push(c);
+                let mut res = Vec::new();
+                while let Ok(read) = iface.read_frame() {
+                    res.push(CanFrame::new(read.id(), read.data(), read.is_extended()));
                     if res.len() == max {
                         break;
                     }
                 }
                 Ok(res)
-            });
+            })
         } else {
             let timeout = std::cmp::max(1, timeout_ms) as u128;
             let mut result: Vec<CanFrame> = Vec::with_capacity(max);
@@ -187,8 +187,8 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
                 Ok(())
             })?;
             result.shrink_to_fit(); // Deallocate unneeded memory
+            Ok(result)
         }
-        Ok(result)
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
