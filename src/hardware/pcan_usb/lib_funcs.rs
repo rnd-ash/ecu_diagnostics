@@ -1,9 +1,8 @@
 use libloading::Library;
 use std::ffi::{c_void, CStr};
 use std::fmt;
-use std::path::Path;
 use std::sync::Arc;
-use winapi::shared::minwindef::{DWORD, WORD, BYTE};
+use winapi::shared::minwindef::{DWORD, WORD};
 use winapi::um::winnt::LPSTR;
 
 use crate::channel::{CanFrame, ChannelError, ChannelResult, Packet};
@@ -12,58 +11,58 @@ use crate::hardware::{HardwareError, HardwareResult};
 
 use super::pcan_types::{
     MsgType, PCANBaud, PCANError, PCanErrorTy, PCanResult, PcanUSB, TpCanMsg, TpCanMsgFD,
-    TpCanTimestamp,
+    TpCanTimestamp, TPCANStatus, TPCANHandle, TPCANBaudrate, TPCANBitrateFD, TPCANMode, TPCANParameter, TPCANType,
 };
 
-type GetErrorTextFn = unsafe extern "stdcall" fn(error: i32, languge: u8, buffer: LPSTR) -> i32;
+type GetErrorTextFn = unsafe extern "stdcall" fn(error: TPCANStatus, languge: WORD, buffer: LPSTR) -> TPCANStatus;
 
-type GetStatusFn = unsafe extern "stdcall" fn(channel: WORD) -> i32;
+type GetStatusFn = unsafe extern "stdcall" fn(channel: TPCANHandle) -> TPCANStatus;
 
-type InitializeFn = unsafe extern "stdcall" fn(channel: WORD, btr0btr1: WORD) -> i32;
+type InitializeFn = unsafe extern "stdcall" fn(channel: TPCANHandle, btr0btr1: TPCANBaudrate, hwtype: TPCANType, ioport: DWORD, interrupt: WORD) -> TPCANStatus;
 
-type InitializeFdFn = unsafe extern "stdcall" fn(channel: WORD, bitrate: LPSTR) -> i32;
+type InitializeFdFn = unsafe extern "stdcall" fn(channel: TPCANHandle, bitrate: TPCANBitrateFD) -> TPCANStatus;
 
 type LookUpChannelFn =
-    unsafe extern "stdcall" fn(paramters: LPSTR, found_channel: *mut DWORD) -> i32;
+    unsafe extern "stdcall" fn(paramters: LPSTR, found_channel: *mut TPCANHandle) -> TPCANStatus;
 
 type ReadFn = unsafe extern "stdcall" fn(
-    channel: WORD,
+    channel: TPCANHandle,
     buffer: *mut TpCanMsg,
     timestamp: *mut TpCanTimestamp,
-) -> i32;
+) -> TPCANStatus;
 
 type ReadFdFn = unsafe extern "stdcall" fn(
-    channel: WORD,
+    channel: TPCANHandle,
     buffer: *mut TpCanMsgFD,
     timestamp: *mut TpCanTimestamp,
-) -> i32;
+) -> TPCANStatus;
 
-type ResetFn = unsafe extern "stdcall" fn(channel: WORD) -> i32;
+type ResetFn = unsafe extern "stdcall" fn(channel: TPCANHandle) -> TPCANStatus;
 
 type FilterMessagesFn =
-    unsafe extern "stdcall" fn(channel: WORD, from_id: DWORD, to_id: DWORD, mode: u8) -> i32;
+    unsafe extern "stdcall" fn(channel: TPCANHandle, from_id: DWORD, to_id: DWORD, mode: TPCANMode) -> TPCANStatus;
 
 type GetValueFn = unsafe extern "stdcall" fn(
-    channel: WORD,
-    parameter: BYTE,
+    channel: TPCANHandle,
+    parameter: TPCANParameter,
     buffer: *mut c_void,
     buffer_len: DWORD,
-) -> i32;
+) -> TPCANStatus;
 
 type SetValueFn = unsafe extern "stdcall" fn(
-    channel: WORD,
-    parameter: BYTE,
+    channel: TPCANHandle,
+    parameter: TPCANParameter,
     buffer: *mut c_void,
     buffer_len: DWORD,
-) -> i32;
+) -> TPCANStatus;
 
-type UninitalizeFn = unsafe extern "stdcall" fn(channel: WORD) -> i32;
+type UninitalizeFn = unsafe extern "stdcall" fn(channel: TPCANHandle) -> TPCANStatus;
 
-type WriteFn = unsafe extern "stdcall" fn(channel: WORD, buffer: *mut TpCanMsg) -> i32;
+type WriteFn = unsafe extern "stdcall" fn(channel: TPCANHandle, buffer: *mut TpCanMsg) -> TPCANStatus;
 
-type WriteFdFn = unsafe extern "stdcall" fn(channel: WORD, buffer: *mut TpCanMsgFD) -> i32;
+type WriteFdFn = unsafe extern "stdcall" fn(channel: TPCANHandle, buffer: *mut TpCanMsgFD) -> TPCANStatus;
 
-fn check_pcan_func_result<T>(ret: T, status: i32) -> PCanResult<T> {
+fn check_pcan_func_result<T>(ret: T, status: TPCANStatus) -> PCanResult<T> {
     match status {
         0 => PCanResult::Ok(ret),
         x => {
@@ -78,7 +77,6 @@ fn check_pcan_func_result<T>(ret: T, status: i32) -> PCanResult<T> {
 
 #[derive(Clone)]
 pub struct PCanDrv {
-    path: &'static str,
     /// Loaded library to interface with the device
     lib: Arc<Library>,
     /// Is the device currently connected?
@@ -110,19 +108,9 @@ impl fmt::Debug for PCanDrv {
 
 impl PCanDrv {
     pub fn load_lib() -> HardwareResult<PCanDrv> {
-        let path: &'static str = if cfg!(target_pointer_width = "32") {
-            match Path::new("C:\\Program Files (x86)\\").exists() {
-                true => "C:\\Windows\\SysWOW64\\PCANBasic.dll", // 64bit
-                false => "C:\\Windows\\System32\\PCANBasic.dll", // Native 32bit
-            }
-        } else {
-            "C:\\Windows\\System32\\PCANBasic.dll"
-        };
-        log::debug!("Opening function library {path}");
-        let lib = unsafe { Library::new(path)? };
+        let lib = unsafe { Library::new("PCANBasic.dll")? };
         let res = unsafe {
             Self {
-                path,
                 get_error_text_fn: *lib.get::<GetErrorTextFn>(b"CAN_GetErrorText\0")?.into_raw(),
                 get_status_fn: *lib.get::<GetStatusFn>(b"CAN_GetStatus\0")?.into_raw(),
                 initialize_fn: *lib.get::<InitializeFn>(b"CAN_Initialize\0")?.into_raw(),
@@ -155,9 +143,9 @@ impl PCanDrv {
         check_pcan_func_result((), res).map_err(|e| e.into())
     }
 
-    pub(crate) fn reset_handle(&self, handle: WORD) -> HardwareResult<()> {
-        log::debug!("reset_handle called: handle: 0x{:04X}", handle);
-        let res = unsafe { (self.uninitialize_fn)(handle) };
+    pub(crate) fn reset_handle(&self, handle: PcanUSB) -> HardwareResult<()> {
+        log::debug!("reset_handle called: handle: 0x{:04X}", handle.repr());
+        let res = unsafe { (self.uninitialize_fn)(handle.repr()) };
         check_pcan_func_result((), res).map_err(|e| e.into())
     }
 
@@ -168,8 +156,8 @@ impl PCanDrv {
 
         check_pcan_func_result((), unsafe {
             (self.get_value_fn)(
-                *handle as WORD,
-                PCANParameter::HardwareName as BYTE,
+                handle.repr(),
+                PCANParameter::HardwareName.repr(),
                 &mut n as *mut _ as *mut c_void,
                 256,
             )
@@ -178,8 +166,8 @@ impl PCanDrv {
 
         check_pcan_func_result((), unsafe {
             (self.get_value_fn)(
-                *handle as WORD,
-                PCANParameter::APIVersion as BYTE,
+                handle.repr(),
+                PCANParameter::APIVersion.repr(),
                 &mut v as *mut _ as *mut c_void,
                 33,
             )
@@ -197,10 +185,8 @@ impl PCanDrv {
         Ok((name, version))
     }
 
-    pub(crate) fn create_can_channel(handle: PcanUSB) {}
-
     pub(crate) fn get_path(&self) -> &'static str {
-        self.path
+        "PCANBasic.dll"
     }
 
     pub(crate) fn initialize_can(&mut self, handle: PcanUSB, baud: PCANBaud) -> HardwareResult<()> {
@@ -209,33 +195,33 @@ impl PCanDrv {
         //let _ = self.reset_handle(handle as u16);
         log::debug!("Init CAN");
         check_pcan_func_result((), unsafe {
-            (self.initialize_fn)(handle as u16, baud as u16)
+            (self.initialize_fn)(handle.repr(), baud.repr(), 0, 0, 0)
         })
         .map_err(|e| HardwareError::from(e))?;
 
         // Configure Open filter
-        let mut param: u32 = 0x01;
-        let mut p_type = PCANParameter::MessageFilter as BYTE;
+        let mut param: [TPCANParameter; 1] = [0x01];
+        let mut p_type = PCANParameter::MessageFilter.repr();
         log::debug!("Config filter");
         check_pcan_func_result((), unsafe {
             (self.set_value_fn)(
-                handle as WORD,
+                handle.repr(),
                 p_type,
-                (&mut param) as *mut _ as *mut c_void,
-                4,
+                param.as_mut_ptr() as *mut c_void,
+                std::mem::size_of_val(&param) as DWORD,
             )
         })
         .map_err(|e| HardwareError::from(e))?;
 
         // Configure BusOffAutoReset
-        p_type = PCANParameter::BusOffAutoReset as BYTE;
+        p_type = PCANParameter::BusOffAutoReset.repr();
         log::debug!("Configure BusOffAutoReset");
         check_pcan_func_result((), unsafe {
             (self.set_value_fn)(
-                handle as WORD,
+                handle.repr(),
                 p_type,
-                (&mut param) as *mut _ as *mut c_void,
-                4,
+                param.as_mut_ptr() as *mut c_void,
+                std::mem::size_of_val(&param) as DWORD,
             )
         })
         .map_err(|e| HardwareError::from(e))
@@ -249,7 +235,7 @@ impl PCanDrv {
             len: 0,
             data: [0; 8],
         };
-        let res = unsafe { (self.read_fn)(handle as WORD, &mut can_msg, std::ptr::null_mut()) };
+        let res = unsafe { (self.read_fn)(handle.repr(), &mut can_msg, std::ptr::null_mut()) };
         check_pcan_func_result((), res).map_err(|e| ChannelError::from(e))?;
         // Read OK!
         Ok(CanFrame::new(

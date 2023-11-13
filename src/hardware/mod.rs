@@ -157,7 +157,7 @@ impl From<PCanErrorTy> for HardwareError {
                 .into(),
             },
             PCanErrorTy::Unknown(e) => Self::APIError {
-                code: e as u32,
+                code: e,
                 desc: value.to_string(),
             }
             .into(),

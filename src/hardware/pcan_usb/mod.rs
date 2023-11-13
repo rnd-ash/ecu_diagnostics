@@ -47,7 +47,7 @@ impl PcanUsbDevice {
         driver: PCanDrv,
     ) -> HardwareResult<Self> {
         // Destroy any handle if it exists (Device reset)
-        let res = driver.reset_handle(handle as u16);
+        let res = driver.reset_handle(handle);
         if let Err(HardwareError::APIError { code, desc: _ }) = res {
             if code != PCANError::Initialize as u32 {
                 return Err(res.err().unwrap()); // Some other error. Non intialized error is OK since it means first use
@@ -65,7 +65,7 @@ impl PcanUsbDevice {
 
 impl Drop for PcanUsbDevice {
     fn drop(&mut self) {
-        let _ = self.driver.reset_handle(self.dev_handle as u16);
+        let _ = self.driver.reset_handle(self.dev_handle);
     }
 }
 
@@ -192,7 +192,7 @@ impl PacketChannel<CanFrame> for PcanUsbpacketChannel {
         if self.open {
             let res = self
                 .driver
-                .reset_handle(self.dev_handle as u16)
+                .reset_handle(self.dev_handle)
                 .map_err(|e| e.into());
             self.open = false;
             res

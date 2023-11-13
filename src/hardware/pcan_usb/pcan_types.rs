@@ -1,9 +1,22 @@
 use enum_repr::EnumRepr;
 use thiserror::Error;
-use winapi::shared::minwindef::{DWORD, WORD};
+use winapi::shared::{minwindef::{DWORD, WORD, BYTE}, basetsd::UINT64, ntdef::LPSTR};
 
 const MAX_LENGTH_HARDWARE_NAME: usize = 33;
 const MAX_LENGTH_VERSION_STRING: usize = 256;
+
+// PEAK Header redefinition types (PCANBasic.h)
+
+pub (crate) type TPCANHandle = WORD;
+pub (crate) type TPCANStatus = DWORD;
+pub (crate) type TPCANParameter = BYTE;
+pub (crate) type TPCANDevice = BYTE;
+pub (crate) type TPCANMessageType = BYTE;
+pub (crate) type TPCANType = BYTE;
+pub (crate) type TPCANMode = BYTE;
+pub (crate) type TPCANBaudrate = WORD;
+pub (crate) type TPCANBitrateFD = LPSTR;
+pub (crate) type TPCANTimestampFD = UINT64;
 
 pub enum PcanEnumWrapper<T, E> {
     Std(T),
@@ -30,7 +43,7 @@ pub(crate) const ALL_USB_DEVICES: &[PcanUSB] = &[
 ];
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
-#[EnumRepr(type = "i16")]
+#[EnumRepr(type = "TPCANHandle")]
 pub enum PcanUSB {
     USB1 = 0x51,
     USB2 = 0x52,
@@ -52,7 +65,7 @@ pub enum PcanUSB {
 
 pub type PcanUSBWrapper = PcanEnumWrapper<PcanUSB, u16>;
 
-#[repr(u8)]
+#[EnumRepr(type = "TPCANMessageType")]
 pub enum PcanMessageType {
     Standard = 0x00,
     Rtr = 0x01,
@@ -76,7 +89,7 @@ pub enum PcanServiceState {
 pub type PcanServiceStateWrapper = PcanEnumWrapper<PcanServiceState, u8>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
-#[EnumRepr(type = "u8")]
+#[EnumRepr(type = "TPCANParameter")]
 pub(crate) enum PCANParameter {
     DeviceID = 0x01,
     FiveVoltPower = 0x02,
@@ -126,7 +139,7 @@ pub(crate) enum PCANParameter {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
-#[repr(C)]
+#[EnumRepr(type = "TPCANBaudrate")]
 pub enum PCANBaud {
     Can1Mbps = 0x0014,
     Can800Kbps = 0x0016,
@@ -145,7 +158,7 @@ pub enum PCANBaud {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Error)]
-#[EnumRepr(type = "i32")]
+#[EnumRepr(type = "TPCANStatus")]
 pub enum PCANError {
     #[error("Transmit buffer in CAN controller is full")]
     XMTFull = 0x00001,
@@ -198,7 +211,7 @@ pub enum PCANError {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
-#[EnumRepr(type = "u8")]
+#[EnumRepr(type = "TPCANMessageType")]
 pub enum MsgType {
     Standard = 0x00,
     Rtr = 0x01,
@@ -216,7 +229,7 @@ pub enum PCanErrorTy {
     #[error(transparent)]
     StandardError(#[from] PCANError),
     #[error("An unknown error code of 0x{0:08X?} was returned by the PCAN API")]
-    Unknown(i32),
+    Unknown(u32),
 }
 
 pub type PCanResult<T> = Result<T, PCanErrorTy>;
@@ -226,8 +239,8 @@ pub type PCanResult<T> = Result<T, PCanErrorTy>;
 pub struct TpCanMsg {
     pub(crate) id: DWORD,
     pub(crate) msg_type: MsgType,
-    pub(crate) len: u8,
-    pub(crate) data: [u8; 8],
+    pub(crate) len: BYTE,
+    pub(crate) data: [BYTE; 8],
 }
 
 #[repr(C)]
@@ -241,15 +254,15 @@ pub struct TpCanTimestamp {
 pub struct TpCanMsgFD {
     pub(crate) id: DWORD,
     pub(crate) msg_type: MsgType,
-    pub(crate) dlc: u8,
-    pub(crate) data: [u8; 64],
+    pub(crate) dlc: BYTE,
+    pub(crate) data: [BYTE; 64],
 }
 
 #[repr(C)]
-pub struct TpCanChannelInformation {
-    channel_handle: WORD,
-    device_type: u8,
-    controller_number: u8,
+pub struct TagTpCanChannelInformation {
+    channel_handle: TPCANHandle,
+    device_type: TPCANDevice,
+    controller_number: BYTE,
     device_features: DWORD,
     device_name: [u8; MAX_LENGTH_HARDWARE_NAME],
     device_id: DWORD,
