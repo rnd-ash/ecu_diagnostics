@@ -6,7 +6,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Instant,
+    time::Instant, process::Command, io,
 };
 
 use socketcan_isotp::{
@@ -38,6 +38,7 @@ pub struct SocketCanDevice {
     info: HardwareInfo,
     canbus_active: Arc<AtomicBool>,
     isotp_active: Arc<AtomicBool>,
+    baud: Option<u32>,
 }
 
 impl SocketCanDevice {
@@ -52,6 +53,7 @@ impl SocketCanDevice {
                 library_version: None,
                 library_location: None,
             },
+            baud: None,
             canbus_active: Arc::new(AtomicBool::new(false)),
             isotp_active: Arc::new(AtomicBool::new(false)),
         }
@@ -187,10 +189,36 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
 }
 
 impl CanChannel for SocketCanCanChannel {
-    /// SocketCAN ignores this function as the channel is pre-configured
-    /// by the OS' kernel.
-    fn set_can_cfg(&mut self, _baud: u32, _use_extended: bool) -> ChannelResult<()> {
-        Ok(())
+    /// When compiling with `socketcan_root` feature, the crate will try to manually
+    /// invoke `IP` command to shut down the CAN interface, change its baud rate, then
+    /// restart it. 
+    /// 
+    /// This requires root access on whatever application is running this crate. It is only
+    /// recommended for advanced users. 
+    /// 
+    /// When compiling normally, this function just returns OK since there is no way of modifying
+    /// socketcan baudrate from userspace
+    fn set_can_cfg(&mut self, baud: u32, _use_extended: bool) -> ChannelResult<()> {
+        if cfg!(feature="socketcan_root") {
+            fn run_command(p: &str, args: &[&str]) -> io::Result<()> {
+                Command::new(p).args(args).output().map(|_| ())
+            }
+
+            if self.device.baud != Some(baud) {
+                if self.channel.is_some() || self.device.is_iso_tp_channel_open() || self.device.is_can_channel_open() {
+                    return Err(ChannelError::InterfaceOpen);
+                }
+
+                run_command("/usr/bin/ip", &["set", self.device.info.name.as_str(), "down"])?;
+                run_command("/usr/bin/ip", &["set", self.device.info.name.as_str(), "type", "can", "bitrate", &format!("{}", baud)])?;
+                run_command("/usr/bin/ip", &["set", self.device.info.name.as_str(), "up"])?;
+                self.device.baud = Some(baud);
+            }
+            // we will need to re-open channel
+            Ok(())
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -423,7 +451,28 @@ impl IsoTPChannel for SocketCanIsoTPChannel {
         self.cfg = cfg;
         // Try to set the baudrate
         self.cfg_complete = true;
-        Ok(())
+
+        if cfg!(feature="socketcan_root") {
+            // Only process if baud differs
+            if self.device.baud != Some(cfg.can_speed) {
+
+                fn run_command(p: &str, args: &[&str]) -> io::Result<()> {
+                    Command::new(p).args(args).output().map(|_| ())
+                }
+
+                if self.channel.is_some() || self.device.is_iso_tp_channel_open() || self.device.is_can_channel_open() {
+                    return Err(ChannelError::InterfaceOpen);
+                }
+
+                run_command("/usr/bin/ip", &["set", self.device.info.name.as_str(), "down"])?;
+                run_command("/usr/bin/ip", &["set", self.device.info.name.as_str(), "type", "can", "bitrate", &format!("{}", cfg.can_speed)])?;
+                run_command("/usr/bin/ip", &["set", self.device.info.name.as_str(), "up"])?;
+                self.device.baud = Some(cfg.can_speed);
+            }
+            Ok(())
+        } else {
+            Ok(())
+        }
     }
 }
 

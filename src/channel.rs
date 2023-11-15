@@ -45,6 +45,9 @@ pub enum ChannelError {
     /// The interface is not open
     #[error("Interface was not opened before request")]
     InterfaceNotOpen,
+    /// The interface is already open
+    #[error("Cannot perform request whilst interface is open")]
+    InterfaceOpen,
     /// Too many Channel filters active
     #[error("No more free filters")]
     FilterCountExceeded,
