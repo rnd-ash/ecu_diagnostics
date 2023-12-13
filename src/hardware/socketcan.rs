@@ -3,15 +3,19 @@
 use std::{
     path::PathBuf,
     sync::{Arc, atomic::{AtomicBool, Ordering}},
+    io::ErrorKind, borrow::BorrowMut,
     time::{Instant, Duration},
 };
 
+use socketcan::Socket;
+
+use socketcan::CanFrame as SocketCanCanFrame;
 use socketcan_isotp::{
     ExtendedId, FlowControlOptions, Id, IsoTpBehaviour, IsoTpOptions, LinkLayerOptions, StandardId,
 };
 
 use crate::channel::{
-    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, Packet,
+    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings,
     PacketChannel, PayloadChannel,
 };
 
@@ -100,16 +104,16 @@ impl Hardware for SocketCanDevice {
 /// SocketCAN CAN channel
 pub struct SocketCanCanChannel {
     device: SocketCanDevice,
-    channel: Option<socketcan::CANSocket>,
+    channel: Option<socketcan::CanSocket>,
 }
 
 impl SocketCanCanChannel {
-    fn safe_with_iface<X, T: FnOnce(&socketcan::CANSocket) -> ChannelResult<X>>(
+    fn safe_with_iface<X, T: FnOnce(&mut socketcan::CanSocket) -> ChannelResult<X>>(
         &mut self,
         function: T,
     ) -> ChannelResult<X> {
-        match self.channel {
-            Some(ref channel) => function(channel),
+        match self.channel.borrow_mut() {
+            Some(channel) => function(channel),
             None => Err(ChannelError::InterfaceNotOpen),
         }
     }
@@ -120,9 +124,11 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         if self.channel.is_some() {
             return Ok(()); // Already open!
         }
-        let channel = socketcan::CANSocket::open(&self.device.info.name)?;
-        channel.filter_accept_all()?;
-        channel.set_nonblocking(false)?;
+        let channel = socketcan::CanSocket::open(&self.device.info.name)?;
+
+        channel.set_error_filter_drop_all()?;
+        channel.set_filter_accept_all()?;
+
         self.channel = Some(channel);
         self.device.canbus_active.store(true, Ordering::Relaxed);
         Ok(())
@@ -139,10 +145,15 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
 
     fn write_packets(&mut self, packets: Vec<CanFrame>, timeout_ms: u32) -> ChannelResult<()> {
         self.safe_with_iface(|iface| {
-            iface.set_write_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
-            let mut cf: socketcan::CANFrame;
-            for p in &packets {
-                cf = socketcan::CANFrame::new(p.get_address(), p.get_data(), false, false).unwrap();
+            if timeout_ms == 0 {
+                iface.set_nonblocking(true)?;
+            } else {
+                iface.set_nonblocking(false)?;
+                iface.set_write_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
+            }
+            let mut cf: SocketCanCanFrame;
+            for p in packets {
+                cf = SocketCanCanFrame::Data(p.into());
                 iface.write_frame(&cf)?;
             }
             Ok(())
@@ -150,27 +161,49 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
     }
 
     fn read_packets(&mut self, max: usize, timeout_ms: u32) -> ChannelResult<Vec<CanFrame>> {
-        let timeout = std::cmp::max(1, timeout_ms) as u128;
-        let mut result: Vec<CanFrame> = Vec::with_capacity(max);
         self.safe_with_iface(|iface| {
-            iface.set_read_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
-            let start = Instant::now();
-            let mut read: socketcan::CANFrame;
-            while start.elapsed().as_millis() <= timeout {
-                read = iface.read_frame()?;
-                result.push(CanFrame::new(read.id(), read.data(), read.is_extended()));
-                // Read complete
-                if result.len() == max {
-                    return Ok(());
+            let mut result: Vec<CanFrame> = Vec::new();
+            if timeout_ms == 0 {
+                iface.set_nonblocking(true)?;
+                while let Ok(f) = iface.read_frame() {
+                    if let SocketCanCanFrame::Data(d) = f {
+                        result.push(d.into())
+                    }
+                    if result.len() == max {
+                        break;
+                    }
+                }
+                if result.len() == 0 {
+                    Err(ChannelError::BufferEmpty)
+                } else {
+                    Ok(result)
+                }
+                
+            } else {
+                iface.set_nonblocking(false)?;
+                iface.set_read_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
+                let start = Instant::now();
+                while start.elapsed().as_millis() <= timeout_ms as u128 {
+                    let f = iface.read_frame()?;
+                    if let SocketCanCanFrame::Data(d) = f {
+                        result.push(d.into())
+                    }
+                    if result.len() == max {
+                        break;
+                    }
+                }
+                if result.len() == 0 {
+                    Err(ChannelError::BufferEmpty)
+                } else {
+                    Ok(result)
                 }
             }
-            Ok(())
-        })?;
-        result.shrink_to_fit(); // Deallocate unneeded memory
-        Ok(result)
+            
+        })
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
+        while self.read_packets(1, 0).is_ok(){}
         Ok(())
     }
 
@@ -496,15 +529,6 @@ impl HardwareScanner<SocketCanDevice> for SocketCanScanner {
     }
 }
 
-impl From<socketcan::CANSocketOpenError> for ChannelError {
-    fn from(e: socketcan::CANSocketOpenError) -> Self {
-        Self::HardwareError(HardwareError::APIError {
-            code: 99,
-            desc: e.to_string(),
-        })
-    }
-}
-
 impl From<socketcan_isotp::Error> for ChannelError {
     fn from(e: socketcan_isotp::Error) -> Self {
         Self::HardwareError(HardwareError::APIError {
@@ -516,6 +540,10 @@ impl From<socketcan_isotp::Error> for ChannelError {
 
 impl From<std::io::Error> for ChannelError {
     fn from(e: std::io::Error) -> Self {
-        Self::IOError(Arc::new(e))
+        if e.kind() == ErrorKind::WouldBlock {
+            Self::BufferEmpty
+        } else {
+            Self::IOError(Arc::new(e))
+        }
     }
 }

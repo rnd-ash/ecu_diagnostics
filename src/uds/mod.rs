@@ -152,7 +152,8 @@ impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
     fn process_ecu_response(r: &[u8]) -> Result<Vec<u8>, (u8, UdsErrorByte)> {
         if r[0] == 0x7F {
             // [7F, SID, NRC]
-            Err((r[2], UdsErrorByte::from(r[2])))
+            // OR (Bootloader sometimes) [0x7F, NRC]
+            Err((*r.last().unwrap(), UdsErrorByte::from(*r.last().unwrap())))
         } else {
             Ok(r.to_vec())
         }

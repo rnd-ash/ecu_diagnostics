@@ -9,6 +9,9 @@ use std::{
     sync::{mpsc, Arc, Mutex, PoisonError},
 };
 
+#[cfg(feature="socketcan")]
+use socketcan::{EmbeddedFrame, Id, ExtendedId, StandardId, CanDataFrame};
+
 use crate::hardware::HardwareError;
 
 /// Communication channel result
@@ -442,6 +445,28 @@ impl Packet for CanFrame {
         let max = std::cmp::min(8, data.len());
         self.data[0..max].copy_from_slice(&data[0..max]);
         self.dlc = max as u8;
+    }
+}
+
+#[cfg(feature="socketcan")]
+impl From<CanDataFrame> for CanFrame {
+    fn from(value: CanDataFrame) -> Self {
+        let (id, ext) = match value.id() {
+            Id::Standard(id) => (id.as_raw() as u32, true),
+            Id::Extended(id) => (id.as_raw(), false),
+        };
+        CanFrame::new(id, value.data(), ext)
+    }
+}
+
+#[cfg(feature="socketcan")]
+impl Into<CanDataFrame> for CanFrame {
+    fn into(self) -> CanDataFrame {
+        let id = match self.ext {
+            true => Id::Extended(ExtendedId::new(self.get_address()).unwrap()),
+            false => Id::Standard(StandardId::new(self.get_address() as u16).unwrap())
+        };
+        CanDataFrame::new(id, self.get_data()).unwrap()
     }
 }
 
