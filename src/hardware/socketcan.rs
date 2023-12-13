@@ -3,7 +3,7 @@
 use std::{
     path::PathBuf,
     sync::{Arc, atomic::{AtomicBool, Ordering}},
-    time::Instant,
+    time::{Instant, Duration},
 };
 
 use socketcan_isotp::{
@@ -309,6 +309,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
                 if let Ok(data) = socket.read() {
                     return Ok(data.to_vec());
                 }
+                std::thread::sleep(Duration::from_millis(1));
             }
             // Timeout
             if timeout_ms == 0 {
