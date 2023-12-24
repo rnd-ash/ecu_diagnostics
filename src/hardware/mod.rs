@@ -10,7 +10,7 @@ pub mod passthru; // Not finished at all yet, hide from the crate
 #[cfg(feature = "passthru")]
 use std::sync::Arc;
 
-#[cfg(all(feature = "socketcan", unix))]
+#[cfg(all(feature="socketcan", target_os="linux"))]
 pub mod socketcan;
 
 use crate::channel::{CanChannel, IsoTPChannel};

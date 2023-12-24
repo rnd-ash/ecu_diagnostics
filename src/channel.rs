@@ -9,7 +9,7 @@ use std::{
     sync::{mpsc, Arc, Mutex, PoisonError},
 };
 
-#[cfg(feature="socketcan")]
+#[cfg(all(feature="socketcan", target_os="linux"))]
 use socketcan::{EmbeddedFrame, Id, ExtendedId, StandardId, CanDataFrame};
 
 use crate::hardware::HardwareError;
@@ -448,7 +448,7 @@ impl Packet for CanFrame {
     }
 }
 
-#[cfg(feature="socketcan")]
+#[cfg(all(feature="socketcan", target_os="linux"))]
 impl From<CanDataFrame> for CanFrame {
     fn from(value: CanDataFrame) -> Self {
         let (id, ext) = match value.id() {
@@ -459,7 +459,7 @@ impl From<CanDataFrame> for CanFrame {
     }
 }
 
-#[cfg(feature="socketcan")]
+#[cfg(all(feature="socketcan", target_os="linux"))]
 impl Into<CanDataFrame> for CanFrame {
     fn into(self) -> CanDataFrame {
         let id = match self.ext {
