@@ -324,15 +324,6 @@ impl DynamicDiagSession {
                             DiagAction::SetSessionMode(mode) => {
                                 let mut needs_response = true;
                                 let mut ext_id = None;
-                                if let Some(adv) = advanced_opts {
-                                    if adv.global_session_control && adv.global_tp_id != 0 {
-                                        tx_addr = adv.global_tp_id;
-                                        ext_id = adv.tp_ext_id;
-                                        needs_response = false;
-                                    } else if adv.global_session_control && adv.global_tp_id == 0 {
-                                        log::warn!("Global session control is enabled but global TP ID is not specified");
-                                    }
-                                }
                                 let res = send_recv_ecu_req::<P, NRC, L>(
                                     tx_addr,
                                     rx_addr,
