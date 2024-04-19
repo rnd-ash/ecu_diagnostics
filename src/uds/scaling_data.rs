@@ -1,14 +1,6 @@
 ///! Functions and data for ReadScalingDataById UDS Service
 
-/// FIXME: Use ScalingExtension instead
-/// Note: `#[deprecated]` doesn't work here due to https://github.com/rust-lang/rust/issues/30827
-pub use automotive_diag::uds::ScalingExtension as ScalingByteExtension;
-
-/// FIXME: Use ScalingType instead
-/// Note: `#[deprecated]` doesn't work here due to https://github.com/rust-lang/rust/issues/30827
-pub use automotive_diag::uds::ScalingType as ScalingByteHigh;
-
-pub use automotive_diag::uds::{ScalingExtension, ScalingType};
+pub use automotive_diag::uds::ScalingExtension;
 
 /// Represents Scaling data structure returned from ECU
 #[derive(Debug, Clone)]
