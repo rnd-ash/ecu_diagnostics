@@ -322,7 +322,7 @@ impl DynamicDiagSession {
                         let mut tx_addr = basic_opts.send_id;
                         match protocol.process_req_payload(&req.payload) {
                             DiagAction::SetSessionMode(mode) => {
-                                let mut needs_response = true;
+                                let needs_response = true;
                                 let mut ext_id = None;
                                 let res = send_recv_ecu_req::<P, NRC, L>(
                                     tx_addr,
