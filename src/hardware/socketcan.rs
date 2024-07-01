@@ -1,10 +1,14 @@
 //! SocketCAN module
 
 use std::{
+    borrow::BorrowMut,
+    io::ErrorKind,
     path::PathBuf,
-    sync::{Arc, atomic::{AtomicBool, Ordering}},
-    io::ErrorKind, borrow::BorrowMut,
-    time::{Instant, Duration},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
 };
 
 use socketcan::{Socket, SocketOptions};
@@ -15,8 +19,8 @@ use socketcan_isotp::{
 };
 
 use crate::channel::{
-    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings,
-    PacketChannel, PayloadChannel,
+    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, PacketChannel,
+    PayloadChannel,
 };
 
 use super::{Hardware, HardwareCapabilities, HardwareError, HardwareInfo, HardwareScanner};
@@ -178,7 +182,6 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
                 } else {
                     Ok(result)
                 }
-                
             } else {
                 iface.set_nonblocking(false)?;
                 iface.set_read_timeout(Duration::from_millis(timeout_ms as u64))?;
@@ -198,12 +201,11 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
                     Ok(result)
                 }
             }
-            
         })
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
-        while self.read_packets(1, 0).is_ok(){}
+        while self.read_packets(1, 0).is_ok() {}
         Ok(())
     }
 
@@ -521,20 +523,14 @@ impl HardwareScanner<SocketCanDevice> for SocketCanScanner {
         self.devices.clone()
     }
 
-    fn open_device_by_index(
-        &self,
-        idx: usize,
-    ) -> super::HardwareResult<SocketCanDevice> {
+    fn open_device_by_index(&self, idx: usize) -> super::HardwareResult<SocketCanDevice> {
         match self.devices.get(idx) {
             Some(hw) => Ok(SocketCanDevice::new(hw.name.clone())),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
 
-    fn open_device_by_name(
-        &self,
-        name: &str,
-    ) -> super::HardwareResult<SocketCanDevice> {
+    fn open_device_by_name(&self, name: &str) -> super::HardwareResult<SocketCanDevice> {
         match self.devices.iter().find(|x| x.name == name) {
             Some(hw) => Ok(SocketCanDevice::new(hw.name.clone())),
             None => Err(HardwareError::DeviceNotFound),
