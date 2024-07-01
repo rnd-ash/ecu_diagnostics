@@ -35,19 +35,19 @@ impl Display for ObdEnumValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ObdEnumValue::FuelSystemStatus(x) => match x {
-                Standard(v) => std::fmt::Display::fmt(&v, f),
+                Standard(v) => Display::fmt(&v, f),
                 _ => f.write_fmt(format_args!("Extended({:#02X})", u32::from(*self))),
             },
             ObdEnumValue::CommandedAirStatus(x) => match x {
-                Standard(v) => std::fmt::Display::fmt(&v, f),
+                Standard(v) => Display::fmt(&v, f),
                 _ => f.write_fmt(format_args!("Extended({:#02X})", u32::from(*self))),
             },
             ObdEnumValue::ObdStandard(x) => match x {
-                Standard(v) => std::fmt::Display::fmt(&v, f),
+                Standard(v) => Display::fmt(&v, f),
                 _ => f.write_fmt(format_args!("Extended({:#02X})", u32::from(*self))),
             },
             ObdEnumValue::FuelType(x) => match x {
-                Standard(v) => std::fmt::Display::fmt(&v, f),
+                Standard(v) => Display::fmt(&v, f),
                 _ => f.write_fmt(format_args!("Extended({:#02X})", u32::from(*self))),
             },
         }

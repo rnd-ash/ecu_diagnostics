@@ -10,7 +10,7 @@ pub mod passthru; // Not finished at all yet, hide from the crate
 #[cfg(feature = "passthru")]
 use std::sync::Arc;
 
-#[cfg(all(feature="socketcan", target_os="linux"))]
+#[cfg(all(feature = "socketcan", target_os = "linux"))]
 pub mod socketcan;
 
 use crate::channel::{CanChannel, IsoTPChannel};
@@ -116,7 +116,11 @@ pub enum HardwareError {
     /// Lib loading error
     #[cfg(feature = "passthru")]
     #[error("Device API library load error")]
-    LibLoadError(#[from] #[source] Arc<libloading::Error>),
+    LibLoadError(
+        #[from]
+        #[source]
+        Arc<libloading::Error>,
+    ),
 }
 
 #[cfg(feature = "passthru")]

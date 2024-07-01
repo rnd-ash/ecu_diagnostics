@@ -1,6 +1,6 @@
 use std::borrow::BorrowMut;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Mutex, Arc};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use std::vec;
@@ -81,7 +81,8 @@ impl PtCombiChannel {
     pub fn new(mut dev: PassthruDevice) -> HardwareResult<Self> {
         {
             log::debug!("SW Combi channel constructor called");
-            if dev.can_channel.load(Ordering::Relaxed) || dev.isotp_channel.load(Ordering::Relaxed) {
+            if dev.can_channel.load(Ordering::Relaxed) || dev.isotp_channel.load(Ordering::Relaxed)
+            {
                 // Cannot proceed as dedicated CAN or ISO-TP dedicated channel is already open
                 log::error!("CAN/ISO-TP dedicated channel already open");
                 return Err(HardwareError::ConflictingChannel);
@@ -374,7 +375,9 @@ impl PtCombiChannel {
                                                         100,
                                                     ) {
                                                         isotp_rx = None; // Could not send FC
-                                                        log::error!("Could not send FC to ECU: {e}");
+                                                        log::error!(
+                                                            "Could not send FC to ECU: {e}"
+                                                        );
                                                     }
                                                     rx_frames_received = 0;
                                                     // Send FC
@@ -475,9 +478,9 @@ impl PtCombiChannel {
 
                 // Now decide how long to sleep for
                 if iso_tp_cfg.is_none() {
-                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    std::thread::sleep(Duration::from_millis(10));
                 } else {
-                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    std::thread::sleep(Duration::from_millis(1));
                 }
             }
             // Teardown

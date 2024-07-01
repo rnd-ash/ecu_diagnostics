@@ -1,10 +1,14 @@
 //! SocketCAN module
 
 use std::{
+    borrow::BorrowMut,
+    io::ErrorKind,
     path::PathBuf,
-    sync::{Arc, atomic::{AtomicBool, Ordering}},
-    io::ErrorKind, borrow::BorrowMut,
-    time::{Instant, Duration},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
 };
 
 use socketcan::Socket;
@@ -15,8 +19,8 @@ use socketcan_isotp::{
 };
 
 use crate::channel::{
-    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings,
-    PacketChannel, PayloadChannel,
+    CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, IsoTPSettings, PacketChannel,
+    PayloadChannel,
 };
 
 use super::{Hardware, HardwareCapabilities, HardwareError, HardwareInfo, HardwareScanner};
@@ -149,7 +153,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
                 iface.set_nonblocking(true)?;
             } else {
                 iface.set_nonblocking(false)?;
-                iface.set_write_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
+                iface.set_write_timeout(Duration::from_millis(timeout_ms as u64))?;
             }
             let mut cf: SocketCanCanFrame;
             for p in packets {
@@ -178,10 +182,9 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
                 } else {
                     Ok(result)
                 }
-                
             } else {
                 iface.set_nonblocking(false)?;
-                iface.set_read_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
+                iface.set_read_timeout(Duration::from_millis(timeout_ms as u64))?;
                 let start = Instant::now();
                 while start.elapsed().as_millis() <= timeout_ms as u128 {
                     let f = iface.read_frame()?;
@@ -198,12 +201,11 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
                     Ok(result)
                 }
             }
-            
         })
     }
 
     fn clear_rx_buffer(&mut self) -> ChannelResult<()> {
-        while self.read_packets(1, 0).is_ok(){}
+        while self.read_packets(1, 0).is_ok() {}
         Ok(())
     }
 
@@ -282,7 +284,7 @@ impl PayloadChannel for SocketCanIsoTPChannel {
 
         let opts: IsoTpOptions = IsoTpOptions::new(
             flags,
-            std::time::Duration::from_millis(0),
+            Duration::from_millis(0),
             ext_address,
             0xCC,
             0xCC,
@@ -508,20 +510,14 @@ impl HardwareScanner<SocketCanDevice> for SocketCanScanner {
         self.devices.clone()
     }
 
-    fn open_device_by_index(
-        &self,
-        idx: usize,
-    ) -> super::HardwareResult<SocketCanDevice> {
+    fn open_device_by_index(&self, idx: usize) -> super::HardwareResult<SocketCanDevice> {
         match self.devices.get(idx) {
             Some(hw) => Ok(SocketCanDevice::new(hw.name.clone())),
             None => Err(HardwareError::DeviceNotFound),
         }
     }
 
-    fn open_device_by_name(
-        &self,
-        name: &str,
-    ) -> super::HardwareResult<SocketCanDevice> {
+    fn open_device_by_name(&self, name: &str) -> super::HardwareResult<SocketCanDevice> {
         match self.devices.iter().find(|x| x.name == name) {
             Some(hw) => Ok(SocketCanDevice::new(hw.name.clone())),
             None => Err(HardwareError::DeviceNotFound),

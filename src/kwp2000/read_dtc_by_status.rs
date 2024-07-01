@@ -90,7 +90,7 @@ impl DynamicDiagSession {
             )?;
             match self.kwp_read_extended_supported_dtcs(range) {
                 Ok(0) | Err(_) => break, // No more DTCs or error reading
-                Ok(_) => {},
+                Ok(_) => {}
             }
         }
 

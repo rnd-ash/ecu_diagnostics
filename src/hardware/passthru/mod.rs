@@ -1,4 +1,4 @@
-//! The Passthru API (Also known as SAE J2534) is an adapter protocol used by some vehicle communication
+//! The Pass-thru API (Also known as SAE J2534) is an adapter protocol used by some vehicle communication
 //! interfaces (VCI).
 //!
 //! This module provides support for Version 04.04 of the API, including experimental support for OSX and Linux, used by
@@ -14,13 +14,13 @@
 //! * CAN
 //!
 //! however it should be noted that adapters might only support a range of these protocols. So
-//! querying the [super::HardwareCapabilities] matrix should be used to determine which protocols
+//! querying the [HardwareCapabilities] matrix should be used to determine which protocols
 //! are supported
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{ffi::c_void, time::Instant};
 
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(windows)]
 use winreg::enums::*;
@@ -281,7 +281,7 @@ impl PassthruDevice {
             info.function_lib
         );
         let lib = info.function_lib.clone();
-        let drv = Arc::new(Mutex::new(lib_funcs::PassthruDrv::load_lib(lib)?));
+        let drv = Arc::new(Mutex::new(PassthruDrv::load_lib(lib)?));
         let mut lck = drv.lock().unwrap();
         let idx = lck.open()?;
         let mut ret = Self {
@@ -375,7 +375,9 @@ impl PassthruDevice {
             if !self.info.capabilities.can {
                 return Err(HardwareError::ChannelNotSupported);
             }
-            if self.can_channel.load(Ordering::Relaxed) && !self.software_mode.load(Ordering::Relaxed) {
+            if self.can_channel.load(Ordering::Relaxed)
+                && !self.software_mode.load(Ordering::Relaxed)
+            {
                 return Err(HardwareError::ConflictingChannel);
             }
         }
@@ -522,7 +524,8 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             flags |= ConnectFlags::CAN_29BIT_ID;
         }
         // Initialize the interface
-        let channel_id = self.device
+        let channel_id = self
+            .device
             .safe_passthru_op(|device_id, device| {
                 device.connect(device_id, Protocol::CAN, flags.bits(), self.baud)
             })
@@ -668,7 +671,8 @@ impl PayloadChannel for PassthruIsoTpChannel {
         }
 
         // Initialize the interface
-        let channel_id = self.device
+        let channel_id = self
+            .device
             .safe_passthru_op(|device_id, device| {
                 device.connect(
                     device_id,

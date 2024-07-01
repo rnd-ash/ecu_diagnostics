@@ -9,8 +9,8 @@ use std::{
     sync::{mpsc, Arc, Mutex, PoisonError},
 };
 
-#[cfg(all(feature="socketcan", target_os="linux"))]
-use socketcan::{EmbeddedFrame, Id, ExtendedId, StandardId, CanDataFrame};
+#[cfg(all(feature = "socketcan", target_os = "linux"))]
+use socketcan::{CanDataFrame, EmbeddedFrame, ExtendedId, Id, StandardId};
 
 use crate::hardware::HardwareError;
 
@@ -22,7 +22,11 @@ pub type ChannelResult<T> = Result<T, ChannelError>;
 pub enum ChannelError {
     /// Underlying IO Error with channel
     #[error("Device IO error")]
-    IOError(#[from] #[source] Arc<std::io::Error>),
+    IOError(
+        #[from]
+        #[source]
+        Arc<std::io::Error>,
+    ),
     /// Timeout when writing data to the channel
     #[error("Write timeout")]
     WriteTimeout,
@@ -43,7 +47,11 @@ pub enum ChannelError {
     InterfaceNotOpen,
     /// Underlying API error with hardware
     #[error("Device hardware API error")]
-    HardwareError(#[from] #[source] HardwareError),
+    HardwareError(
+        #[from]
+        #[source]
+        HardwareError,
+    ),
     /// Channel not configured prior to opening
     #[error("Channel configuration error")]
     ConfigurationError,
@@ -448,7 +456,7 @@ impl Packet for CanFrame {
     }
 }
 
-#[cfg(all(feature="socketcan", target_os="linux"))]
+#[cfg(all(feature = "socketcan", target_os = "linux"))]
 impl From<CanDataFrame> for CanFrame {
     fn from(value: CanDataFrame) -> Self {
         let (id, ext) = match value.id() {
@@ -459,12 +467,12 @@ impl From<CanDataFrame> for CanFrame {
     }
 }
 
-#[cfg(all(feature="socketcan", target_os="linux"))]
+#[cfg(all(feature = "socketcan", target_os = "linux"))]
 impl Into<CanDataFrame> for CanFrame {
     fn into(self) -> CanDataFrame {
         let id = match self.ext {
             true => Id::Extended(ExtendedId::new(self.get_address()).unwrap()),
-            false => Id::Standard(StandardId::new(self.get_address() as u16).unwrap())
+            false => Id::Standard(StandardId::new(self.get_address() as u16).unwrap()),
         };
         CanDataFrame::new(id, self.get_data()).unwrap()
     }

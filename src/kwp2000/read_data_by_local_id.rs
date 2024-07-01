@@ -252,7 +252,10 @@ impl DynamicDiagSession {
             return Err(DiagError::InvalidResponseLength);
         }
         if res[1] != local_identifier {
-            return Err(DiagError::MismatchedIdentResponse{ want: local_identifier as _, received: res[1] as _ });
+            return Err(DiagError::MismatchedIdentResponse {
+                want: local_identifier as _,
+                received: res[1] as _,
+            });
         }
         res.drain(0..2);
         Ok(res)

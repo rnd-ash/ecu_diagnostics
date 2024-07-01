@@ -1,13 +1,16 @@
 use automotive_diag::kwp2000::{KwpSessionType, KwpSessionTypeByte};
-use std::{time::Duration, sync::{Arc, RwLock}};
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
 use ecu_diagnostics::{
-    channel::{self, IsoTPSettings},
+    channel::IsoTPSettings,
     dynamic_diag::{
-        DiagProtocol, DiagServerAdvancedOptions, DiagServerBasicOptions, DiagSessionMode,
-        DynamicDiagSession, TimeoutConfig, DiagServerEmptyLogger,
+        DiagProtocol, DiagServerAdvancedOptions, DiagServerBasicOptions, DiagServerEmptyLogger,
+        DiagSessionMode, DynamicDiagSession, TimeoutConfig,
     },
-    hardware::{self, HardwareScanner, Hardware},
+    hardware::{Hardware, HardwareScanner},
     kwp2000::Kwp2000Protocol,
 };
 
@@ -79,7 +82,7 @@ fn main() {
             tp_ext_id: None,
             command_cooldown_ms: 100,
         }),
-        DiagServerEmptyLogger{}
+        DiagServerEmptyLogger {},
     )
     .unwrap();
 
@@ -104,10 +107,16 @@ fn main() {
     let res = diag_server.kwp_set_session(KwpSessionTypeByte::from(0x93)); // Same ID as what we registered at the start
     println!("Into special diag mode result: {:?}", res);
     print_diag_mode(&diag_server);
-    println!("Reset result: {:?}", diag_server.kwp_reset_ecu(automotive_diag::kwp2000::ResetType::PowerOnReset));
+    println!(
+        "Reset result: {:?}",
+        diag_server.kwp_reset_ecu(automotive_diag::kwp2000::ResetType::PowerOnReset)
+    );
     print_diag_mode(&diag_server); // ECU should be in standard mode now as the ECU was rebooted
     std::thread::sleep(Duration::from_millis(500));
-    println!("Read op: {:?}", diag_server.kwp_enable_normal_message_transmission());
+    println!(
+        "Read op: {:?}",
+        diag_server.kwp_enable_normal_message_transmission()
+    );
     print_diag_mode(&diag_server); // ECU will automatically be put into 0x93 mode
                                    // (Last requested mode as enable_normal_message_transmission cannot be ran in standard mode)
     loop {
