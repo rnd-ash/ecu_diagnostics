@@ -7,7 +7,7 @@ use std::{
     time::{Instant, Duration},
 };
 
-use socketcan::Socket;
+use socketcan::{Socket, SocketOptions};
 
 use socketcan::CanFrame as SocketCanCanFrame;
 use socketcan_isotp::{
@@ -149,7 +149,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
                 iface.set_nonblocking(true)?;
             } else {
                 iface.set_nonblocking(false)?;
-                iface.set_write_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
+                iface.set_write_timeout(Duration::from_millis(timeout_ms as u64))?;
             }
             let mut cf: SocketCanCanFrame;
             for p in packets {
@@ -181,7 +181,7 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
                 
             } else {
                 iface.set_nonblocking(false)?;
-                iface.set_read_timeout(std::time::Duration::from_millis(timeout_ms as u64))?;
+                iface.set_read_timeout(Duration::from_millis(timeout_ms as u64))?;
                 let start = Instant::now();
                 while start.elapsed().as_millis() <= timeout_ms as u128 {
                     let f = iface.read_frame()?;
@@ -280,15 +280,28 @@ impl PayloadChannel for SocketCanIsoTPChannel {
             rx_ext_address = rx;
         }
 
-        let opts: IsoTpOptions = IsoTpOptions::new(
+        let mut opts: IsoTpOptions = IsoTpOptions::new(
             flags,
-            std::time::Duration::from_millis(0),
+            Duration::from_millis(0),
             ext_address,
             0xCC,
             0xCC,
             rx_ext_address,
         )
         .unwrap();
+
+        let mut flags = IsoTpBehaviour::empty();
+        if self.cfg.pad_frame {
+            flags |= IsoTpBehaviour::CAN_ISOTP_RX_PADDING;
+            flags |= IsoTpBehaviour::CAN_ISOTP_TX_PADDING;
+        }
+
+        if self.cfg.extended_addresses.is_some() {
+            flags |= IsoTpBehaviour::CAN_ISOTP_EXTEND_ADDR;
+            flags |= IsoTpBehaviour::CAN_ISOTP_RX_EXT_ADDR;
+        }
+
+        opts.set_flags(flags);
 
         let link_opts: LinkLayerOptions = LinkLayerOptions::default();
 

@@ -281,7 +281,7 @@ impl PassthruDevice {
             info.function_lib
         );
         let lib = info.function_lib.clone();
-        let drv = Arc::new(Mutex::new(lib_funcs::PassthruDrv::load_lib(lib)?));
+        let drv = Arc::new(Mutex::new(PassthruDrv::load_lib(lib)?));
         let mut lck = drv.lock().unwrap();
         let idx = lck.open()?;
         let mut ret = Self {

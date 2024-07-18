@@ -3,8 +3,8 @@
     missing_debug_implementations,
     missing_copy_implementations,
     trivial_numeric_casts,
-    unstable_features,
-    unused_imports,
+    //unstable_features,
+    //unused_imports,
     unused_import_braces,
     unused_qualifications,
     clippy::uninlined_format_args
