@@ -58,15 +58,6 @@ impl<T> From<PoisonError<T>> for ChannelError {
     }
 }
 
-impl<T> From<PoisonError<T>> for HardwareError {
-    fn from(_x: PoisonError<T>) -> Self {
-        HardwareError::APIError {
-            code: 99,
-            desc: "PoisonError".into(),
-        }
-    }
-}
-
 impl From<mpsc::RecvError> for HardwareError {
     fn from(e: mpsc::RecvError) -> Self {
         HardwareError::APIError {

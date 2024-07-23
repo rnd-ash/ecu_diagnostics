@@ -1,6 +1,6 @@
 [package]
 name = "ecu_diagnostics"
-version = "0.95.8"
+version = "0.96.0"
 authors = ["Ashcon Mohseninia <ashconm@outlook.com>"]
 edition = "2021"
 description = "A rust crate for ECU diagnostic servers and communication APIs"

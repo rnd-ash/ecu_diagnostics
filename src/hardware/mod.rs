@@ -9,6 +9,7 @@ pub mod passthru; // Not finished at all yet, hide from the crate
 
 #[cfg(feature = "passthru")]
 use std::sync::Arc;
+use std::{any::{Any, TypeId}, fmt::Debug, sync::{Mutex, PoisonError, RwLock}};
 
 #[cfg(all(feature="socketcan", target_os="linux"))]
 pub mod socketcan;
@@ -21,7 +22,7 @@ pub type HardwareResult<T> = Result<T, HardwareError>;
 /// The hardware trait defines functions supported by all adapter types,
 /// as well as functions that can create abstracted communication channels
 /// that can be used in diagnostic servers
-pub trait Hardware: Clone {
+pub trait Hardware {
     /// Creates an ISO-TP channel on the devices.
     /// This channel will live for as long as the hardware trait. Upon being dropped,
     /// the channel will automatically be closed, if it has been opened.
@@ -54,6 +55,71 @@ pub trait Hardware: Clone {
 
     /// Returns if the hardware is currently connected
     fn is_connected(&self) -> bool;
+}
+
+#[derive(Clone)]
+/// This is a simple wrapper around the [Hardware] data type that allows it to be cloned
+/// and shared between multiple threads.
+pub struct SharedHardware {
+    info: HardwareInfo,
+    hw: Arc<RwLock<Box<dyn Hardware>>>
+}
+
+impl SharedHardware {
+    /// Creates a new SharedHardware resource. Allowing the inner hardware to be cloned and passed around.
+    /// 
+    /// ## Panics
+    /// This function will panic if attempting to create a SharedHardware instance of a SharedHardware (Recursive creation)
+    pub fn new(t: Box<dyn Hardware>) -> Self {
+        if t.as_ref().type_id() == TypeId::of::<Self>() {
+            panic!("Attempting to create a SharedHardware instance of a SharedHardware!")
+        }
+        let info = t.get_info().clone();
+        Self {
+            info,
+            hw: Arc::new(RwLock::new(t))
+        }
+    }
+}
+
+impl Hardware for SharedHardware {
+    fn create_iso_tp_channel(&mut self) -> HardwareResult<Box<dyn IsoTPChannel>> {
+        self.hw.write()?.create_iso_tp_channel()
+    }
+
+    fn create_can_channel(&mut self) -> HardwareResult<Box<dyn CanChannel>> {
+        self.hw.write()?.create_can_channel()
+    }
+
+    fn is_iso_tp_channel_open(&self) -> bool {
+        self.hw.read().map(|x| x.is_iso_tp_channel_open()).unwrap_or(true)
+    }
+
+    fn is_can_channel_open(&self) -> bool {
+        self.hw.read().map(|x| x.is_can_channel_open()).unwrap_or(true)
+    }
+
+    fn read_battery_voltage(&mut self) -> Option<f32> {
+        self.hw.write().ok()?.read_battery_voltage()
+    }
+
+    fn read_ignition_voltage(&mut self) -> Option<f32> {
+        self.hw.write().ok()?.read_ignition_voltage()
+    }
+
+    fn get_info(&self) -> &HardwareInfo {
+        &self.info
+    }
+
+    fn is_connected(&self) -> bool {
+        self.hw.read().unwrap().is_connected()
+    }
+}
+
+impl Debug for SharedHardware {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("SharedHardware").finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,6 +178,9 @@ pub enum HardwareError {
     /// Function called on device that has not yet been opened
     #[error("Device was not opened")]
     DeviceNotOpen,
+    #[error("Device locked by another thread")]
+    /// Used by the [SharedHardware] structure, Indicates that a shared resource is locked by another thread
+    DeviceLockError,
 
     /// Lib loading error
     #[cfg(feature = "passthru")]
@@ -123,6 +192,12 @@ pub enum HardwareError {
 impl From<libloading::Error> for HardwareError {
     fn from(err: libloading::Error) -> Self {
         Self::LibLoadError(Arc::new(err))
+    }
+}
+
+impl<T> From<PoisonError<T>> for HardwareError {
+    fn from(_value: PoisonError<T>) -> Self {
+        Self::DeviceLockError
     }
 }
 
