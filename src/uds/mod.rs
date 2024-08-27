@@ -3,7 +3,7 @@
 //! Theoretically, this module should be compliant with any ECU which implements
 //! UDS (Typically any ECU produced after 2006 supports this)
 
-use crate::dynamic_diag::{DiagAction, DiagPayload, DiagProtocol, DiagSessionMode, EcuNRC};
+use crate::{dynamic_diag::{DiagAction, DiagPayload, DiagProtocol, DiagSessionMode, EcuNRC}, DiagServerResult};
 use std::collections::HashMap;
 
 mod access_timing_parameter;
@@ -112,29 +112,34 @@ impl DiagProtocol<ByteWrapper<UdsError>> for UDSProtocol {
         "UDS"
     }
 
-    fn process_req_payload(&self, payload: &[u8]) -> DiagAction {
-        let pid = UdsCommandByte::from(payload[0]);
-        if matches!(
-            pid,
-            UdsCommandByte::Standard(UdsCommand::DiagnosticSessionControl)
-        ) {
-            let mode = self
-                .session_modes
-                .get(&payload[1])
-                .unwrap_or(&DiagSessionMode {
-                    id: payload[1],
-                    tp_require: true,
-                    name: format!("Unknown (0x{:02X?})", payload[1]),
+    fn process_req_payload(&self, payload: &[u8]) -> Option<DiagAction> {
+        if payload.len() > 0 {
+            let pid = UdsCommandByte::from(payload[0]);
+            if matches!(
+                pid,
+                UdsCommandByte::Standard(UdsCommand::DiagnosticSessionControl)
+            ) {
+                let mode = self
+                    .session_modes
+                    .get(&payload[1])
+                    .unwrap_or(&DiagSessionMode {
+                        id: payload[1],
+                        tp_require: true,
+                        name: format!("Unknown (0x{:02X?})", payload[1]),
+                    })
+                    .clone();
+                Some(DiagAction::SetSessionMode(mode))
+            } else if matches!(pid, UdsCommandByte::Standard(UdsCommand::ECUReset)) {
+                Some(DiagAction::EcuReset)
+            } else {
+                Some(DiagAction::Other {
+                    sid: payload[0],
+                    data: payload[1..].to_vec(),
                 })
-                .clone();
-            DiagAction::SetSessionMode(mode)
-        } else if matches!(pid, UdsCommandByte::Standard(UdsCommand::ECUReset)) {
-            DiagAction::EcuReset
-        } else {
-            DiagAction::Other {
-                sid: payload[0],
-                data: payload[1..].to_vec(),
             }
+        } else {
+            log::warn!("UDS Tx payload is empty");
+            None
         }
     }
 

@@ -15,7 +15,7 @@
 pub use automotive_diag::kwp2000::*;
 use std::collections::HashMap;
 
-use crate::dynamic_diag::{self, DiagAction, DiagPayload, DiagSessionMode};
+use crate::{dynamic_diag::{self, DiagAction, DiagPayload, DiagSessionMode}, DiagServerResult};
 
 mod clear_diagnostic_information;
 mod ecu_reset;
@@ -102,28 +102,33 @@ impl Default for Kwp2000Protocol {
 }
 
 impl dynamic_diag::DiagProtocol<KwpErrorByte> for Kwp2000Protocol {
-    fn process_req_payload(&self, payload: &[u8]) -> DiagAction {
-        if matches!(
-            KwpCommand::try_from(payload[0]),
-            Ok(KwpCommand::StartDiagnosticSession)
-        ) {
-            DiagAction::SetSessionMode(
-                self.session_modes
-                    .get(&payload[1])
-                    .unwrap_or(&DiagSessionMode {
-                        id: payload[1],
-                        tp_require: true,
-                        name: format!("Unkown(0x{:02X?})", payload[1]),
-                    })
-                    .clone(),
-            )
-        } else if matches!(KwpCommand::try_from(payload[0]), Ok(KwpCommand::ECUReset)) {
-            DiagAction::EcuReset
-        } else {
-            DiagAction::Other {
-                sid: payload[0],
-                data: payload[1..].to_vec(),
+    fn process_req_payload(&self, payload: &[u8]) -> Option<DiagAction> {
+        if payload.len() > 0 {
+            if matches!(
+                KwpCommand::try_from(payload[0]),
+                Ok(KwpCommand::StartDiagnosticSession)
+            ) {
+                Some(DiagAction::SetSessionMode(
+                    self.session_modes
+                        .get(&payload[1])
+                        .unwrap_or(&DiagSessionMode {
+                            id: payload[1],
+                            tp_require: true,
+                            name: format!("Unkown(0x{:02X?})", payload[1]),
+                        })
+                        .clone(),
+                ))
+            } else if matches!(KwpCommand::try_from(payload[0]), Ok(KwpCommand::ECUReset)) {
+                Some(DiagAction::EcuReset)
+            } else {
+                Some(DiagAction::Other {
+                    sid: payload[0],
+                    data: payload[1..].to_vec(),
+                })
             }
+        } else {
+            log::warn!("UDS Tx payload is empty");
+            None
         }
     }
 

@@ -218,7 +218,7 @@ where
     /// Name of the diagnostic protocol
     fn get_protocol_name(&self) -> &'static str;
     /// Process a byte array into a command
-    fn process_req_payload(&self, payload: &[u8]) -> DiagAction;
+    fn process_req_payload(&self, payload: &[u8]) -> Option<DiagAction>;
     /// Creates a session mod req message
     fn make_session_control_msg(&self, mode: &DiagSessionMode) -> Vec<u8>;
     /// Generate the tester present message (If required)
@@ -321,7 +321,7 @@ impl DynamicDiagSession {
                         do_cmd = true;
                         let mut tx_addr = basic_opts.send_id;
                         match protocol.process_req_payload(&req.payload) {
-                            DiagAction::SetSessionMode(mode) => {
+                            Some(DiagAction::SetSessionMode(mode)) => {
                                 let mut needs_response = true;
                                 let mut ext_id = None;
                                 let res = send_recv_ecu_req::<P, NRC, L>(
@@ -347,7 +347,7 @@ impl DynamicDiagSession {
                                 }
                                 tx_resp.send(res);
                             }
-                            DiagAction::EcuReset => {
+                            Some(DiagAction::EcuReset) => {
                                 let res = send_recv_ecu_req::<P, NRC, L>(
                                     tx_addr,
                                     rx_addr,

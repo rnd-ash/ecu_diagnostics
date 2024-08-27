@@ -63,10 +63,15 @@ impl DiagProtocol<Obd2ErrorByte> for OBD2Protocol {
         "OBD2(CAN)"
     }
 
-    fn process_req_payload(&self, payload: &[u8]) -> DiagAction {
-        DiagAction::Other {
-            sid: payload[0],
-            data: payload[1..].to_vec(),
+    fn process_req_payload(&self, payload: &[u8]) -> Option<DiagAction> {
+        if payload.len() > 0 {
+            Some(DiagAction::Other {
+                sid: payload[0],
+                data: payload[1..].to_vec(),
+            })
+        } else {
+            log::warn!("OBD2 Tx payload is empty");
+            None
         }
     }
 
