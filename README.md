@@ -104,6 +104,10 @@ for creating Channels for diagnostic servers using the hardware
 * ISO-TP
 * CAN
 
+### SLCAN
+* ISO-TP
+* CAN
+
 ### D-PDU (ISO 22900-2)
 TBA
 

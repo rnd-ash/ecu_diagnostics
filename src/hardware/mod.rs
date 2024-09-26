@@ -14,6 +14,9 @@ use std::{any::{Any, TypeId}, fmt::Debug, sync::{Mutex, PoisonError, RwLock}};
 #[cfg(all(feature="socketcan", target_os="linux"))]
 pub mod socketcan;
 
+#[cfg(feature = "slcan")]
+pub mod slcan;
+
 use crate::channel::{CanChannel, IsoTPChannel};
 
 /// Hardware API result
