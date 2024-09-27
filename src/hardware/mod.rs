@@ -7,9 +7,7 @@ mod dpdu;
 #[cfg(feature = "passthru")]
 pub mod passthru; // Not finished at all yet, hide from the crate
 
-#[cfg(feature = "passthru")]
-use std::sync::Arc;
-use std::{any::{Any, TypeId}, fmt::Debug, sync::{Mutex, PoisonError, RwLock}};
+use std::{any::{Any, TypeId}, fmt::Debug, sync::{Arc, PoisonError, RwLock}};
 
 #[cfg(all(feature="socketcan", target_os="linux"))]
 pub mod socketcan;
