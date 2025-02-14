@@ -105,8 +105,8 @@ impl dynamic_diag::DiagProtocol<KwpErrorByte> for Kwp2000Protocol {
     fn process_req_payload(&self, payload: &[u8]) -> Option<DiagAction> {
         if payload.len() > 0 {
             if matches!(
-                KwpCommand::try_from(payload[0]),
-                Ok(KwpCommand::StartDiagnosticSession)
+            KwpCommand::from_repr(payload[0]),
+            Some(KwpCommand::StartDiagnosticSession)
             ) {
                 Some(DiagAction::SetSessionMode(
                     self.session_modes
@@ -118,7 +118,10 @@ impl dynamic_diag::DiagProtocol<KwpErrorByte> for Kwp2000Protocol {
                         })
                         .clone(),
                 ))
-            } else if matches!(KwpCommand::try_from(payload[0]), Ok(KwpCommand::ECUReset)) {
+            } else if matches!(
+            KwpCommand::from_repr(payload[0]),
+            Some(KwpCommand::ECUReset)
+        ) {
                 Some(DiagAction::EcuReset)
             } else {
                 Some(DiagAction::Other {

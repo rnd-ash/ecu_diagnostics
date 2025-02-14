@@ -1,4 +1,4 @@
-#![deny(
+#![warn(
     missing_docs,
     missing_debug_implementations,
     missing_copy_implementations,
@@ -109,21 +109,33 @@ pub enum DiagError {
     ParameterInvalid,
     /// Error with underlying communication channel
     #[error("Diagnostic server hardware channel error")]
-    ChannelError(#[from] #[source] ChannelError),
+    ChannelError(
+        #[from]
+        #[source]
+        ChannelError,
+    ),
     /// Device hardware error
     #[error("Diagnostic server hardware error")]
-    HardwareError(#[from] #[source] Arc<HardwareError>),
-    /// Feauture is not iumplemented yet
+    HardwareError(
+        #[from]
+        #[source]
+        Arc<HardwareError>,
+    ),
+    /// Feature is not implemented yet
     #[error("Diagnostic server feature is unimplemented: '{0}'")]
     NotImplemented(String),
     /// Mismatched PID response ID
-    #[error("Requested Ident 0x{:04X?}, but received ident 0x{:04X?}", want, received)]
+    #[error(
+        "Requested Ident 0x{:04X?}, but received ident 0x{:04X?}",
+        want,
+        received
+    )]
     MismatchedIdentResponse {
         /// Requested PID
         want: u16,
         /// Received PID from ECU
-        received: u16
-    }
+        received: u16,
+    },
 }
 
 /// Converts a single byte into a BCD string

@@ -9,7 +9,7 @@ pub mod passthru; // Not finished at all yet, hide from the crate
 
 use std::{any::{Any, TypeId}, fmt::Debug, sync::{Arc, PoisonError, RwLock}};
 
-#[cfg(all(feature="socketcan", target_os="linux"))]
+#[cfg(all(feature = "socketcan", target_os = "linux"))]
 pub mod socketcan;
 
 #[cfg(feature = "slcan")]
@@ -186,7 +186,11 @@ pub enum HardwareError {
     /// Lib loading error
     #[cfg(feature = "passthru")]
     #[error("Device API library load error")]
-    LibLoadError(#[from] #[source] Arc<libloading::Error>),
+    LibLoadError(
+        #[from]
+        #[source]
+        Arc<libloading::Error>,
+    ),
 }
 
 #[cfg(feature = "passthru")]
