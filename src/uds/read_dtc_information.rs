@@ -1,7 +1,7 @@
 //!  Provides methods to read and query DTCs on the ECU, as well as grabbing Env data about each DTC
 
 use crate::{
-    dtc::{self, DTCFormatType, DTCStatus, DTC},
+    dtc::{self, DTCFormatType, DtcStatusByte, DTC},
     dynamic_diag::DynamicDiagSession,
     DiagError, DiagServerResult,
 };
@@ -68,14 +68,11 @@ impl DynamicDiagSession {
         for x in (0..resp.len()).step_by(4) {
             let dtc_code: u32 =
                 (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
-            let status = resp[x + 3];
-
+            let status: DtcStatusByte = DtcStatusByte::from_bits_retain(resp[x+3]);
             result.push(DTC {
                 format: fmt,
                 raw: dtc_code,
-                status: DTCStatus::Unknown(status), // TODO
-                mil_on: status & 0b10000000 != 0,
-                readiness_flag: false,
+                status: status,
             })
         }
 
@@ -115,14 +112,12 @@ impl DynamicDiagSession {
         for x in (0..resp.len()).step_by(4) {
             let dtc_code: u32 =
                 (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
-            let status = resp[x + 3];
+            let status = DtcStatusByte::from_bits_retain(resp[x + 3]);
 
             result.push(DTC {
                 format: fmt,
                 raw: dtc_code,
-                status: DTCStatus::Unknown(status), // TODO
-                mil_on: status & 0b10000000 != 0,
-                readiness_flag: false,
+                status: status,
             })
         }
         Ok(result)
@@ -221,14 +216,12 @@ impl DynamicDiagSession {
         for x in (0..resp.len()).step_by(4) {
             let dtc_code: u32 =
                 (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
-            let status = resp[x + 3];
+            let status = DtcStatusByte::from_bits_retain(resp[x + 3]);
 
             result.push(DTC {
                 format: fmt,
                 raw: dtc_code,
-                status: DTCStatus::Unknown(status), // TODO
-                mil_on: status & 0b10000000 != 0,
-                readiness_flag: false,
+                status: status,
             })
         }
         Ok(result)
@@ -407,14 +400,12 @@ impl DynamicDiagSession {
         for x in (0..resp.len()).step_by(4) {
             let dtc_code: u32 =
                 (resp[x] as u32) << 16 | (resp[x + 1] as u32) << 8 | resp[x + 2] as u32;
-            let status = resp[x + 3];
+                let status = DtcStatusByte::from_bits_retain(resp[x + 3]);
 
             result.push(DTC {
                 format: fmt,
                 raw: dtc_code,
-                status: DTCStatus::Unknown(status), // TODO
-                mil_on: status & 0b10000000 != 0,
-                readiness_flag: false,
+                status: status,
             })
         }
         Ok(result)

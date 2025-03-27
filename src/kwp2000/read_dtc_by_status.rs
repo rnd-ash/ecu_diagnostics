@@ -1,7 +1,7 @@
 //! Functions for reading DTCs from ECU
 
 use crate::{
-    dtc::{DTCFormatType, DTCStatus, DTC},
+    dtc::{DTCFormatType, DtcStatusByte, DTC},
     dynamic_diag::DynamicDiagSession,
     DiagError, DiagServerResult,
 };
@@ -67,13 +67,11 @@ impl DynamicDiagSession {
         let mut ret: Vec<DTC> = Vec::with_capacity(num_dtcs as usize); // Pre-allocate
 
         for x in (0..res.len()).step_by(3) {
-            let status = res[x + 2];
+            let status = DtcStatusByte::from_bits_retain( res[x + 2]);
             ret.push(DTC {
                 format: DTCFormatType::Iso15031_6,
                 raw: (res[x] as u32) << 8 | res[x + 1] as u32,
-                status: DTCStatus::from_kwp_status(status),
-                mil_on: status & 0b10000000 != 0,
-                readiness_flag: status & 0b00010000 != 0,
+                status: status,
             })
         }
         Ok(ret)
@@ -117,13 +115,11 @@ impl DynamicDiagSession {
         let mut ret: Vec<DTC> = Vec::with_capacity(num_dtcs as usize); // Pre-allocate
 
         for x in (0..res.len()).step_by(3) {
-            let status = res[x + 2];
+            let status = DtcStatusByte::from_bits_retain( res[x + 2]);
             ret.push(DTC {
                 format: DTCFormatType::TwoByteHexKwp,
                 raw: (res[x] as u32) << 8 | res[x + 1] as u32,
-                status: DTCStatus::from_kwp_status(status),
-                mil_on: status & 0b10000000 != 0,
-                readiness_flag: status & 0b00010000 != 0,
+                status: status,
             })
         }
         Ok(ret)
@@ -152,13 +148,11 @@ impl DynamicDiagSession {
             }
 
             for x in (0..res_bytes.len()).step_by(3) {
-                let status = res_bytes[x + 2];
+                let status = DtcStatusByte::from_bits_retain( res_bytes[x + 2]);
                 res.push(DTC {
                     format: DTCFormatType::TwoByteHexKwp,
                     raw: (res_bytes[x] as u32) << 8 | res_bytes[x + 1] as u32,
-                    status: DTCStatus::from_kwp_status(status),
-                    mil_on: status & 0b10000000 != 0,
-                    readiness_flag: status & 0b00010000 != 0,
+                    status: status,
                 })
             }
             match self.kwp_read_extended_supported_dtcs(range) {

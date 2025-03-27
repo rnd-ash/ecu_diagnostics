@@ -1,4 +1,5 @@
 //! Module for common Diagnostic trouble code data
+use bitflags::bitflags;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// DTC name interpretation format specifier
@@ -27,33 +28,26 @@ pub(crate) fn dtc_format_from_uds(fmt: u8) -> DTCFormatType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-/// Storage state of the DTC
-pub enum DTCStatus {
-    /// No DTC is stored in non volatile memory
-    None,
-    /// DTC has not met criteria for it to become active or stored,
-    /// but a failure condition has been met
-    Pending,
-    /// DTC is no longer present, but is stored in non volatile memory
-    Stored,
-    /// DTC is present and stored in non volatile memory
-    Active,
-    /// Permanent (Can NOT be cleared from the ECU!)
-    Permanent,
-    /// Unknown DTC Status
-    Unknown(u8),
-}
-
-impl DTCStatus {
-    pub(crate) fn from_kwp_status(x: u8) -> DTCStatus {
-        match (x & 0b01100000) >> 5 {
-            0b00 => Self::None,
-            0b01 => Self::Stored,
-            0b10 => Self::Pending,
-            0b11 => Self::Active,
-            _ => Self::Unknown(x & 0b01100000), // Should never happen
-        }
+bitflags! {
+    /// DTC Status byte according to D.2 of ISO14229
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct DtcStatusByte: u8 {
+        /// Most recent check has failed
+        const TEST_FAILED                         = 0b00000001;
+        /// Test failed at any time in the most recent operation cycle
+        const TEST_FAILED_THIS_OPERATION_CYCLE    = 0b00000010;
+        /// DTC is pending
+        const PENDING_DTC                         = 0b00000100;
+        /// DTC is stored
+        const CONFIRMED_DTC                       = 0b00001000;
+        /// DTC check has not been completed since cleared
+        const TEST_NOT_COMPLETED_SINCE_LAST_CLEAR = 0b00010000;
+        /// DTC failed since the last clear
+        const TEST_FAILED_SINCE_LAST_CLEAR        = 0b00100000;
+        /// DTC check has not been completed this operation cycle
+        const TEST_NOT_COMPLETED_THIS_OP_CYCLE    = 0b01000000;
+        /// Check engine lamp is requested
+        const WARNING_INDICATOR_REQUESTED         = 0b10000000;
     }
 }
 
@@ -66,13 +60,7 @@ pub struct DTC {
     /// The raw value of the DTC according to the ECU
     pub raw: u32,
     /// Status of the DTC
-    pub status: DTCStatus,
-    /// Indication if the DTC turns on the MIL lamp (Malfunction indicator lamp).
-    /// This usually means that the Check engine light is illuminated on the
-    /// vehicles instrument cluster
-    pub mil_on: bool,
-    /// Indication if the DTC conditions have been met since the last clear.
-    pub readiness_flag: bool,
+    pub status: DtcStatusByte,
 }
 
 impl DTC {
@@ -124,9 +112,7 @@ pub mod test {
         let iso15031_6_dtc = DTC {
             format: super::DTCFormatType::Iso15031_6,
             raw: 8276,
-            status: super::DTCStatus::None,
-            mil_on: false,
-            readiness_flag: false,
+            status: super::DtcStatusByte::empty()
         };
         println!("{:04X}", iso15031_6_dtc.raw);
         println!("{}", iso15031_6_dtc.get_name_as_string());
