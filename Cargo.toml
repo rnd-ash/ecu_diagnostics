@@ -7,7 +7,7 @@ description = "A rust crate for ECU diagnostic servers and communication APIs"
 license = "MIT"
 repository = "https://github.com/rnd-ash/ecu_diagnostics"
 readme = "README.md"
-keywords = ["socketcan", "kwp2000", "uds", "j2534", "dpdu", "slcan"]
+keywords = ["socketcan", "kwp2000", "uds", "j2534", "slcan"]
 exclude = [
     "examples/*",
     "build.rs",
