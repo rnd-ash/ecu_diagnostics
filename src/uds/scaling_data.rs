@@ -10,8 +10,12 @@ pub use automotive_diag::uds::ScalingType as ScalingByteHigh;
 
 pub use automotive_diag::uds::{ScalingExtension, ScalingType};
 
+#[cfg(feature="serde")]
+use serde::{Serialize, Deserialize};
+
 /// Represents Scaling data structure returned from ECU
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ScalingData {
     x: f32,
     c0: f32,

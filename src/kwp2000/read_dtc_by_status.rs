@@ -8,7 +8,8 @@ use crate::{
 use automotive_diag::kwp2000::{KwpCommand, KwpError, KwpErrorByte};
 use automotive_diag::ByteWrapper::Standard;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg(feature="serde")]
+use serde::{Serialize, Deserialize};
 
 /// Represents a range of DTCs to query from the ECU
 ///
@@ -21,6 +22,8 @@ use automotive_diag::ByteWrapper::Standard;
 /// |[DTCRange::Body] | Optional |
 /// |[DTCRange::Network] | Optional |
 /// |[DTCRange::All] | Mandatory |
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum DTCRange {
     /// All powertrain related DTCs
     Powertrain,

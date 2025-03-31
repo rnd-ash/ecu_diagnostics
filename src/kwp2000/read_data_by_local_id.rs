@@ -3,8 +3,12 @@
 use crate::{dynamic_diag::DynamicDiagSession, DiagError, DiagServerResult};
 use automotive_diag::kwp2000::KwpCommand;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg(feature="serde")]
+use serde::{Serialize, Deserialize};
+
 /// Development data of the ECU. Used by [super::Kwp2000DiagnosticServer::read_ecu_development_data]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DevelopmentData {
     /// ECU Processor type
     pub processor_type: u16,
@@ -25,8 +29,9 @@ pub struct DevelopmentData {
     pub flexer_version: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// ECU DBCom data. Used by [super::Kwp2000DiagnosticServer::read_ecu_dbcom_data]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DBComData {
     /// Memory address (Flash)
     pub memory_address_flash: u32,
@@ -44,8 +49,9 @@ pub struct DBComData {
     pub uncompressed_memory_size_eeprom: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Vehicle identification. Used by [super::Kwp2000DiagnosticServer::read_ecu_vehicle_info]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct VehicleInfo {
     /// Vehicle model year
     pub model_year: u8,
@@ -57,8 +63,9 @@ pub struct VehicleInfo {
     pub country_code: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// SDCOM information. Used by [super::Kwp2000DiagnosticServer::read_system_diag_general_param_data]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DiagGeneralParamData {
     /// Indicates if global process data exists
     pub global_process_data_exists: bool,
@@ -80,8 +87,9 @@ pub struct DiagGeneralParamData {
     pub checksum: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Global diagnostic parameter data. Used by [super::Kwp2000DiagnosticServer::read_system_diag_global_param_data]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DiagGlobalParamData {
     /// Number of analog modules active on the ECU
     pub number_of_global_analog_values: u8,
@@ -93,8 +101,9 @@ pub struct DiagGlobalParamData {
     pub process_data: Vec<GlobalProcessData>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Global process data
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GlobalProcessData {
     /// Unique data ID for the global process data
     pub data_id: u16,
@@ -104,8 +113,9 @@ pub struct GlobalProcessData {
     pub size: u8,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Diagnostic protocol information. Used by [Kwp2000DiagnosticServer::read_diag_protocol_info]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DiagProtocolInfo {
     /// Implemented version of KWP2000 specification
     pub kwp2000_requirement_definition: u8,

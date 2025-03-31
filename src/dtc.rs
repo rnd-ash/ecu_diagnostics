@@ -1,7 +1,11 @@
 //! Module for common Diagnostic trouble code data
 use bitflags::bitflags;
 
+#[cfg(feature="serde")]
+use serde::{Serialize, Deserialize};
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// DTC name interpretation format specifier
 pub enum DTCFormatType {
     /// ISO15031-6 DTC Format
@@ -31,6 +35,7 @@ pub(crate) fn dtc_format_from_uds(fmt: u8) -> DTCFormatType {
 bitflags! {
     /// DTC Status byte according to D.2 of ISO14229
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub struct DtcStatusByte: u8 {
         /// Most recent check has failed
         const TEST_FAILED                         = 0b00000001;
@@ -53,6 +58,7 @@ bitflags! {
 
 /// Diagnostic trouble code (DTC) storage struct
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DTC {
     /// The [DTCFormatType] of the DTC. This is used
     /// to interpret the raw value of the DTC   

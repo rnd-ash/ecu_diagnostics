@@ -5,9 +5,12 @@ use crate::{
 };
 use automotive_diag::kwp2000::KwpCommand;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg(feature="serde")]
+use serde::{Serialize, Deserialize};
 
 /// Wrapper for ECU diagnostic information
+#[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DiagnosticInfo([u8; 2]);
 
 impl DiagnosticInfo {
@@ -38,6 +41,7 @@ impl DiagnosticInfo {
 
 /// Identification structure read with [Kwp2000DiagnosticServer::read_daimler_identification]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DaimlerEcuIdent {
     /// 10 digital part number
     pub part_number: String,
@@ -97,6 +101,7 @@ impl DaimlerEcuIdent {
 
 /// Identification structure read with [Kwp2000DiagnosticServer::read_daimler_mmc_identification]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DaimlerMmcEcuIdent {
     /// Unknown
     pub ecu_origin: u8,
@@ -112,8 +117,9 @@ pub struct DaimlerMmcEcuIdent {
     pub part_number: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// ECU Code block fingerprint
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ModuleInformation {
     /// Number logical blocks marked to be erased.
     ///
@@ -125,8 +131,9 @@ pub struct ModuleInformation {
     pub module_info: Vec<ModuleBlockInformation>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Information on an individual code block on an ECU
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ModuleBlockInformation {
     /// Tool supplier identification who programmed the block
     pub tool_supplier_id: u8,
@@ -140,8 +147,9 @@ pub struct ModuleBlockInformation {
     pub tester_serial_number: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Identification of a software version on the ECU
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SoftwareBlockIdentification {
     /// ECU origin
     pub origin: u8,
@@ -149,8 +157,9 @@ pub struct SoftwareBlockIdentification {
     pub blocks: Vec<BlockIdentification>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// Identification of a software block on the ECU
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BlockIdentification {
     /// ECU Code block supplier info
     pub supplier_id: u8,
