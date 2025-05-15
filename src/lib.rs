@@ -108,11 +108,11 @@ pub enum DiagError {
     #[error("Diagnostic function parameter invalid")]
     ParameterInvalid,
     /// Error with underlying communication channel
-    #[error("Diagnostic server hardware channel error")]
-    ChannelError(#[from] #[source] ChannelError),
+    #[error(transparent)]
+    ChannelError(#[from] ChannelError),
     /// Device hardware error
-    #[error("Diagnostic server hardware error")]
-    HardwareError(#[from] #[source] Arc<HardwareError>),
+    #[error(transparent)]
+    HardwareError(#[from] Arc<HardwareError>),
     /// Feauture is not iumplemented yet
     #[error("Diagnostic server feature is unimplemented: '{0}'")]
     NotImplemented(String),
