@@ -8,36 +8,36 @@ use std::{ffi::*, fmt};
 /// Result which contains a PASSTHRU_ERROR in it's Err() variant
 pub type PassthruResult<T> = Result<T, PassthruError>;
 
-type PassThruOpenFn = unsafe extern "stdcall" fn(name: *const c_void, device_id: *mut u32) -> i32;
-type PassThruCloseFn = unsafe extern "stdcall" fn(device_id: u32) -> i32;
-type PassThruConnectFn = unsafe extern "stdcall" fn(
+type PassThruOpenFn = unsafe extern "system" fn(name: *const c_void, device_id: *mut u32) -> i32;
+type PassThruCloseFn = unsafe extern "system" fn(device_id: u32) -> i32;
+type PassThruConnectFn = unsafe extern "system" fn(
     device_id: u32,
     protocol_id: u32,
     flags: u32,
     baudrate: u32,
     channel_id: *mut u32,
 ) -> i32;
-type PassThruDisconnectFn = unsafe extern "stdcall" fn(channel_id: u32) -> i32;
-type PassThruReadMsgsFn = unsafe extern "stdcall" fn(
+type PassThruDisconnectFn = unsafe extern "system" fn(channel_id: u32) -> i32;
+type PassThruReadMsgsFn = unsafe extern "system" fn(
     channel_id: u32,
     msgs: *mut PASSTHRU_MSG,
     num_msgs: *mut u32,
     timeout: u32,
 ) -> i32;
-type PassThruWriteMsgsFn = unsafe extern "stdcall" fn(
+type PassThruWriteMsgsFn = unsafe extern "system" fn(
     channel_id: u32,
     msgs: *mut PASSTHRU_MSG,
     num_msgs: *mut u32,
     timeout: u32,
 ) -> i32;
-type PassThruStartPeriodicMsgFn = unsafe extern "stdcall" fn(
+type PassThruStartPeriodicMsgFn = unsafe extern "system" fn(
     channel_id: u32,
     msg: *const PASSTHRU_MSG,
     msg_id: *mut u32,
     time_interval: u32,
 ) -> i32;
-type PassThruStopPeriodicMsgFn = unsafe extern "stdcall" fn(channel_id: u32, msg_id: u32) -> i32;
-type PassThruStartMsgFilterFn = unsafe extern "stdcall" fn(
+type PassThruStopPeriodicMsgFn = unsafe extern "system" fn(channel_id: u32, msg_id: u32) -> i32;
+type PassThruStartMsgFilterFn = unsafe extern "system" fn(
     channel_id: u32,
     filter_type: u32,
     m_msg: *const PASSTHRU_MSG,
@@ -45,17 +45,17 @@ type PassThruStartMsgFilterFn = unsafe extern "stdcall" fn(
     fc_msg: *const PASSTHRU_MSG,
     filter_id: *mut u32,
 ) -> i32;
-type PassThruStopMsgFilterFn = unsafe extern "stdcall" fn(channel_id: u32, filter_id: u32) -> i32;
+type PassThruStopMsgFilterFn = unsafe extern "system" fn(channel_id: u32, filter_id: u32) -> i32;
 type PassThruSetProgrammingVoltageFn =
-    unsafe extern "stdcall" fn(device_id: u32, pin_number: u32, voltage: u32) -> i32;
-type PassThruReadVersionFn = unsafe extern "stdcall" fn(
+    unsafe extern "system" fn(device_id: u32, pin_number: u32, voltage: u32) -> i32;
+type PassThruReadVersionFn = unsafe extern "system" fn(
     device_id: u32,
     firmware_version: *mut c_char,
     dll_version: *mut c_char,
     api_version: *mut c_char,
 ) -> i32;
-type PassThruGetLastErrorFn = unsafe extern "stdcall" fn(error_description: *mut c_char) -> i32;
-type PassThruIoctlFn = unsafe extern "stdcall" fn(
+type PassThruGetLastErrorFn = unsafe extern "system" fn(error_description: *mut c_char) -> i32;
+type PassThruIoctlFn = unsafe extern "system" fn(
     handle_id: u32,
     ioctl_id: u32,
     input: *mut c_void,
