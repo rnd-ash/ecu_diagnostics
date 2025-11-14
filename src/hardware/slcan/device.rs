@@ -8,7 +8,7 @@ use std::{
     time::Instant
 };
 
-use serial_rs::SerialPort;
+pub use serialport;
 
 use crate::{channel::{CanFrame, ChannelError, Packet}, hardware::{HardwareCapabilities, HardwareInfo}};
 
@@ -59,7 +59,7 @@ const SLCAN_CAPABILITIES: HardwareCapabilities = HardwareCapabilities {
 #[derive(Clone)]
 pub struct SlCanDevice {
     pub(crate) info: HardwareInfo,
-    port: Arc<Mutex<Box<dyn SerialPort>>>,
+    port: Arc<Mutex<Box<dyn serialport::SerialPort>>>,
     pub(crate) canbus_active: Arc<AtomicBool>,
     pub(crate) isotp_active: Arc<AtomicBool>,
     rx_queue: VecDeque<CanFrame>,
@@ -78,7 +78,7 @@ enum ReadWithAckResult {
 
 impl SlCanDevice {
     /// Creates a new SLCAN device
-    pub fn new(port: Box<dyn SerialPort>, rx_queue_limit: usize) -> Self {
+    pub fn new(port: Box<dyn serialport::SerialPort>, rx_queue_limit: usize) -> Self {
         SlCanDevice {
             info: HardwareInfo {
                 name: "slcan".into(),  // TODO: Get version and serial number from device

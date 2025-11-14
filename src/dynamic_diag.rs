@@ -15,8 +15,7 @@ use std::{
 };
 
 use crate::{
-    channel::{ChannelResult, IsoTPChannel, IsoTPSettings},
-    DiagError, DiagServerResult,
+    DiagError, DiagServerResult, channel::{ChannelResult, PayloadChannel}
 };
 
 #[derive(Debug)]
@@ -271,10 +270,9 @@ impl DynamicDiagSession {
     /// Creates a new diagnostic server with a given protocol and NRC format
     /// over an ISO-TP connection
     #[allow(unused_must_use, unused_assignments)]
-    pub fn new_over_iso_tp<P, NRC, L>(
+    pub fn new<P, NRC, L>(
         protocol: P,
-        mut channel: Box<dyn IsoTPChannel>,
-        channel_cfg: IsoTPSettings,
+        mut channel: Box<dyn PayloadChannel>,
         basic_opts: DiagServerBasicOptions,
         advanced_opts: Option<DiagServerAdvancedOptions>,
         mut logger: L
@@ -284,9 +282,6 @@ impl DynamicDiagSession {
         NRC: EcuNRC,
         L: DiagServerLogger + 'static
     {
-        // Create iso tp channel using provided HW interface. If this fails, we cannot setup KWP or UDS session!
-        channel.set_iso_tp_cfg(channel_cfg)?;
-        channel.set_ids(basic_opts.send_id, basic_opts.recv_id)?;
         channel.open()?;
 
         let mut current_session_mode = protocol.get_basic_session_mode();
@@ -322,14 +317,12 @@ impl DynamicDiagSession {
                         let mut tx_addr = basic_opts.send_id;
                         match protocol.process_req_payload(&req.payload) {
                             Some(DiagAction::SetSessionMode(mode)) => {
-                                let mut needs_response = true;
-                                let mut ext_id = None;
                                 let res = send_recv_ecu_req::<P, NRC, L>(
                                     tx_addr,
                                     rx_addr,
-                                    ext_id,
+                                    None,
                                     &req.payload,
-                                    needs_response,
+                                    true,
                                     Some(&mut tx_resp),
                                     basic_opts,
                                     0,
@@ -630,7 +623,7 @@ fn send_recv_ecu_req<P, NRC, L>(
     tx_resp: Option<&mut Sender<DiagServerRx>>,
     basic_opts: DiagServerBasicOptions,
     cooldown: u32,
-    channel: &mut Box<dyn IsoTPChannel>,
+    channel: &mut Box<dyn PayloadChannel>,
     connect_state: &AtomicBool,
     logger: &mut L
 ) -> DiagServerRx
