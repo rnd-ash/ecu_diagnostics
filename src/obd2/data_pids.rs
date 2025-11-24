@@ -25,7 +25,7 @@ impl DataPidWrapper {
             None => vec![0x01, self.0.into()],
             Some(ff_id) => vec![0x02, self.0.into(), (ff_id >> 8) as u8, ff_id as u8],
         };
-        let mut r = server.send_byte_array_with_response(&req)?;
+        let mut r = server.send_byte_array_with_response(&req, None)?;
         r.drain(0..2);
         if r.len() < min_length {
             return Err(DiagError::InvalidResponseLength);

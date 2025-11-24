@@ -203,6 +203,8 @@ struct DiagTxPayload {
     pub payload: Vec<u8>,
     /// Should the payload require a response from the ECU?
     pub response_require: bool,
+    /// Should the payload be sent on a special address
+    pub tx_addr: Option<u32>
 }
 
 /// Diagnostic protocol description trait
@@ -314,7 +316,7 @@ impl DynamicDiagSession {
                 if cooldown == 0 || last_cmd_time.elapsed().as_millis() >= cooldown {
                     if let Ok(req) = rx_req.recv_timeout(Duration::from_millis(100)) {
                         do_cmd = true;
-                        let mut tx_addr = basic_opts.send_id;
+                        let mut tx_addr = req.tx_addr.unwrap_or(basic_opts.send_id);
                         match protocol.process_req_payload(&req.payload) {
                             Some(DiagAction::SetSessionMode(mode)) => {
                                 let res = send_recv_ecu_req::<P, NRC, L>(
@@ -513,25 +515,26 @@ impl DynamicDiagSession {
     }
 
     /// Send a command
-    pub fn send_command<T: Into<u8>>(&self, cmd: T, args: &[u8]) -> DiagServerResult<()> {
+    pub fn send_command<T: Into<u8>>(&self, cmd: T, args: &[u8], different_addr: Option<u32>) -> DiagServerResult<()> {
         let mut r = vec![cmd.into()];
         r.extend_from_slice(args);
         let lock = self.sender.lock().unwrap();
-        self.internal_send_byte_array(&r, &lock, false)
+        self.internal_send_byte_array(&r, &lock, false, different_addr)
     }
 
     /// Send a byte array
-    pub fn send_byte_array(&self, p: &[u8]) -> DiagServerResult<()> {
+    pub fn send_byte_array(&self, p: &[u8], different_addr: Option<u32>) -> DiagServerResult<()> {
         let lock = self.sender.lock().unwrap();
-        self.internal_send_byte_array(p, &lock, false)
+        self.internal_send_byte_array(p, &lock, false, different_addr)
     }
 
-    fn internal_send_byte_array(&self, p: &[u8], sender: &Sender<DiagTxPayload>, resp_require: bool) -> DiagServerResult<()> {
+    fn internal_send_byte_array(&self, p: &[u8], sender: &Sender<DiagTxPayload>, resp_require: bool, optional_addr: Option<u32>) -> DiagServerResult<()> {
         self.clear_rx_queue();
         sender
             .send(DiagTxPayload {
                 payload: p.to_vec(),
                 response_require: resp_require,
+                tx_addr: optional_addr
             })
             .unwrap();
         loop {
@@ -549,17 +552,18 @@ impl DynamicDiagSession {
     ) -> DiagServerResult<Vec<u8>> {
         let mut r = vec![cmd.into()];
         r.extend_from_slice(args);
-        self.send_byte_array_with_response(&r)
+        self.send_byte_array_with_response(&r, None)
     }
 
     /// Send bytes to the ECU and await its response
     /// ## Params
     /// * p - Raw byte array to send
     /// * on_ecu_waiting_hook - Callback to call when the ECU responds with ResponsePending. Can be used to update a programs state
+    /// * different_addr - Optional different address to send the payload on, useful for broadcast messages
     /// such that the user is aware the ECU is just processing the request
-    pub fn send_byte_array_with_response(&self, p: &[u8]) -> DiagServerResult<Vec<u8>> {
+    pub fn send_byte_array_with_response(&self, p: &[u8], different_addr: Option<u32>) -> DiagServerResult<Vec<u8>> {
         let lock = self.sender.lock().unwrap();
-        self.internal_send_byte_array(p, &lock, true)?;
+        self.internal_send_byte_array(p, &lock, true, different_addr)?;
         (self.on_send_complete_hook)(p);
         loop {
             match self.receiver.recv().unwrap() {
