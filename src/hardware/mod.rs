@@ -15,6 +15,12 @@ pub mod socketcan;
 #[cfg(feature = "slcan")]
 pub mod slcan;
 
+#[cfg(feature = "pcan-usb")]
+pub mod pcan_usb;
+
+pub mod sw_isotp;
+
+
 use crate::channel::{CanChannel, IsoTPChannel};
 
 /// Hardware API result
@@ -159,7 +165,7 @@ pub trait HardwareScanner<T: Hardware> {
 /// Represents error that can be returned by Hardware API
 pub enum HardwareError {
     /// Low level device driver error
-    #[error("Device library API error. Code {code}, Description: '{desc}'")]
+    #[error("Device library API error {code} ({desc})")]
     APIError {
         /// API Error code
         code: u32,
@@ -184,15 +190,22 @@ pub enum HardwareError {
     DeviceLockError,
 
     /// Lib loading error
-    #[cfg(feature = "passthru")]
+    #[cfg(any(feature = "passthru", feature = "pcan-usb"))]
     #[error("Device API library load error")]
     LibLoadError(#[from] #[source] Arc<libloading::Error>),
 }
 
-#[cfg(feature = "passthru")]
+#[cfg(any(feature = "passthru", feature = "pcan-usb"))]
 impl From<libloading::Error> for HardwareError {
     fn from(err: libloading::Error) -> Self {
         Self::LibLoadError(Arc::new(err))
+    }
+}
+
+#[cfg(feature = "pcan-usb")]
+impl From<pcan_usb::pcan_types::PCanErrorTy> for HardwareError {
+    fn from(err: pcan_usb::pcan_types::PCanErrorTy) -> Self {
+        Self::APIError { code: 99, desc: err.to_string() }
     }
 }
 

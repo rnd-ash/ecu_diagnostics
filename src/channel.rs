@@ -42,8 +42,8 @@ pub enum ChannelError {
     #[error("Interface was not opened before request")]
     InterfaceNotOpen,
     /// Underlying API error with hardware
-    #[error("Device hardware API error")]
-    HardwareError(#[from] #[source] HardwareError),
+    #[error(transparent)]
+    HardwareError(#[from] HardwareError),
     /// Channel not configured prior to opening
     #[error("Channel configuration error")]
     ConfigurationError,
@@ -93,6 +93,8 @@ impl<T> From<mpsc::SendError<T>> for ChannelError {
         ChannelError::HardwareError(HardwareError::from(err))
     }
 }
+
+
 
 /// A payload channel is a way for a device to have a bi-directional communication
 /// link with a specific ECU
