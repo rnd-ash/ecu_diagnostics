@@ -105,7 +105,11 @@ for creating Channels for diagnostic servers using the hardware
 * CAN
 
 ### SLCAN
-* ISO-TP
+* ISO-TP (Software)
+* CAN
+
+### PCAN-USB
+* ISO-TP (Software)
 * CAN
 
 ### D-PDU (ISO 22900-2)
@@ -115,3 +119,4 @@ TBA
 # Notable contributions
 * @LLBlumire
 * @nyurik (Created the [automotive_diag](https://github.com/nyurik/automotive_diag) crate, which this project now relies on)
+* @VladLupashevskyi - Implemented the SLCAN layer
