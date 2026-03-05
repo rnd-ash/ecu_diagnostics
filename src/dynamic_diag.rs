@@ -1,12 +1,9 @@
 //! Dynamic diagnostic session helper
 //!
 use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, Sender}, Mutex,
-    },
-    time::Duration,
+    collections::HashMap, sync::{
+        Mutex, atomic::{AtomicBool, Ordering}, mpsc::{Receiver, Sender}
+    }, thread::JoinHandle, time::Duration
 };
 
 use std::{
@@ -254,6 +251,7 @@ pub struct DynamicDiagSession {
     connected: Arc<AtomicBool>,
     current_diag_mode: Arc<RwLock<Option<DiagSessionMode>>>,
     running: Arc<AtomicBool>,
+    join_handle: Option<JoinHandle<Box<dyn PayloadChannel>>>
 }
 
 unsafe impl Sync for DynamicDiagSession{}
@@ -271,7 +269,6 @@ impl std::fmt::Debug for DynamicDiagSession {
 impl DynamicDiagSession {
     /// Creates a new diagnostic server with a given protocol and NRC format
     /// over an ISO-TP connection
-    #[allow(unused_must_use, unused_assignments)]
     pub fn new<P, NRC, L>(
         protocol: P,
         mut channel: Box<dyn PayloadChannel>,
@@ -305,7 +302,7 @@ impl DynamicDiagSession {
         let is_running = Arc::new(AtomicBool::new(true));
         let is_running_c = is_running.clone();
         let cooldown = advanced_opts.map(|x| x.command_cooldown_ms).unwrap_or(0) as u128;
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let mut last_tp_time = Instant::now();
             let mut last_cmd_time = Instant::now();
             logger.on_event(ServerEvent::ServerStart);
@@ -340,7 +337,7 @@ impl DynamicDiagSession {
                                     last_tp_time = Instant::now();
                                     last_cmd_time = Instant::now();
                                 }
-                                tx_resp.send(res);
+                                let _ = tx_resp.send(res);
                             }
                             Some(DiagAction::EcuReset) => {
                                 let res = send_recv_ecu_req::<P, NRC, L>(
@@ -367,7 +364,7 @@ impl DynamicDiagSession {
                                     std::thread::sleep(Duration::from_millis(500)); // Await ECU to reboot - TODO. Maybe we should let this be configured?
                                     last_cmd_time = Instant::now();
                                 }
-                                tx_resp.send(res);
+                                let _ = tx_resp.send(res);
                             }
                             _ => {
                                 let mut resp = send_recv_ecu_req::<P, NRC, L>(
@@ -388,7 +385,7 @@ impl DynamicDiagSession {
                                         log::debug!("Trying to switch ECU modes");
                                         // Wrong diag mode. We need to see if we need to change modes
                                         // Switch modes!
-                                        tx_resp.send(DiagServerRx::EcuBusy); // Until we have a hook for this specific scenerio
+                                        let _ = tx_resp.send(DiagServerRx::EcuBusy); // Until we have a hook for this specific scenerio
                                                                             // Now create new diag server request message
                                         let mut needs_response = true;
                                         let mut ext_id = None;
@@ -448,7 +445,7 @@ impl DynamicDiagSession {
                                 } else if let DiagServerRx::EcuResponse(_) = &resp {
                                     last_cmd_time = Instant::now();
                                 }
-                                tx_resp.send(resp);
+                                let _ = tx_resp.send(resp);
                             }
                         }
                     } 
@@ -501,7 +498,7 @@ impl DynamicDiagSession {
             logger.on_event(ServerEvent::ServerExit);
             // Thread has exited, so tear everything down!
             channel.close().unwrap();
-            drop(channel)
+            channel
         });
         Ok(Self {
             sender: Mutex::new(tx_req),
@@ -511,7 +508,15 @@ impl DynamicDiagSession {
             connected: is_connected,
             current_diag_mode: noti_session_mode,
             running: is_running_c,
+            join_handle: Some(join_handle)
         })
+    }
+
+    /// Releases the diagnostic server, returning back the payload channel
+    pub fn release(mut self) -> Box<dyn PayloadChannel> {
+        self.running.store(false, Ordering::Relaxed);
+        let handle = self.join_handle.take().unwrap();
+        handle.join().unwrap()
     }
 
     /// Send a command
