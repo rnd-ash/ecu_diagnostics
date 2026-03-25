@@ -12,8 +12,11 @@ mod communication_control;
 mod diagnostic_session_control;
 mod ecu_reset;
 mod read_dtc_information;
+mod read_write_data;
+mod routine_control;
 mod scaling_data;
 mod security_access;
+mod upload_download;
 
 pub use access_timing_parameter::*;
 pub use automotive_diag::uds::*;
@@ -23,8 +26,11 @@ pub use communication_control::*;
 pub use diagnostic_session_control::*;
 pub use ecu_reset::*;
 pub use read_dtc_information::*;
+pub use read_write_data::*;
+pub use routine_control::*;
 pub use scaling_data::*;
 pub use security_access::*;
+pub use upload_download::*;
 
 pub use automotive_diag::uds::UdsError;
 
