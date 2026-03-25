@@ -14,6 +14,7 @@ mod ecu_reset;
 mod read_dtc_information;
 mod scaling_data;
 mod security_access;
+mod upload_download;
 
 pub use access_timing_parameter::*;
 pub use automotive_diag::uds::*;
@@ -25,6 +26,7 @@ pub use ecu_reset::*;
 pub use read_dtc_information::*;
 pub use scaling_data::*;
 pub use security_access::*;
+pub use upload_download::*;
 
 pub use automotive_diag::uds::UdsError;
 
