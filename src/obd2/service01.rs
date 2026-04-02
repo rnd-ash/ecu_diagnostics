@@ -18,7 +18,7 @@ impl DynamicDiagSession {
     /// on init for supported PIDs.
     /// NOTE: Unlike other functions, if this function encounters a ECU communication
     /// error, it will still return OK.
-    pub fn obd_init_service_01(&self) -> DiagServerResult<Service01> {
+    pub fn obd_init_service_01(&self) -> DiagServerResult<Service01<'_>> {
         // Query supported pids
         let mut total_support_list = Vec::new();
         for i in (0..0xFF).step_by(0x20) {
