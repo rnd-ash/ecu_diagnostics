@@ -18,7 +18,7 @@ use std::{
 
 use crate::{
     DiagError, DiagServerResult,
-    channel::{ChannelResult, PayloadChannel},
+    channel::{ChannelResult, IsoTPChannel, IsoTPSettings, PayloadChannel},
 };
 
 #[derive(Debug)]
@@ -532,6 +532,29 @@ impl DynamicDiagSession {
             join_handle: Some(join_handle),
             retries: 0,
         })
+    }
+
+    /// Creates a new diagnostic server over an ISO-TP channel.
+    ///
+    /// This is a convenience wrapper around [DynamicDiagSession::new] that configures
+    /// the ISO-TP channel with the provided settings (send/receive IDs and transport
+    /// parameters) before starting the server.
+    pub fn new_over_iso_tp<P, NRC, L>(
+        protocol: P,
+        mut channel: Box<dyn IsoTPChannel>,
+        iso_tp_settings: IsoTPSettings,
+        basic_opts: DiagServerBasicOptions,
+        advanced_opts: Option<DiagServerAdvancedOptions>,
+        logger: L,
+    ) -> DiagServerResult<Self>
+    where
+        P: DiagProtocol<NRC> + 'static,
+        NRC: EcuNRC,
+        L: DiagServerLogger + 'static,
+    {
+        channel.set_ids(basic_opts.send_id, basic_opts.recv_id)?;
+        channel.set_iso_tp_cfg(iso_tp_settings)?;
+        Self::new(protocol, Box::new(channel), basic_opts, advanced_opts, logger)
     }
 
     /// Releases the diagnostic server, returning back the payload channel
