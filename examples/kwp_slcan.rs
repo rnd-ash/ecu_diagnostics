@@ -1,19 +1,15 @@
 use std::time::Duration;
 
 use automotive_diag::kwp2000::{KwpSessionType, KwpSessionTypeByte};
-use serial_rs::{FlowControl, SerialPortSettings};
 
 use ecu_diagnostics::{
     channel::IsoTPSettings,
     dynamic_diag::{
         DiagProtocol, DiagServerAdvancedOptions, DiagServerBasicOptions, DiagServerEmptyLogger, DiagSessionMode, DynamicDiagSession, TimeoutConfig
     },
-    hardware::Hardware,
+    hardware::{Hardware, slcan::device::serialport},
     kwp2000::Kwp2000Protocol,
 };
-
-extern crate ecu_diagnostics;
-extern crate serial_rs;
 
 fn ecu_waiting_hook() {
     println!("Called hook! ECU is processing our request");
@@ -42,17 +38,11 @@ fn main() {
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
         .init();
 
-    let port = serial_rs::new_from_path(
-        "/dev/cu.usbmodem90379201".into(),
-        Some(
-            SerialPortSettings::default()
-                .baud(2000000)
-                .read_timeout(Some(5))
-                .write_timeout(Some(100))
-                .set_flow_control(FlowControl::None)
-                .set_blocking(true),
-        ),
-    ).unwrap();
+    let port = serialport::new("/dev/cu.usbmodem90379201", 2000000)
+        .timeout(Duration::from_millis(5))
+        .flow_control(serialport::FlowControl::None)
+        .open()
+        .unwrap();
 
     let mut d = ecu_diagnostics::hardware::slcan::device::SlCanDevice::new(port, 1000);
 
