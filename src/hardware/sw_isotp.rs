@@ -787,6 +787,10 @@ impl PacketChannel<CanFrame> for SoftwareIsoTpChannel {
         rx.recv().unwrap()
     }
 
+    fn is_open(&self) -> bool {
+        self.as_can_channel().is_open()
+    }
+
     fn close(&mut self) -> ChannelResult<()> {
         let (tx, rx) = mpsc::channel::<ChannelResult<()>>();
         self.can_msg_sender

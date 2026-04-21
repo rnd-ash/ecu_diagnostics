@@ -157,6 +157,10 @@ impl PacketChannel<CanFrame> for PcanUsbpacketChannel {
         }
     }
 
+    fn is_open(&self) -> bool {
+        self.open
+    }
+
     fn close(&mut self) -> ChannelResult<()> {
         if self.open {
             let res = self.driver.reset_handle(self.dev_handle as u16).map_err(|e| e.into());

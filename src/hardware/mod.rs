@@ -3,6 +3,7 @@
 //! in order to communicate with vehicle ECUs
 
 mod dpdu;
+mod vwtp;
 
 #[cfg(feature = "passthru")]
 pub mod passthru; // Not finished at all yet, hide from the crate

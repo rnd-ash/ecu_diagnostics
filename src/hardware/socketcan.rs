@@ -138,6 +138,10 @@ impl PacketChannel<CanFrame> for SocketCanCanChannel {
         Ok(())
     }
 
+    fn is_open(&self) -> bool {
+        self.channel.is_some()
+    }
+
     fn close(&mut self) -> ChannelResult<()> {
         if self.channel.is_none() {
             return Ok(());

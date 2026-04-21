@@ -604,6 +604,10 @@ impl PacketChannel<CanFrame> for SlCanChannel {
         res
     }
 
+    fn is_open(&self) -> bool {
+        self.device.canbus_active.load(Ordering::Relaxed)
+    }
+
     fn close(&mut self) -> ChannelResult<()> {
         log::debug!("CAN Close called");
         let _guard = self.can_mutex.lock()?;

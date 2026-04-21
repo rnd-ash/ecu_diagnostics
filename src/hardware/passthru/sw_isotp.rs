@@ -541,6 +541,10 @@ impl PacketChannel<CanFrame> for PtCombiChannel {
             .recv_timeout(Duration::from_millis(100))?
     }
 
+    fn is_open(&self) -> bool {
+        true
+    }
+
     fn close(&mut self) -> ChannelResult<()> {
         log::debug!("CAN Close called");
         let _guard = self.can_mutex.lock()?;

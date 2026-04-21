@@ -6,7 +6,7 @@
 
 use std::{
     borrow::BorrowMut,
-    sync::{mpsc, Arc, Mutex, PoisonError},
+    sync::{Arc, Mutex, PoisonError, mpsc}, time::Duration,
 };
 
 #[cfg(all(feature="socketcan", target_os="linux"))]
@@ -196,6 +196,9 @@ pub trait PacketChannel<T: Packet>: Send + Sync {
     /// internal buffer from filling up rapidly
     fn open(&mut self) -> ChannelResult<()>;
 
+    /// Checks to see if the channel is currently open
+    fn is_open(&self) -> bool;
+
     /// Closes the channel. Once closed, no more traffic
     /// can be polled or written to the channel.
     fn close(&mut self) -> ChannelResult<()>;
@@ -266,6 +269,10 @@ impl<T: IsoTPChannel + ?Sized> IsoTPChannel for Box<T> {
 impl<X: Packet, T: PacketChannel<X> + ?Sized> PacketChannel<X> for Box<T> {
     fn open(&mut self) -> ChannelResult<()> {
         T::open(self)
+    }
+
+    fn is_open(&self) -> bool {
+        T::is_open(&self)
     }
 
     fn close(&mut self) -> ChannelResult<()> {
@@ -340,6 +347,10 @@ impl<T: IsoTPChannel + ?Sized> IsoTPChannel for Arc<Mutex<T>> {
 impl<X: Packet, T: PacketChannel<X> + ?Sized> PacketChannel<X> for Arc<Mutex<T>> {
     fn open(&mut self) -> ChannelResult<()> {
         T::open(self.lock()?.borrow_mut())
+    }
+
+    fn is_open(&self) -> bool {
+        T::is_open(self.lock().unwrap().borrow_mut())
     }
 
     fn close(&mut self) -> ChannelResult<()> {
@@ -505,6 +516,31 @@ impl Default for IsoTPSettings {
             pad_frame: true,
             can_speed: 500_000,
             can_use_ext_addr: false,
+        }
+    }
+}
+
+/// VW Transport protocol configuration options (SAE J2819)
+#[derive(Debug, Copy, Clone)]
+#[repr(C)]
+pub struct VwTp2Settings {
+    /// CAN Bus speed
+    pub can_baud: u32,
+    /// Interval for ping to keep the channel alive
+    pub keep_alive_ms: Duration,
+    /// The minimum time between consecutive CAN Packets being sent
+    pub inter_packet_spacing_ms: Duration,
+    /// Timeout for ACK frame from ECU
+    pub ack_timeout: Duration,
+}
+
+// TODO Verify if these are sensible defaults
+impl Default for VwTp2Settings {
+    fn default() -> Self {
+        Self {
+            keep_alive_ms: Duration::from_millis(100),
+            inter_packet_spacing_ms: Duration::from_millis(20),
+            ack_timeout: Duration::from_millis(500),
         }
     }
 }
