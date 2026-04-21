@@ -532,6 +532,8 @@ pub struct VwTp2Settings {
     pub inter_packet_spacing_ms: Duration,
     /// Timeout for ACK frame from ECU
     pub ack_timeout: Duration,
+    /// Block size
+    pub bs: u8
 }
 
 // TODO Verify if these are sensible defaults
@@ -541,6 +543,8 @@ impl Default for VwTp2Settings {
             keep_alive_ms: Duration::from_millis(100),
             inter_packet_spacing_ms: Duration::from_millis(20),
             ack_timeout: Duration::from_millis(500),
+            can_baud: 500_000,
+            bs: 8
         }
     }
 }
