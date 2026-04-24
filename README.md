@@ -89,6 +89,10 @@ Working specification services:
 * ReadDTCInformation
 * SecurityAccess
 
+## Transport layer support
+* CAN
+* ISO-TP
+* VW-TP2 (VW Transport Protocol 2)
 
 ## Hardware API checklist
 
