@@ -8,7 +8,7 @@ pub use automotive_diag::uds::ScalingExtension as ScalingByteExtension;
 /// Note: `#[deprecated]` doesn't work here due to https://github.com/rust-lang/rust/issues/30827
 pub use automotive_diag::uds::ScalingType as ScalingByteHigh;
 
-pub use automotive_diag::uds::{ScalingExtension, ScalingType};
+pub use automotive_diag::uds::ScalingExtension;
 
 #[cfg(feature="serde")]
 use serde::{Serialize, Deserialize};

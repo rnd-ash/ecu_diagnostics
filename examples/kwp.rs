@@ -1,13 +1,13 @@
 use automotive_diag::kwp2000::{KwpSessionType, KwpSessionTypeByte};
-use std::{time::Duration, sync::{Arc, RwLock}};
+use std::time::Duration;
 
 use ecu_diagnostics::{
-    channel::{self, IsoTPSettings},
+    channel::IsoTPSettings,
     dynamic_diag::{
         DiagProtocol, DiagServerAdvancedOptions, DiagServerBasicOptions, DiagSessionMode,
         DynamicDiagSession, TimeoutConfig, DiagServerEmptyLogger,
     },
-    hardware::{self, HardwareScanner, Hardware},
+    hardware::{HardwareScanner, Hardware},
     kwp2000::Kwp2000Protocol,
 };
 
