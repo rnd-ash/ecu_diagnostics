@@ -1,62 +1,51 @@
 //! Simulation hardware for unit testing diagnostic servers
 
-use std::{collections::{HashMap, VecDeque}, sync::{Arc, RwLock}};
+use std::{sync::{Mutex, mpsc}};
 
-use crate::ChannelError;
+use crate::{channel::{CanChannel, CanFrame, PacketChannel}};
 
-#[derive(Debug, Clone)]
-pub struct SimulationIsoTpChannel {
-    req_resp_map: Arc<RwLock<HashMap<Vec<u8>, Vec<u8>>>>,
-    rx_queue: Arc<RwLock<VecDeque<Vec<u8>>>>,
+pub (crate) struct SimulationCanChannel {
+    pub name: &'static str,
+    pub rx: Mutex<mpsc::Receiver<CanFrame>>,
+    pub tx: mpsc::Sender<CanFrame>,
+    pub opened: bool
 }
 
-impl SimulationIsoTpChannel {
-    pub fn new() -> Self {
-        Self {
-            req_resp_map: Arc::new(RwLock::new(HashMap::new())),
-            rx_queue: Arc::new(RwLock::new(VecDeque::new())),
-        }
-    }
 
-    pub fn add_response(&mut self, req: &[u8], resp: &[u8]) {
-        self.req_resp_map.write().unwrap().insert(req.to_vec(), resp.to_vec());
-    }
-
-    pub fn clear_map(&mut self) {
-        self.req_resp_map.write().unwrap().clear();
-        self.rx_queue.write().unwrap().clear();
-    }
-}
-
-impl crate::channel::PayloadChannel for SimulationIsoTpChannel {
+impl PacketChannel<CanFrame> for SimulationCanChannel {
     fn open(&mut self) -> crate::channel::ChannelResult<()> {
+        self.opened = true;
         Ok(())
+    }
+
+    fn is_open(&self) -> bool {
+        self.opened
     }
 
     fn close(&mut self) -> crate::channel::ChannelResult<()> {
+        self.opened = false;
         Ok(())
     }
 
-    fn set_ids(&mut self, send: u32, recv: u32) -> crate::channel::ChannelResult<()> {
-        Ok(())
-    }
-
-    fn read_bytes(&mut self, timeout_ms: u32) -> crate::channel::ChannelResult<Vec<u8>> {
-        if let Some(r) = self.rx_queue.write().unwrap().pop_front() {
-            return Ok(r)
-        }
-        Err(ChannelError::BufferEmpty)
-    }
-
-    fn write_bytes(&mut self, addr: u32, buffer: &[u8], timeout_ms: u32) -> crate::channel::ChannelResult<()> {
-        if let Some(expected_response) = self.req_resp_map.read().unwrap().get(buffer) {
-            self.rx_queue.write().unwrap().push_back(expected_response.to_vec());
+    fn write_packets(&mut self, packets: Vec<CanFrame>, timeout_ms: u32) -> crate::channel::ChannelResult<()> {
+        for p in packets {
+            log::debug!("{} OUT: {:02X?}", self.name, p);
+            self.tx.send(p).unwrap();
         }
         Ok(())
+    }
+
+    fn read_packets(&mut self, _max: usize, _timeout_ms: u32) -> crate::channel::ChannelResult<Vec<CanFrame>> {
+        let mut v = Vec::new();
+        while let Ok(p) = self.rx.lock().unwrap().try_recv() {
+            log::debug!("{}  IN: {:02X?}", self.name, p);
+            v.push(p);
+        }
+        Ok(v)
     }
 
     fn clear_rx_buffer(&mut self) -> crate::channel::ChannelResult<()> {
-        self.rx_queue.write().unwrap().clear();
+        while self.rx.lock().unwrap().try_recv().is_ok(){};
         Ok(())
     }
 
@@ -65,9 +54,27 @@ impl crate::channel::PayloadChannel for SimulationIsoTpChannel {
     }
 }
 
-impl super::IsoTPChannel for SimulationIsoTpChannel {
-    fn set_iso_tp_cfg(&mut self, cfg: crate::channel::IsoTPSettings) -> crate::channel::ChannelResult<()> {
+impl CanChannel for SimulationCanChannel {
+    fn set_can_cfg(&mut self, _baud: u32, _use_extended: bool) -> crate::channel::ChannelResult<()> {
         Ok(())
     }
 }
 
+pub (crate) fn new_sim_can_pair() -> (SimulationCanChannel, SimulationCanChannel) {
+    let (tx1, rx1) = mpsc::channel();
+    let (tx2, rx2) = mpsc::channel();
+    (
+        SimulationCanChannel {
+            name: "SIMCAN0",
+            rx: Mutex::new(rx1),
+            tx: tx2,
+            opened: false,
+        },
+        SimulationCanChannel {
+            name: "SIMCAN1",
+            rx: Mutex::new(rx2),
+            tx: tx1,
+            opened: false,
+        }
+    )
+}

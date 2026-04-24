@@ -3,7 +3,10 @@
 //! in order to communicate with vehicle ECUs
 
 mod dpdu;
-mod vwtp;
+pub mod vwtp;
+
+#[cfg(test)]
+pub mod simulation;
 
 #[cfg(feature = "passthru")]
 pub mod passthru; // Not finished at all yet, hide from the crate
