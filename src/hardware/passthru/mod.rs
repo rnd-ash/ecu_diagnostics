@@ -563,6 +563,11 @@ impl PacketChannel<CanFrame> for PassthruCanChannel {
             }
         }
     }
+
+    fn is_open(&self) -> bool {
+        self.channel_id.is_some()
+    }
+
     fn close(&mut self) -> ChannelResult<()> {
         // Channel already closed, ignore request
         if self.channel_id.is_none() {
