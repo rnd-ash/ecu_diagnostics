@@ -111,6 +111,7 @@ pub struct PcanUsbpacketChannel {
 
 impl Drop for PcanUsbpacketChannel {
     fn drop(&mut self) {
+        let _ = self.close();
         self.device_state.store(false, Ordering::Relaxed);
     }
 }

@@ -120,7 +120,6 @@ enum ThreadState {
         data: Vec<u8>,
         pos: usize,
         tx_count: usize,
-        tx_time: Instant
     },
     WaitForTxAck {
         ack_timer: Instant,
@@ -201,24 +200,22 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
             let keep_alive = CanFrame::new(tx_id as u32, &[0xA3], false);
             let mut last_ping = Instant::now();
             let mut tx_packet_id = 0u8;
+            let mut last_tx_time = Instant::now();
 
             // Tx data stuff
 
             while is_running_t.load(std::sync::atomic::Ordering::Relaxed) {
-                let mut ff = false;
                 if state == ThreadState::Idle && let Ok(to_write) = rx_write.try_recv() {
                     log::debug!("To send: {to_write:02X?}");
-                    ff = true;
                     state = ThreadState::TxInProgress {
                         data: to_write, 
                         pos: 0, 
                         tx_count: 0,
-                        tx_time: Instant::now()
                     };
                 }
 
-                if let ThreadState::TxInProgress { data, pos, tx_count, tx_time } = &mut state
-                && (tx_time.elapsed() >= inter_packet_ms || ff) {
+                if let ThreadState::TxInProgress { data, pos, tx_count } = &mut state
+                && (last_tx_time.elapsed() >= inter_packet_ms) {
                     last_ping = Instant::now(); // Prevent pinging
 
                     let left = &data[*pos..];
@@ -237,7 +234,7 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
                     if !final_packet {
                         *pos += 7;
                         *tx_count += 1;
-                        *tx_time = Instant::now();
+                        last_tx_time = Instant::now();
 
                         if *tx_count >= bs as usize {
                             // Tell ECU waiting for ACK
@@ -260,6 +257,8 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
                     if let Err(e) = can.write_packets(vec![frame], 0) {
                         state = ThreadState::Idle;
                         let _ = tx_write_resp.send(Err(e));
+                    } else {
+                        last_tx_time = Instant::now();
                     }
                 }
                 
@@ -268,6 +267,7 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
                         log::debug!("Channel ping");
                         let _ = can.write_packets(vec![keep_alive.clone()], 0);
                         last_ping = Instant::now();
+                        last_tx_time = Instant::now();
                     }
                     can.read_packets(1000, 0).unwrap_or_default()
                 };
@@ -285,6 +285,7 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
                             if let ThreadState::MultiRx { .. } = &mut state {
                                 let frame = CanFrame::new(tx_id as u32, &[0xB0 | next_packet_id(packet_id)], false);
                                 let _ = can.write_packets(vec![frame], 0);
+                                last_tx_time = Instant::now();
                             } else {
                                 log::error!("Received request for ack but aren't receiving anything?")
                             }
@@ -334,8 +335,8 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
                                         data: data.clone(), 
                                         pos: *resume_pos, 
                                         tx_count: 0, 
-                                        tx_time: Instant::now() 
-                                    }
+                                    };
+                                    last_tx_time = Instant::now() 
                                 } else {
                                     let _ = tx_write_resp.send(Ok(()));
                                     state = ThreadState::Idle;
@@ -363,6 +364,7 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
                                 ];
                                 let frame = CanFrame::new((tx_id) as u32, config_req, false);
                                 let _ = can.write_packets(vec![frame], 0);
+                                last_tx_time = Instant::now();
                             }
                         }
                         _ => log::error!("Unknown VW PCI: {data:02X?}")
