@@ -139,17 +139,13 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
     /// * can - Underlying CAN channel to use
     /// * ecu_id - Target ECU ID, usually 0x00-0xEF
     /// * settings - VW Transport settings
-    pub fn new(can: Box<dyn CanChannel>, ecu_id: u8, settings: VwTp2Settings) -> ChannelResult<Self> {
-        if can.is_open() {
-            Err(ChannelError::ConfigurationError)
-        } else {
-            Ok(Self {
-                ecu_id,
-                settings,
-                tx_rx_ids: None,
-                can: ChannelState::Ready(can),
-                _phantom: PhantomData::default()
-            })
+    pub fn new(can: Box<dyn CanChannel>, ecu_id: u8, settings: VwTp2Settings) -> Self {
+        Self {
+            ecu_id,
+            settings,
+            tx_rx_ids: None,
+            can: ChannelState::Ready(can),
+            _phantom: PhantomData::default()
         }
     }
 
@@ -403,6 +399,8 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
 impl<T: VwApplicationProtocol> PayloadChannel for VwTransport2Channel<T> {
     fn open(&mut self) -> ChannelResult<()> {
         if let Some((tx, rx)) = self.tx_rx_ids.as_mut() && let ChannelState::Ready(can) = &mut self.can {
+            can.close()?;
+            can.set_can_cfg(self.settings.can_baud, false)?; // Always false for VWTP
             can.open()?;
             can.clear_rx_buffer()?;
             can.clear_tx_buffer()?;
