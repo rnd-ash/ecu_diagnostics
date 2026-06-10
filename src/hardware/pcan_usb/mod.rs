@@ -5,13 +5,31 @@
 mod lib_funcs;
 pub (crate) mod pcan_types;
 
-use std::{sync::{Arc, atomic::{AtomicBool, Ordering}}, time::Instant};
+use std::{fmt::Debug, sync::{Arc, atomic::{AtomicBool, Ordering}}, time::Instant};
 
-use crate::{channel::{CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, Packet, PacketChannel}, hardware::{HardwareCapabilities, pcan_usb::pcan_types::{ALL_USB_DEVICES, PCANError}, sw_isotp::SoftwareIsoTpChannel}};
+use crate::{channel::{CanChannel, CanFrame, ChannelError, ChannelResult, IsoTPChannel, PacketChannel}, hardware::{HardwareCapabilities, pcan_usb::pcan_types::{ALL_USB_DEVICES, PCANError}, sw_isotp::SoftwareIsoTpChannel}};
 
 use self::{lib_funcs::PCanDrv, pcan_types::{PcanUSB, PCANBaud}};
 
 use super::{HardwareInfo, HardwareScanner, Hardware, HardwareError, HardwareResult};
+
+#[derive(Debug, Clone)]
+/// Can Mode
+enum CanMode {
+    /// Just Packet channel is open
+    Can(PcanUsbpacketChannel),
+    /// Packet channel + ISOTP
+    IsoTp(SoftwareIsoTpChannel)
+}
+
+impl CanMode {
+    fn can_channel(&mut self) -> Box<dyn CanChannel> {
+        match self {
+            CanMode::Can(can_channel) => Box::new(can_channel.clone()),
+            CanMode::IsoTp(software_iso_tp_channel) => software_iso_tp_channel.as_can_channel(),
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 /// PCAN USB device
@@ -19,7 +37,7 @@ pub struct PcanUsbDevice {
     info: HardwareInfo,
     dev_handle: PcanUSB,
     driver: PCanDrv,
-    can_channel: Arc<AtomicBool>,
+    packet_channel: Option<CanMode>,
 }
 
 impl PcanUsbDevice {
@@ -36,7 +54,7 @@ impl PcanUsbDevice {
             info,
             dev_handle: handle,
             driver,
-            can_channel: Arc::new(AtomicBool::new(false)),
+            packet_channel: None
         })
     }
 }
@@ -49,26 +67,29 @@ impl Drop for PcanUsbDevice {
 
 impl Hardware for PcanUsbDevice {
     fn create_iso_tp_channel(&mut self) -> HardwareResult<Box<dyn IsoTPChannel>> {
-        let can = self.create_can_channel()?;
-        Ok(Box::new(SoftwareIsoTpChannel::new(can)))
+        if self.packet_channel.is_none() {
+            let can = self.create_can_channel()?;
+            Ok(Box::new(SoftwareIsoTpChannel::new(can, 100_000)))
+        } else {
+            Err(HardwareError::ConflictingChannel)
+        }
     }
 
     fn create_can_channel(&mut self) -> HardwareResult<Box<dyn CanChannel>> {
-        if self.can_channel.load(Ordering::Relaxed) {
-            // Already open
-            Err(HardwareError::ConflictingChannel)
+        let mode = if let Some(can) = &mut self.packet_channel {
+            can
         } else {
-            self.can_channel.store(true, Ordering::Relaxed);
-            let s = PcanUsbpacketChannel {
+            let pcan_channel = PcanUsbpacketChannel {
                 baud: None,
                 use_ext: None,
                 dev_handle: self.dev_handle,
-                open: false,
                 driver: self.driver.clone(),
-                device_state: self.can_channel.clone()
+                device_state: Arc::new(AtomicBool::new(false)),
+                open: false,
             };
-            Ok(Box::new(s))
-        }
+            self.packet_channel.get_or_insert(CanMode::Can(pcan_channel))
+        };
+        Ok(mode.can_channel())
     }
 
     fn is_iso_tp_channel_open(&self) -> bool {
@@ -76,7 +97,7 @@ impl Hardware for PcanUsbDevice {
     }
 
     fn is_can_channel_open(&self) -> bool {
-        self.can_channel.load(Ordering::Relaxed)
+        self.packet_channel.is_some()
     }
 
     fn read_battery_voltage(&mut self) -> Option<f32> {

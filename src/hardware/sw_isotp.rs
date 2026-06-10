@@ -269,7 +269,7 @@ impl SoftwareIsoTpChannel {
     }
 
     /// Creates a new Software ISOTP channel
-    pub fn new(mut channel: Box<dyn CanChannel>) -> Self {
+    pub fn new(mut channel: Box<dyn CanChannel>, rx_fifo_limit: usize) -> Self {
         let running = Arc::new(AtomicBool::new(true));
         let running_c = running.clone();
         let running_cc = running.clone();
@@ -280,8 +280,8 @@ impl SoftwareIsoTpChannel {
         let isotp_listen_id = Arc::new(AtomicU32::new(0));
         let isotp_list_id_c = isotp_listen_id.clone();
 
-        let can_open = Arc::new(AtomicBool::new(false));
-        let can_open_c = can_open.clone();
+        let can_open_users: Arc<AtomicU32> = Arc::new(AtomicU32::new(0));
+        let can_open_users_c = can_open_users.clone();
 
         let (can_to_isotp_rx_frame_tx, can_to_isotp_rx_frame_rx) = mpsc::channel::<CanFrame>();
 
@@ -306,7 +306,7 @@ impl SoftwareIsoTpChannel {
                     debug!("ISOTP request msg: {msg:02X?}");
                     match msg {
                         IsoTpMessage::Open(sender_resp) => {
-                            let res = if can_open_c.load(Ordering::Relaxed) {
+                            let res = if can_open_users.load(Ordering::Relaxed) > 0 {
                                 isotp_running = true;
                                 Ok(())
                             } else {
@@ -433,147 +433,154 @@ impl SoftwareIsoTpChannel {
                         }
                     }
                 }
-                // Frame from an ECU
-                if let Ok(frame) = can_to_isotp_rx_frame_rx.try_recv() {
-                    if let Some(cfg) = isotp_settings {
-                        let data = frame.get_data();
-                        let pci_byte_idx = 0; // TODO for EXT ID Rx
-                        match data.get(pci_byte_idx) {
-                            Some(pci) => {
-                                match pci & 0xF0 {
-                                    0x00 => {
-                                        log::debug!("ISOTP One frame {data:02X?}");
-                                        rx_memory.add_single_frame(data);
-                                    }
-                                    0x10 => {
-                                        // Start of multi frame
-                                        log::debug!("ISOTP Start frame {data:02X?}");
-                                        let mut data_tx: Vec<u8> = vec![];
-                                        if rx_memory.receiving {
-                                            data_tx.push(0x32);
-                                        } else {
-                                            data_tx.push(0x30);
-                                            data_tx.push(cfg.block_size);
-                                            data_tx.push(cfg.st_min);
-                                            rx_memory.bs = cfg.block_size;
-                                            rx_memory.add_start_frame(data);
+                if isotp_running {
+                    // Frame from an ECU
+                    if let Ok(frame) = can_to_isotp_rx_frame_rx.try_recv() {
+                        if let Some(cfg) = isotp_settings {
+                            let data = frame.get_data();
+                            let pci_byte_idx = 0; // TODO for EXT ID Rx
+                            match data.get(pci_byte_idx) {
+                                Some(pci) => {
+                                    match pci & 0xF0 {
+                                        0x00 => {
+                                            log::debug!("ISOTP One frame {data:02X?}");
+                                            rx_memory.add_single_frame(data);
                                         }
-                                        if cfg.pad_frame {
-                                            data_tx.resize(8, 0xCC);
-                                        }
-                                        // Send flow control
-                                        let (tx, rx) = mpsc::channel::<ChannelResult<()>>();
-                                        let f = CanFrame::new(
-                                            default_tx_addr,
-                                            &data_tx,
-                                            cfg.can_use_ext_addr,
-                                        );
-                                        let _ = can_msg_sender_isotp.send(CanMessage::WriteFrames(
-                                            0,
-                                            vec![f],
-                                            tx,
-                                        ));
-                                        let _ = rx.recv().unwrap();
-                                    }
-                                    0x20 => {
-                                        // Continuation of multi frame
-                                        log::debug!("ISOTP continue frame {data:02X?}");
-                                        if IsoTpRxAction::SendFC
-                                            == rx_memory.add_continuous_frame(data)
-                                        {
+                                        0x10 => {
+                                            // Start of multi frame
+                                            log::debug!("ISOTP Start frame {data:02X?}");
                                             let mut data_tx: Vec<u8> = vec![];
-                                            data_tx.push(0x30);
-                                            data_tx.push(cfg.block_size);
-                                            data_tx.push(cfg.st_min);
-                                            rx_memory.bs = cfg.block_size;
+                                            if rx_memory.receiving {
+                                                data_tx.push(0x32);
+                                            } else {
+                                                data_tx.push(0x30);
+                                                data_tx.push(cfg.block_size);
+                                                data_tx.push(cfg.st_min);
+                                                rx_memory.bs = cfg.block_size;
+                                                rx_memory.add_start_frame(data);
+                                            }
                                             if cfg.pad_frame {
                                                 data_tx.resize(8, 0xCC);
                                             }
-
-                                            rx_memory.frames_received = 0; // Reset the counter
-
+                                            // Send flow control
                                             let (tx, rx) = mpsc::channel::<ChannelResult<()>>();
                                             let f = CanFrame::new(
                                                 default_tx_addr,
                                                 &data_tx,
                                                 cfg.can_use_ext_addr,
                                             );
-                                            let _ = can_msg_sender_isotp
-                                                .send(CanMessage::WriteFrames(0, vec![f], tx));
+                                            let _ = can_msg_sender_isotp.send(CanMessage::WriteFrames(
+                                                0,
+                                                vec![f],
+                                                tx,
+                                            ));
                                             let _ = rx.recv().unwrap();
                                         }
-                                    }
-                                    0x30 => {
-                                        // Flow control
-                                        log::debug!("ISOTP Flow control {data:02X?}");
-                                        tx_memory.on_flow_control(data);
-                                    }
-                                    _ => {
-                                        log::error!("Invalid ISOTP CAN frame! {frame:?}");
+                                        0x20 => {
+                                            // Continuation of multi frame
+                                            log::debug!("ISOTP continue frame {data:02X?}");
+                                            if IsoTpRxAction::SendFC
+                                                == rx_memory.add_continuous_frame(data)
+                                            {
+                                                let mut data_tx: Vec<u8> = vec![];
+                                                data_tx.push(0x30);
+                                                data_tx.push(cfg.block_size);
+                                                data_tx.push(cfg.st_min);
+                                                rx_memory.bs = cfg.block_size;
+                                                if cfg.pad_frame {
+                                                    data_tx.resize(8, 0xCC);
+                                                }
+
+                                                rx_memory.frames_received = 0; // Reset the counter
+
+                                                let (tx, rx) = mpsc::channel::<ChannelResult<()>>();
+                                                let f = CanFrame::new(
+                                                    default_tx_addr,
+                                                    &data_tx,
+                                                    cfg.can_use_ext_addr,
+                                                );
+                                                let _ = can_msg_sender_isotp
+                                                    .send(CanMessage::WriteFrames(0, vec![f], tx));
+                                                let _ = rx.recv().unwrap();
+                                            }
+                                        }
+                                        0x30 => {
+                                            // Flow control
+                                            log::debug!("ISOTP Flow control {data:02X?}");
+                                            tx_memory.on_flow_control(data);
+                                        }
+                                        _ => {
+                                            log::error!("Invalid ISOTP CAN frame! {frame:?}");
+                                        }
                                     }
                                 }
-                            }
-                            None => {
-                                log::error!("ISOTP CAN frame too short! {frame:?}");
+                                None => {
+                                    log::error!("ISOTP CAN frame too short! {frame:?}");
+                                }
                             }
                         }
                     }
-                }
-                // Check for Rx status
-                if bg_rx_receiver.is_some() {
-                    if rx_memory.completed {
-                        // Done!
-                        let _ = bg_rx_receiver
-                            .take()
-                            .unwrap()
-                            .send(Ok(rx_memory.data.clone()));
-                        rx_memory.reset();
-                    } else if rx_memory.last_rx_time.elapsed().as_millis() >= rx_timeout as u128 {
-                        let _ = bg_rx_receiver
-                            .take()
-                            .unwrap()
-                            .send(Err(ChannelError::ReadTimeout));
-                        rx_memory.reset();
+                    // Check for Rx status
+                    if bg_rx_receiver.is_some() {
+                        if rx_memory.completed {
+                            // Done!
+                            let _ = bg_rx_receiver
+                                .take()
+                                .unwrap()
+                                .send(Ok(rx_memory.data.clone()));
+                            rx_memory.reset();
+                        } else if rx_memory.last_rx_time.elapsed().as_millis() >= rx_timeout as u128 {
+                            let _ = bg_rx_receiver
+                                .take()
+                                .unwrap()
+                                .send(Err(ChannelError::ReadTimeout));
+                            rx_memory.reset();
+                        }
                     }
-                }
 
-                if tx_memory.transmitting {
-                    if let Some(action_res) =
-                        tx_memory.on_update(tx_timeout, isotp_settings.unwrap().pad_frame)
-                    {
-                        match action_res {
-                            Ok(to_tx) => {
-                                let cf = CanFrame::new(
-                                    tx_memory.addr,
-                                    &to_tx,
-                                    isotp_settings.unwrap().can_use_ext_addr,
-                                );
-                                let (tx, rx) = mpsc::channel::<ChannelResult<()>>();
-                                let _ = can_msg_sender_isotp.send(CanMessage::WriteFrames(
-                                    0,
-                                    vec![cf],
-                                    tx,
-                                ));
-                                if let Err(e) = rx.recv().unwrap() {
+                    if tx_memory.transmitting {
+                        if let Some(action_res) =
+                            tx_memory.on_update(tx_timeout, isotp_settings.unwrap().pad_frame)
+                        {
+                            match action_res {
+                                Ok(to_tx) => {
+                                    let cf = CanFrame::new(
+                                        tx_memory.addr,
+                                        &to_tx,
+                                        isotp_settings.unwrap().can_use_ext_addr,
+                                    );
+                                    let (tx, rx) = mpsc::channel::<ChannelResult<()>>();
+                                    let _ = can_msg_sender_isotp.send(CanMessage::WriteFrames(
+                                        0,
+                                        vec![cf],
+                                        tx,
+                                    ));
+                                    if let Err(e) = rx.recv().unwrap() {
+                                        if let Some(x) = bg_tx_receiver.take() {
+                                            let _ = x.send(Err(e));
+                                        }
+                                        tx_memory.reset();
+                                    } else if tx_memory.completed {
+                                        if let Some(x) = bg_tx_receiver.take() {
+                                            let _ = x.send(Ok(()));
+                                        }
+                                        tx_memory.reset();
+                                    }
+                                }
+                                Err(e) => {
                                     if let Some(x) = bg_tx_receiver.take() {
                                         let _ = x.send(Err(e));
                                     }
                                     tx_memory.reset();
-                                } else if tx_memory.completed {
-                                    if let Some(x) = bg_tx_receiver.take() {
-                                        let _ = x.send(Ok(()));
-                                    }
-                                    tx_memory.reset();
                                 }
-                            }
-                            Err(e) => {
-                                if let Some(x) = bg_tx_receiver.take() {
-                                    let _ = x.send(Err(e));
-                                }
-                                tx_memory.reset();
                             }
                         }
                     }
+                } else {
+                    tx_memory.reset();
+                    let _ = bg_rx_receiver.take();
+                    let _ = bg_tx_receiver.take();
+                    std::thread::sleep(Duration::from_millis(10));
                 }
             }
         });
@@ -592,18 +599,33 @@ impl SoftwareIsoTpChannel {
                 if let Ok(msg) = can_msg_receiver.try_recv() {
                     match msg {
                         CanMessage::Open(resp_sender) => {
-                            let res = channel.open();
-                            if res.is_ok() {
-                                can_open.store(true, Ordering::Relaxed);
+                            let curr_users = can_open_users_c.load(Ordering::Relaxed);
+                            if curr_users == 0 {
+                                let res = channel.open();
+                                if res.is_ok() {
+                                    can_open_users_c.fetch_add(1, Ordering::Relaxed);
+                                }
+                                let _ = resp_sender.send(res);
+                            } else {
+                                // Already open
+                                can_open_users_c.fetch_add(1, Ordering::Relaxed);
+                                let _ = resp_sender.send(Ok(()));
                             }
-                            let _ = resp_sender.send(res);
                         }
                         CanMessage::Close(resp_sender) => {
-                            let res = channel.close();
-                            if res.is_ok() {
-                                can_open.store(false, Ordering::Relaxed);
+                            let curr_users = can_open_users_c.load(Ordering::Relaxed);
+                            if curr_users == 0 {
+                                resp_sender.send(Ok(()));
+                            } else if curr_users == 1 {
+                                let res = channel.close();
+                                if res.is_ok() {
+                                    can_open_users_c.fetch_sub(1, Ordering::Relaxed);
+                                }
+                                resp_sender.send(res);
+                            } else {
+                                can_open_users_c.fetch_sub(1, Ordering::Relaxed);
+                                resp_sender.send(Ok(()));
                             }
-                            let _ = resp_sender.send(res);
                         }
                         CanMessage::Configure(baud, ext, resp_sender) => {
                             // If configurations are the same, then we can allow this
@@ -613,7 +635,7 @@ impl SoftwareIsoTpChannel {
                                     continue;
                                 }
                             }
-                            let _ = if can_open.load(Ordering::Relaxed) {
+                            if can_open_users_c.load(Ordering::Relaxed) > 0 {
                                 resp_sender.send(Err(ChannelError::ConfigurationError))
                             } else {
                                 let res = channel.set_can_cfg(baud, ext);
@@ -654,23 +676,19 @@ impl SoftwareIsoTpChannel {
                         }
                     }
                 }
-                if can_open.load(Ordering::Relaxed) {
-                    if let Ok(packets) = channel.read_packets(100, 0) {
+                if can_open_users_c.load(Ordering::Relaxed) != 0 {
+                    if let Ok(packets) = channel.read_packets(1000, 0) {
                         let read_id = isotp_list_id_c.load(Ordering::Relaxed);
-                        for frame in packets {
+                        for frame in &packets {
                             if read_id == frame.get_address() {
-                                let _ = can_to_isotp_rx_frame_tx.send(frame);
+                                let _ = can_to_isotp_rx_frame_tx.send(*frame);
                             }
-                            can_queue.push_back(frame);
                         }
+                        can_queue.extend(packets);
                     }
                     if is_reading {
-                        while let Some(f) = can_queue.pop_front() {
-                            res_read.push(f);
-                            if res_read.len() == reading_length {
-                                break;
-                            }
-                        }
+                        let max = min(can_queue.len(), reading_length - res_read.len());
+                        res_read.extend(can_queue.drain(0..max).collect::<Vec<CanFrame>>());
                         if reading_length == res_read.len() {
                             // Target length reached
                             let _ = sender_read_res.take().unwrap().send(Ok(res_read.clone()));
@@ -683,6 +701,9 @@ impl SoftwareIsoTpChannel {
                                 .send(Err(ChannelError::ReadTimeout));
                             is_reading = false;
                         }
+                    }
+                    while can_queue.len() > rx_fifo_limit {
+                        let _ = can_queue.pop_front();
                     }
                 } else {
                     std::thread::sleep(Duration::from_millis(10));
