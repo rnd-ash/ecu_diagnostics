@@ -509,9 +509,8 @@ impl DynamicDiagSession {
                                 current_session_mode = protocol.get_basic_session_mode();
                                 *noti_session_mode_t.write().unwrap() =
                                     current_session_mode.clone();
-                            } else {
-                                last_tp_time = Instant::now(); // OK, reset the timer
                             }
+                            last_tp_time = Instant::now(); // Reset the timer
                         }
                     }
                 }
