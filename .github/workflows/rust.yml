@@ -24,3 +24,50 @@ jobs:
       run: cargo test --verbose
     - name: Build examples
       run: cargo build --examples --verbose
+
+  # The job above builds and tests the default feature set, so a feature
+  # outside it could stop compiling, and tests behind it could stop running,
+  # without anything noticing. Build and test each one. No entry for the empty
+  # feature set: the job above already builds that.
+  features:
+
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "passthru", os: ubuntu-latest, args: "--no-default-features --features passthru" }
+          - { name: "socketcan", os: ubuntu-latest, args: "--no-default-features --features socketcan" }
+          - { name: "slcan", os: ubuntu-latest, args: "--no-default-features --features slcan" }
+          - { name: "serde", os: ubuntu-latest, args: "--no-default-features --features serde" }
+          - { name: "pcan-usb", os: ubuntu-latest, args: "--no-default-features --features pcan-usb" }
+          # pcan-usb is a Windows driver, so build it on its real target too
+          - { name: "pcan-usb (windows)", os: windows-latest, args: "--no-default-features --features pcan-usb" }
+          - { name: "all features", os: ubuntu-latest, args: "--all-features" }
+
+    steps:
+    - uses: actions/checkout@v7
+    - name: Build
+      run: cargo build --verbose ${{ matrix.args }}
+    - name: Test
+      run: cargo test --lib --verbose ${{ matrix.args }}
+
+  # `lib.rs` denies a list of lints, one of which is a clippy lint, but no job
+  # ran clippy, so `cargo clippy` exited 101 on a clean checkout. This job runs
+  # it, so the deny list is checked on every change.
+  #
+  # Deliberately not `-- -D warnings`. The crate carries dozens of pre-existing
+  # warnings, and failing the build on them would make this job a demand to
+  # clean all of them rather than a guard on the deny list the crate already
+  # chose. This fails on exactly what the crate says is not allowed.
+  clippy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+    - run: rustup component add clippy
+    - name: Clippy
+      run: cargo clippy --all-targets --all-features --verbose

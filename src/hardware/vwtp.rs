@@ -463,7 +463,7 @@ impl<T: VwApplicationProtocol> PayloadChannel for VwTransport2Channel<T> {
                     let bs = data[1];
                     let ack_timeout = decode_timing_byte(data[2]);
                     let st_min = decode_timing_byte(data[4]);
-                    log::debug!("ECU configuration reply: BS: {}, Ack timeout: {:?}, ST_MIN: {:?}", bs, ack_timeout, st_min);
+                    log::debug!("ECU configuration reply: BS: {bs}, Ack timeout: {ack_timeout:?}, ST_MIN: {st_min:?}");
                     self.start_background_thread(bs, ack_timeout, st_min, self.settings);
                     Ok(())
                 } else {
