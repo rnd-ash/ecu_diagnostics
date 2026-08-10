@@ -68,7 +68,7 @@ impl<'a> Service01<'a> {
 }
 
 #[cfg(test)]
-pub mod service_09_test {
+mod service_09_test {
     use crate::obd2::units::{ObdUnitType, ObdValue};
     use crate::DiagServerResult;
 

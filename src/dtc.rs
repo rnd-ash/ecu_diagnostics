@@ -110,11 +110,11 @@ impl DTC {
 }
 
 #[cfg(test)]
-pub mod test {
+mod test {
     use super::DTC;
 
     #[test]
-    pub fn test_dtc_parse_raw() {
+    fn test_dtc_parse_raw() {
         let iso15031_6_dtc = DTC {
             format: super::DTCFormatType::Iso15031_6,
             raw: 8276,
