@@ -13,6 +13,22 @@ use self::{lib_funcs::PCanDrv, pcan_types::{PcanUSB, PCANBaud}};
 
 use super::{HardwareInfo, HardwareScanner, Hardware, HardwareError, HardwareResult};
 
+// Win32 type aliases used by the PCAN-Basic ABI. Their widths are fixed by that
+// ABI, so they are spelled out here rather than pulled from a platform crate.
+// Note none of these may be replaced with the matching `std::ffi` alias: those
+// track the *host* C ABI, which differs. `c_ulong` is 64 bits on unix, and
+// `c_char` is unsigned on aarch64/arm linux, whereas Win32 `CHAR` is always
+// signed.
+
+/// Win32 `WORD`.
+pub (crate) type WORD = u16;
+
+/// Win32 `DWORD`.
+pub (crate) type DWORD = u32;
+
+/// Win32 `LPSTR`.
+pub (crate) type LPSTR = *mut i8;
+
 #[derive(Debug, Clone)]
 /// Can Mode
 enum CanMode {

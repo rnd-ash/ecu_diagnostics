@@ -1,6 +1,5 @@
 use libloading::Library;
-use winapi::shared::minwindef::{WORD, DWORD};
-use winapi::um::winnt::LPSTR;
+use super::{WORD, DWORD, LPSTR};
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::path::Path;
@@ -141,6 +140,24 @@ impl fmt::Debug for PCanDrv {
 
 impl PCanDrv {
     pub fn load_lib() -> HardwareResult<PCanDrv> {
+        // The driver is only distributed as a Windows DLL, and the paths below
+        // are Windows-only. The feature still compiles everywhere so that
+        // docs.rs can document it, so reject other targets with a message that
+        // says why, rather than letting `Library::new` report a missing file.
+        if !cfg!(windows) {
+            return Err(HardwareError::APIError {
+                // 99 is what this crate already reports for a driver that could
+                // not be loaded: see the From<libloading::Error> impl in
+                // hardware/mod.rs. It must not be 0, which the PCAN API uses for
+                // success and check_pcan_func_result maps to Ok.
+                code: 99,
+                desc: "The pcan-usb feature requires Windows, because PCAN-Basic \
+                       is only distributed as a Windows DLL. On Linux, use a \
+                       PCAN-USB adapter via the native SocketCAN driver instead."
+                    .into(),
+            });
+        }
+
         let path: &'static str = if cfg!(target_pointer_width="32") {
             match Path::new("C:\\Program Files (x86)\\").exists() {
                 true => "C:\\Windows\\SysWOW64\\PCANBasic.dll", // 64bit
@@ -275,5 +292,35 @@ impl PCanDrv {
         unsafe { (self.write_fn)(handle as u16, &mut can_msg) }
         ).map_err(|e| HardwareError::from(e))?;
         Ok(())
+    }
+}
+
+#[cfg(all(test, not(windows)))]
+mod tests {
+    use super::PCanDrv;
+    use crate::hardware::HardwareError;
+
+    /// The PCAN-Basic driver ships as a Windows DLL. The feature still compiles
+    /// on other targets so docs.rs can document it, so loading has to fail with
+    /// a message naming the real reason.
+    #[test]
+    fn load_lib_reports_unsupported_platform() {
+        let err = PCanDrv::load_lib().expect_err("PCAN-Basic cannot load off Windows");
+
+        let HardwareError::APIError { desc, .. } = err else {
+            panic!("expected an APIError naming the platform, got {err:?}");
+        };
+        assert!(
+            desc.contains("Windows"),
+            "error should say the feature needs Windows, got: {desc}"
+        );
+        assert!(
+            !desc.contains(".dll"),
+            "error should not surface a DLL path on a non-Windows host, got: {desc}"
+        );
+        assert!(
+            desc.contains("DLL"),
+            "error should give the reason, not just the verdict, got: {desc}"
+        );
     }
 }
