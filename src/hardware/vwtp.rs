@@ -58,7 +58,7 @@ impl VwApplicationProtocol for VwDiagnosticApplication {
         if data.len() < 2 {
             Err(ChannelError::BufferEmpty)
         } else {
-            let desired_len = u16::from_be_bytes(data[..2].try_into().unwrap()) as usize;
+            let desired_len = u16::from_be_bytes(data[..2].try_into().unwrap()) as usize & 0xFFF; // only 24 bits wide
             if data.len() - 2 != desired_len {
                 Err(ChannelError::Other(format!(
                     "Expected {} bytes, actually received {} bytes",
