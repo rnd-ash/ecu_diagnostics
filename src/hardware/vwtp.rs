@@ -214,82 +214,12 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
             log::debug!("Keep alive thread started");
             let mut state = ThreadState::Idle;
             let keep_alive = CanFrame::new(tx_id as u32, &[0xA3], false);
-            let mut last_ping = Instant::now();
             let mut tx_packet_id = 0u8;
+            let mut last_ping_time = Instant::now();
             let mut last_tx_time = Instant::now();
-
-            // Tx data stuff
+            let mut test_start_time: Option<Instant> = None;
 
             while is_running_t.load(std::sync::atomic::Ordering::Relaxed) {
-                if state == ThreadState::Idle {
-                    if last_ping.elapsed().as_millis() > 1000 {
-                        log::debug!("Channel ping");
-                        let _ = can.write_packets(vec![keep_alive.clone()], 0);
-                        last_ping = Instant::now();
-                        last_tx_time = Instant::now();
-                    } else if let Ok(to_write) = rx_write.try_recv() {
-                        log::debug!("To send: {to_write:02X?}");
-                        state = ThreadState::TxInProgress {
-                            data: to_write,
-                            pos: 0,
-                            tx_count: 0,
-                        };
-                    }
-                }
-
-                if let ThreadState::TxInProgress {
-                    data,
-                    pos,
-                    tx_count,
-                } = &mut state
-                    && (last_tx_time.elapsed() >= inter_packet_ms)
-                {
-                    last_ping = Instant::now(); // Prevent pinging
-
-                    let left = &data[*pos..];
-                    let mut final_packet = false;
-                    let mut frame_data = if left.len() <= 7 {
-                        final_packet = true;
-                        let mut v = vec![0x10 | tx_packet_id];
-                        v.extend_from_slice(&left);
-                        v
-                    } else {
-                        let mut v = vec![0x20 | tx_packet_id];
-                        // Always full packet
-                        v.extend_from_slice(&left[..7]);
-                        v
-                    };
-                    if !final_packet {
-                        *pos += 7;
-                        *tx_count += 1;
-                        last_tx_time = Instant::now();
-
-                        if *tx_count >= bs as usize {
-                            // Tell ECU waiting for ACK
-                            frame_data[0] = 0x00 | tx_packet_id;
-                            state = ThreadState::WaitForTxAck {
-                                ack_timer: Instant::now(),
-                                expected_packet_id: next_packet_id(tx_packet_id),
-                                continued_data: Some((data.clone(), *pos)),
-                            }
-                        }
-                    } else {
-                        state = ThreadState::WaitForTxAck {
-                            ack_timer: Instant::now(),
-                            expected_packet_id: next_packet_id(tx_packet_id),
-                            continued_data: None,
-                        }
-                    }
-                    tx_packet_id = next_packet_id(tx_packet_id);
-                    let frame = CanFrame::new(tx_id as u32, &frame_data, false);
-                    if let Err(e) = can.write_packets(vec![frame], 0) {
-                        state = ThreadState::Idle;
-                        let _ = tx_write_resp.send(Err(e));
-                    } else {
-                        last_tx_time = Instant::now();
-                    }
-                }
-
                 let recorded_packets = { can.read_packets(1000, 0).unwrap_or_default() };
 
                 let mut activity = false;
@@ -298,7 +228,7 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
                     .filter(|x| x.get_address() == rx_id as u32)
                 {
                     activity = true;
-                    last_ping = Instant::now();
+                    last_tx_time = Instant::now();
                     let data = packet.get_data();
                     let packet_id = data[0] & 0x0F;
                     log::debug!("Incomming data from ECU: {data:02X?}");
@@ -386,6 +316,7 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
                                 bs = data[1];
                                 ack_timeout = decode_timing_byte(data[2]);
                                 inter_packet_ms = decode_timing_byte(data[4]);
+                                test_start_time = None;
                                 log::debug!(
                                     "Timing settings updated: BS: {bs}, ACK Timeout: {ack_timeout:?}, ST_MIN: {inter_packet_ms:?}"
                                 )
@@ -416,9 +347,83 @@ impl<T: VwApplicationProtocol> VwTransport2Channel<T> {
                     }
                 }
 
+                if let ThreadState::TxInProgress {
+                    data,
+                    pos,
+                    tx_count,
+                } = &mut state
+                    && (last_tx_time.elapsed() >= inter_packet_ms)
+                {
+                    let left = &data[*pos..];
+                    let mut final_packet = false;
+                    let mut frame_data = if left.len() <= 7 {
+                        final_packet = true;
+                        let mut v = vec![0x10 | tx_packet_id];
+                        v.extend_from_slice(&left);
+                        v
+                    } else {
+                        let mut v = vec![0x20 | tx_packet_id];
+                        // Always full packet
+                        v.extend_from_slice(&left[..7]);
+                        v
+                    };
+                    if !final_packet {
+                        *pos += 7;
+                        *tx_count += 1;
+                        last_tx_time = Instant::now();
+
+                        if *tx_count >= bs as usize {
+                            // Tell ECU waiting for ACK
+                            frame_data[0] = 0x00 | tx_packet_id;
+                            state = ThreadState::WaitForTxAck {
+                                ack_timer: Instant::now(),
+                                expected_packet_id: next_packet_id(tx_packet_id),
+                                continued_data: Some((data.clone(), *pos)),
+                            }
+                        }
+                    } else {
+                        state = ThreadState::WaitForTxAck {
+                            ack_timer: Instant::now(),
+                            expected_packet_id: next_packet_id(tx_packet_id),
+                            continued_data: None,
+                        }
+                    }
+                    tx_packet_id = next_packet_id(tx_packet_id);
+                    let frame = CanFrame::new(tx_id as u32, &frame_data, false);
+                    if let Err(e) = can.write_packets(vec![frame], 0) {
+                        state = ThreadState::Idle;
+                        let _ = tx_write_resp.send(Err(e));
+                    } else {
+                        last_tx_time = Instant::now();
+                    }
+                }
+
                 if tx_packet_id >= 0x10 {
                     tx_packet_id = 0x00;
                 }
+
+                // Handle Pinging after Tx/Rx data
+                if state == ThreadState::Idle {
+                    if last_ping_time.elapsed().as_millis() > 1000 {
+                        log::debug!("Channel ping");
+                        let _ = can.write_packets(vec![keep_alive.clone()], 0);
+                        last_ping_time = Instant::now();
+                        test_start_time = Some(Instant::now());
+                    } else if let Some(test_wait_time) = test_start_time {
+                        if test_wait_time.elapsed().as_millis() > 5000 {
+                            log::error!("Timeout waiting for channel Ping resp, terminating");
+                            test_start_time = None;
+                        }
+                    } else if let Ok(to_write) = rx_write.try_recv() {
+                        log::debug!("To send: {to_write:02X?}");
+                        state = ThreadState::TxInProgress {
+                            data: to_write,
+                            pos: 0,
+                            tx_count: 0,
+                        };
+                    }
+                }
+
                 if !activity {
                     std::thread::sleep(Duration::from_millis(10));
                 }
