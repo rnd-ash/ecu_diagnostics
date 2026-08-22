@@ -10,12 +10,19 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # `slcan` is a default feature, it pulls in `serialport`, and `serialport`
+  # needs `libudev` on Linux, which the runner image does not carry. So
+  # `cargo build` on the default feature set has been failing here on every
+  # push, and the missing package is the whole reason. Installing it is what
+  # makes the rest of this file mean anything.
   build:
 
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v7
+    - name: Install libudev
+      run: sudo apt-get update && sudo apt-get install -y libudev-dev
     - name: Build No Features
       run: cargo build --verbose --no-default-features
     - name: Build
@@ -49,6 +56,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+    - name: Install libudev
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y libudev-dev
     - name: Build
       run: cargo build --verbose ${{ matrix.args }}
     - name: Test
@@ -68,6 +78,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+    - name: Install libudev
+      run: sudo apt-get update && sudo apt-get install -y libudev-dev
     - run: rustup component add clippy
     - name: Clippy
       run: cargo clippy --all-targets --all-features --verbose
